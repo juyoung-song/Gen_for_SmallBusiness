@@ -1,0 +1,21 @@
+# === UI ===
+streamlit>=1.30
+
+# === AI ===
+openai>=1.40
+
+# === 설정 · 검증 ===
+pydantic>=2.0
+pydantic-settings>=2.0
+python-dotenv>=1.0
+
+# === 데이터베이스 (추가됨) ===
+sqlalchemy[asyncio]>=2.0
+aiosqlite>=0.19
+greenlet>=3.0.0
+
+# === 이미지 처리 ===
+Pillow>=10.0
+
+# === HTTP 클라이언트 (이미지 다운로드용) ===
+httpx>=0.25
