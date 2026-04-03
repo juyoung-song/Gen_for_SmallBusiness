@@ -219,7 +219,7 @@ def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, c
                 </div>
             """, unsafe_allow_html=True)
             
-            st.image(image_bytes, use_container_width=True)
+            st.image(image_bytes, width="stretch")
             
             html_caption = current_caption.replace('\n', '<br>')
             st.markdown(f"""
@@ -241,7 +241,7 @@ def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, c
             edited_tags = st.text_area("🏷️ 검색용 태그 (#)", value=caption_data.hashtags, height=80, key=tag_key)
             
             st.info("💡 글 내용이 모두 맘에 든다면, 아래 버튼을 눌러 우리 가게 인스타그램에 바로 올려보세요!")
-            if st.button("🚀 내 인스타그램에 바로 올리기", type="primary", use_container_width=True, key=f"upload_btn_{key_suffix}"):
+            if st.button("🚀 내 인스타그램에 바로 올리기", type="primary", width="stretch", key=f"upload_btn_{key_suffix}"):
                 from services.instagram_service import InstagramService
                 ig_svc = InstagramService(settings)
                 
@@ -293,7 +293,7 @@ def render_instagram_story_preview_and_upload(product_name: str, image_bytes: by
                 key=story_copy_key
             )
             
-            if st.button("✨ 선택한 문구로 스토리 이미지 만들기", use_container_width=True):
+            if st.button("✨ 선택한 문구로 스토리 이미지 만들기", width="stretch"):
                 from services.image_service import ImageService
                 img_svc = ImageService(settings)
                 with st.spinner("9:16 포맷으로 예쁘게 합성 중입니다..."):
@@ -316,14 +316,14 @@ def render_instagram_story_preview_and_upload(product_name: str, image_bytes: by
                     </div>
                 """, unsafe_allow_html=True)
                 
-                st.image(st.session_state.story_result, use_container_width=True)
+                st.image(st.session_state.story_result, width="stretch")
                 st.caption("💡 실제 배경 블러 효과와 텍스트 레이아웃이 적용된 결과입니다.")
         else:
             st.info("왼쪽(혹은 위)에서 문구를 선택하고 버튼을 누르면 미리보기가 생성됩니다.")
 
     if st.session_state.story_result:
         st.write("")
-        if st.button("🚀 위 스토리 바로 올리기", type="primary", use_container_width=True, key=f"story_upload_btn_{key_suffix}"):
+        if st.button("🚀 위 스토리 바로 올리기", type="primary", width="stretch", key=f"story_upload_btn_{key_suffix}"):
             from services.instagram_service import InstagramService
             ig_svc = InstagramService(settings)
             
@@ -480,7 +480,7 @@ with tab_create:
     
     # 생성 버튼
     button_disabled = not settings.USE_MOCK and not settings.is_api_ready
-    if st.button("🚀 위 내용으로 똑똑하게 알아서 만들기", use_container_width=True, type="primary", disabled=button_disabled):
+    if st.button("🚀 위 내용으로 똑똑하게 알아서 만들기", width="stretch", type="primary", disabled=button_disabled):
         # 0. 초기화
         st.session_state.text_result = None
         st.session_state.image_result = None
@@ -531,7 +531,7 @@ with tab_create:
         
         col_retry, col_down = st.columns([1, 1])
         with col_retry:
-            if st.button("🔄 이 설정대로 다시 만들기 (재생성)", use_container_width=True):
+            if st.button("🔄 이 설정대로 다시 만들기 (재생성)", width="stretch"):
                 req = st.session_state.last_request
                 st.session_state.text_result = None
                 st.session_state.image_result = None
@@ -569,14 +569,14 @@ with tab_create:
             st.markdown(f"#### 📸 홍보 사진 (선택하신 느낌: **{request_info.get('ui_image_style', request_info.get('image_style', '기본'))}**)")
             col_img, col_info = st.columns([1, 1], gap="large")
             with col_img:
-                st.image(result.get("image_data", b""), use_container_width=True, output_format="PNG")
+                st.image(result.get("image_data", b""), width="stretch", output_format="PNG")
             with col_info:
                 st.markdown("**✔️ 고화질 홍보용 사진이 예쁘게 완성되었습니다.**")
                 st.caption(f"- 사용된 상품명: `{request_info['product_name']}`")
                 with st.expander("🛠️ (참고용) AI가 그림을 그릴 때 사용한 명령어 엿보기"):
                     st.code(result.get("revised_prompt"), language="text")
                 st.success("사진에 오른쪽 클릭을 하거나, 아래 버튼을 눌러 저장할 수 있습니다.")
-                st.download_button("💾 사진 기기에 다운로드 (저장)", data=result.get("image_data", b""), file_name=f"{request_info['product_name']}_홍보사진.png", mime="image/png", use_container_width=True)
+                st.download_button("💾 사진 기기에 다운로드 (저장)", data=result.get("image_data", b""), file_name=f"{request_info['product_name']}_홍보사진.png", mime="image/png", width="stretch")
 
     if st.session_state.get("text_result") and st.session_state.get("image_result"):
         req_info = st.session_state.last_request
@@ -590,7 +590,7 @@ with tab_create:
             col_feed_btn, col_story_btn = st.columns(2)
             
             with col_feed_btn:
-                if st.button("📸 인스타 피드 게시물 만들기", use_container_width=True):
+                if st.button("📸 인스타 피드 게시물 만들기", width="stretch"):
                     from schemas.instagram_schema import CaptionGenerationRequest
                     from services.caption_service import CaptionService
                     with st.spinner("피드용 글과 태그를 정리하고 있어요..."):
@@ -603,7 +603,7 @@ with tab_create:
                             st.error(f"❌ 피드 생성 중 오류: {e}")
 
             with col_story_btn:
-                if st.button("📱 인스타 스토리 만들기", use_container_width=True):
+                if st.button("📱 인스타 스토리 만들기", width="stretch"):
                     # 스토리는 별도의 LLM 호출 없이 기존 text_result의 story_copies를 활용함
                     st.session_state.show_story_ui = True
                     st.session_state.caption_result = None # 피드 UI 닫기
@@ -673,11 +673,11 @@ with tab_archive:
                     with col_i:
                         img_path = res_data.get("image_path")
                         if img_path and os.path.exists(img_path):
-                            st.image(img_path, use_container_width=True)
+                            st.image(img_path, width="stretch")
                         
                     st.divider()
                     
-                    if st.button(f"🪄 이 결과물을 사용해서 다시 인스타그램에 올리기", key=f"gen_cap_{history.id}", use_container_width=True):
+                    if st.button(f"🪄 이 결과물을 사용해서 다시 인스타그램에 올리기", key=f"gen_cap_{history.id}", width="stretch"):
                         from schemas.instagram_schema import CaptionGenerationRequest
                         from services.caption_service import CaptionService
                         with st.spinner("선택하신 홍보물을 싹 모아서 인스타그램용 글 스타일로 새롭게 정리하고 있어요..."):

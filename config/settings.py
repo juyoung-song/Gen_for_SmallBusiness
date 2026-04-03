@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     HUGGINGFACE_API_KEY: str = ""
 
     # ── Instagram Upload Settings ──
-    FREEIMAGE_API_KEY: str = ""
+    IMGBB_API_KEY: str = ""
     META_ACCESS_TOKEN: str = ""
     INSTAGRAM_ACCOUNT_ID: str = ""
 

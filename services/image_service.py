@@ -156,6 +156,7 @@ class ImageService:
             logger.info("번역 완료된 최종 영문 프롬프트: %s", english_image_prompt)
 
             # 2. Hugging Face의 신규 Serverless Inference 라우터 호출
+            # Hugging Face의 권장 최신 Serverless Inference 라우터 호출
             api_url = f"https://router.huggingface.co/hf-inference/models/{self.settings.IMAGE_MODEL}"
             headers = {"Authorization": f"Bearer {self.settings.HUGGINGFACE_API_KEY}"}
             payload = {"inputs": english_image_prompt}
@@ -189,6 +190,10 @@ class ImageService:
             elif e.response.status_code == 503:
                 # HF 추론 엔진 특유의 초기화 딜레이 처리
                 raise ImageServiceError("현재 Hugging Face 모델이 초기 로딩(콜드스타트) 중입니다. 약 10~20초 뒤에 다시 시도해주세요!")
+            if e.response.status_code == 402:
+                raise ImageServiceError("AI 생성 무료 사용량이 초과되었습니다. 잠시 후 시도하거나 유료 계정을 확인해주세요.")
+            if e.response.status_code != 200:
+                raise ImageServiceError(f"이미지 생성이 거부되었습니다 (에러 코드: {e.response.status_code})\n상세: {e.response.text}")
             raise ImageServiceError(f"이미지 생성이 거부되었습니다 (에러 코드: {e.response.status_code})")
         except httpx.TimeoutException:
             logger.error("Hugging Face API 타임아웃")
