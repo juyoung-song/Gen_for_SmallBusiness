@@ -15,4 +15,9 @@ dependencies = [
     "python-dotenv>=1.0",
     "sqlalchemy[asyncio]>=2.0",
     "streamlit>=1.30",
+    # ── Local Model (optional, for USE_LOCAL_MODEL=true) ──
+    "torch>=2.1.0",
+    "diffusers>=0.24.0",
+    "transformers>=4.35.0",
+    "accelerate>=0.24.0",
 ]

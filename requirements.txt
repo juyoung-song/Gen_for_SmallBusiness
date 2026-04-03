@@ -19,3 +19,9 @@ Pillow>=10.0
 
 # === HTTP 클라이언트 (이미지 다운로드용) ===
 httpx>=0.25
+
+# === 로컬 모델 (USE_LOCAL_MODEL=true 시 필요) ===
+torch>=2.1.0
+diffusers>=0.24.0
+transformers>=4.35.0
+accelerate>=0.24.0

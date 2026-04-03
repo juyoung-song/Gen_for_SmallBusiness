@@ -53,6 +53,17 @@ class Settings(BaseSettings):
     MAX_PRODUCT_NAME_LENGTH: int = 50
     MAX_DESCRIPTION_LENGTH: int = 200
 
+    # ── Local Model Settings ──
+    USE_LOCAL_MODEL: bool = False
+    LOCAL_MODEL_CACHE_DIR: str = "./models/cache"
+    LOCAL_SD15_MODEL_ID: str = "runwayml/stable-diffusion-v1-5"
+    LOCAL_IP_ADAPTER_ID: str = "h94/IP-Adapter"
+    LOCAL_IP_ADAPTER_SUBFOLDER: str = "models"
+    LOCAL_IP_ADAPTER_WEIGHT_NAME: str = "ip-adapter_sd15.bin"
+    LOCAL_INFERENCE_STEPS: int = 30
+    LOCAL_GUIDANCE_SCALE: float = 7.5
+    LOCAL_IP_ADAPTER_SCALE: float = 0.6  # 참조 이미지 반영 강도 (0.0~1.0)
+
     @property
     def is_api_ready(self) -> bool:
         """API 모드 사용 가능 여부 확인.
