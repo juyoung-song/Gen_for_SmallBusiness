@@ -35,4 +35,5 @@
 - [x] **F-5** `services/image_service.py` — `_local_response()` 분기 추가, `generate_ad_image()` 수정
 - [x] **F-6** `pyproject.toml` / `requirements.txt` — `diffusers`, `transformers`, `accelerate`, `torch` 추가
 - [x] **F-7** `.env` 로컬 모델 설정 추가 및 import/Settings 로드 검증 완료
-- [ ] **F-8** 패키지 실제 설치 및 첫 추론 실행 검증 (`USE_LOCAL_MODEL=true`, 모델 다운로드 ~2.3GB)
+- [x] **F-8** 패키지 실제 설치 및 첫 추론 실행 검증 — 설치 완료, 런타임 오류 해결 중
+- [ ] **F-9** 참조 이미지 반영 강도 개선 검토 (scale 상향 / SDXL IP-Adapter / ControlNet)

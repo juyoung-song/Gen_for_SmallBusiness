@@ -381,3 +381,20 @@ LOCAL_IP_ADAPTER_SCALE=0.6
 ```
 
 첫 실행 시 모델 자동 다운로드 (~2.3GB). 이후 `./models/cache`에 캐시됨.
+
+---
+
+## 런타임 오류 해결 이력 (2026-04-03)
+
+### 호환성 문제로 인한 버전 고정
+1. **torchvision 누락** → `CLIPImageProcessorPil` fallback이 tuple 반환 → `uv add torchvision>=0.26.0`으로 해결
+2. **transformers 5.x `@can_return_tuple`** → `CLIPVisionModelWithProjection.forward()`가 tuple 반환, diffusers 0.37.1 미대응 → `transformers>=4.44.0,<5.0.0`으로 고정
+3. **diffusers 0.37.1 + transformers 4.x 불일치** → `Dinov2WithRegistersConfig` import 실패 → `diffusers==0.31.0`으로 다운그레이드
+4. **`enable_attention_slicing()` + IP-Adapter 충돌** → IP-Adapter attention processor가 `SlicedAttnProcessor`로 교체되며 `encoder_hidden_states.shape` 오류 → `enable_attention_slicing()` 제거
+
+### 남은 과제: 참조 이미지 반영 강도
+- IP-Adapter scale=0.6 설정이나 생성 결과가 참조 이미지를 충분히 반영하지 않음
+- 개선 옵션:
+  - `LOCAL_IP_ADAPTER_SCALE` 0.8~1.0으로 상향 테스트
+  - `ip-adapter-plus_sd15.bin` (더 강한 스타일 반영) 전환 검토
+  - 장기: SDXL + IP-Adapter SDXL 전환 (품질·반영도 모두 향상)

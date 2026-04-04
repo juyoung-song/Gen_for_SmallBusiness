@@ -158,3 +158,15 @@ mock_instagram_upload.json
 *.jpg
 *.jpeg
 *.db
+
+# Local model cache (HuggingFace weights, large binary files)
+models/cache/
+
+# uv
+.python-version
+
+# Claude
+.claude/
+
+# Excalidraw
+*.excalidraw

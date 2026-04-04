@@ -240,9 +240,10 @@ class ImageService:
                     {
                         "role": "system",
                         "content": (
-                            "Translate and enhance the given Korean description into a "
-                            "highly detailed English prompt for Stable Diffusion. "
-                            "Output ONLY the English prompt, no extra text."
+                            "Translate the given Korean description into a concise English prompt "
+                            "for Stable Diffusion. "
+                            "STRICT LIMIT: output must be under 60 words (comma-separated keywords). "
+                            "Output ONLY the English keywords, no sentences, no extra text."
                         ),
                     },
                     {"role": "user", "content": raw_prompt},

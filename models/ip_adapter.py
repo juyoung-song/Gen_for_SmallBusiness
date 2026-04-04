@@ -70,11 +70,16 @@ class IPAdapterBackend:
             cache_dir=str(cache_dir),
         )
         pipe.set_ip_adapter_scale(self.settings.LOCAL_IP_ADAPTER_SCALE)
-        pipe.enable_attention_slicing()
         logger.info("IP-Adapter 모델 로딩 완료 (scale=%.2f)", self.settings.LOCAL_IP_ADAPTER_SCALE)
 
         self._pipe = pipe
         return self._pipe
+
+    @staticmethod
+    def _truncate_prompt(prompt: str, max_tokens: int = 70) -> str:
+        """CLIP 최대 토큰(77) 이내로 프롬프트를 단어 단위로 자릅니다."""
+        words = prompt.split()
+        return " ".join(words[:max_tokens])
 
     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResponse:
         """참조 이미지 + 텍스트 프롬프트로 이미지 생성."""
@@ -87,10 +92,12 @@ class IPAdapterBackend:
         else:
             logger.warning("image_data 없음 — IP-Adapter가 참조 이미지 없이 실행됩니다.")
 
-        logger.info("IP-Adapter 추론 시작 (steps=%d, prompt=%s...)", self.settings.LOCAL_INFERENCE_STEPS, request.prompt[:60])
+        # CLIP 77토큰 제한 초과 시 tuple 에러 방지
+        safe_prompt = self._truncate_prompt(request.prompt)
+        logger.info("IP-Adapter 추론 시작 (steps=%d, prompt=%s...)", self.settings.LOCAL_INFERENCE_STEPS, safe_prompt[:60])
 
         result = self.pipe(
-            prompt=request.prompt,
+            prompt=safe_prompt,
             ip_adapter_image=ref_image,
             num_inference_steps=self.settings.LOCAL_INFERENCE_STEPS,
             guidance_scale=self.settings.LOCAL_GUIDANCE_SCALE,

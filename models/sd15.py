@@ -61,18 +61,24 @@ class SD15Backend:
             torch_dtype=dtype,
             cache_dir=str(cache_dir),
         ).to(device)
-        pipe.enable_attention_slicing()
         logger.info("SD 1.5 모델 로딩 완료")
 
         self._pipe = pipe
         return self._pipe
 
+    @staticmethod
+    def _truncate_prompt(prompt: str, max_tokens: int = 70) -> str:
+        """CLIP 최대 토큰(77) 이내로 프롬프트를 단어 단위로 자릅니다."""
+        words = prompt.split()
+        return " ".join(words[:max_tokens])
+
     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResponse:
         """텍스트 프롬프트로 이미지 생성."""
-        logger.info("SD 1.5 추론 시작 (steps=%d, prompt=%s...)", self.settings.LOCAL_INFERENCE_STEPS, request.prompt[:60])
+        safe_prompt = self._truncate_prompt(request.prompt)
+        logger.info("SD 1.5 추론 시작 (steps=%d, prompt=%s...)", self.settings.LOCAL_INFERENCE_STEPS, safe_prompt[:60])
 
         result = self.pipe(
-            prompt=request.prompt,
+            prompt=safe_prompt,
             num_inference_steps=self.settings.LOCAL_INFERENCE_STEPS,
             guidance_scale=self.settings.LOCAL_GUIDANCE_SCALE,
         )

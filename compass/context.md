@@ -21,7 +21,7 @@
 ## 주요 발견 사항 요약
 MVP 구조는 전반적으로 양호하나, 보안 취약점 1건, 런타임 버그 1건, 누락된 의존성 1건 등 Critical 이슈 3건이 존재함. Important 이슈 5건, 개선 제안 3건 추가 식별.
 
-## 로컬 이미지 생성 모델 (IP-Adapter 기능 추가 예정)
+## 로컬 이미지 생성 모델 (IP-Adapter + SD 1.5 구현 완료, 런타임 검증 중)
 
 ### 선택 배경
 - 현재 HF Serverless API는 사용자 업로드 사진을 실제로 반영하지 못함 (`has_reference=True` 플래그만 존재, 이미지 픽셀은 미전달)
@@ -36,6 +36,16 @@ MVP 구조는 전반적으로 양호하나, 보안 취약점 1건, 런타임 버
 - `models/` 디렉토리에 모델별 파일 분리 (`sd15.py`, `ip_adapter.py`)
 - `ImageService`는 모델을 직접 알지 못하고 `LocalImageBackend` 인터페이스만 사용
 - 향후 다른 모델 추가 시 `models/` 에 파일 하나만 추가하면 됨
+
+### 버전 확정 (호환성 이슈 해결 후)
+- `diffusers==0.31.0` + `transformers>=4.44.0,<5.0.0` + `torchvision>=0.26.0`
+- transformers 5.x의 `@can_return_tuple` 데코레이터가 CLIPVisionModelWithProjection 반환값을 tuple로 바꿔 diffusers와 충돌 → transformers <5.0.0으로 고정
+- diffusers 0.37.1이 `Dinov2WithRegistersConfig` (transformers 5.x 전용)를 import → diffusers 0.31.0으로 다운그레이드
+- `enable_attention_slicing()`이 IP-Adapter attention processor를 `SlicedAttnProcessor`로 교체 → tuple 오류 발생 → 제거
+
+### 현재 이슈: 참조 이미지 반영 약함
+- IP-Adapter scale=0.6으로 설정되어 있으나, 생성 결과물이 참조 이미지를 예상보다 적게 반영하는 경향
+- 개선 방향 검토 필요 (scale 상향, SDXL IP-Adapter 전환, ControlNet 조합 등)
 
 ---
 
