@@ -37,6 +37,10 @@ class ImageGenerationRequest(BaseModel):
         default=None,
         description="참조용 업로드 이미지",
     )
+    image_prompt_hint: str = Field(
+        default="",
+        description="사용자가 직접 추가한 이미지 프롬프트 힌트 (분위기·소품·색감 등)",
+    )
 
     @field_validator("style")
     @classmethod

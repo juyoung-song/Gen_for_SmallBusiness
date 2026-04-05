@@ -372,15 +372,15 @@ def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
 
-def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_style_name: str, image_data: bytes = None) -> None:
+def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_style_name: str, image_data: bytes = None, image_prompt_hint: str = "") -> None:
     st.session_state.error_message = None
     st.session_state.last_request = {
-        "product_name": name, "description": desc, "goal": goal, "image_style": style_val, "ui_image_style": ui_style_name, 
-        "image_data": image_data, "type": "홍보 사진"
+        "product_name": name, "description": desc, "goal": goal, "image_style": style_val, "ui_image_style": ui_style_name,
+        "image_data": image_data, "image_prompt_hint": image_prompt_hint, "type": "홍보 사진"
     }
     try:
         with st.spinner("🖼️ 상품과 어울리는 예쁜 사진을 그리고 있어요... (약 10~20초 정도 걸립니다)"):
-            request = ImageGenerationRequest(product_name=name, description=desc, goal=goal, style=style_val, image_data=image_data)
+            request = ImageGenerationRequest(product_name=name, description=desc, goal=goal, style=style_val, image_data=image_data, image_prompt_hint=image_prompt_hint)
             response = image_service.generate_ad_image(request)
 
             async def _save():
@@ -391,11 +391,11 @@ def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_st
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
 
-def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, style_val: str, ui_tone_name: str, ui_style_name: str, image_data: bytes = None) -> None:
+def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, style_val: str, ui_tone_name: str, ui_style_name: str, image_data: bytes = None, image_prompt_hint: str = "") -> None:
     st.session_state.error_message = None
     st.session_state.last_request = {
         "product_name": name, "description": desc, "goal": goal, "text_tone": tone_val, "image_style": style_val,
-        "ui_text_tone": ui_tone_name, "ui_image_style": ui_style_name, "image_data": image_data, "type": "글과 사진 세트"
+        "ui_text_tone": ui_tone_name, "ui_image_style": ui_style_name, "image_data": image_data, "image_prompt_hint": image_prompt_hint, "type": "글과 사진 세트"
     }
     
     res_t, res_i = None, None
@@ -407,7 +407,7 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
             
         with st.spinner("🖼️ [2단계] 작성된 글과 어울리는 예쁜 홍보 사진을 알아서 그리고 있어요... (약 10~20초)"):
             hint_copy = res_t.ad_copies[0] if res_t.ad_copies else ""
-            req_i = ImageGenerationRequest(product_name=name, description=desc, goal=goal, style=style_val, prompt=hint_copy, image_data=image_data)
+            req_i = ImageGenerationRequest(product_name=name, description=desc, goal=goal, style=style_val, prompt=hint_copy, image_data=image_data, image_prompt_hint=image_prompt_hint)
             res_i = image_service.generate_ad_image(req_i)
             st.session_state.image_result = res_i.model_dump()
             
@@ -476,6 +476,15 @@ with tab_create:
             if "이미지" in generation_type or "사진" in generation_type:
                 selected_style_ui = st.selectbox("🖼️ 이미지는 어떤 느낌으로 만들어드릴까요? (스타일)", list(STYLE_DISPLAY_MAP.keys()))
 
+        if "이미지" in generation_type or "사진" in generation_type:
+            image_prompt_hint = st.text_input(
+                "🎨 이미지에 넣고 싶은 분위기·소품·색감을 자유롭게 적어주세요 (선택)",
+                placeholder="예: 따뜻한 노을빛, 나무 테이블 위, 빈티지 분위기, 꽃 장식",
+                help="입력하신 내용이 이미지 생성 프롬프트에 직접 반영됩니다.",
+            )
+        else:
+            image_prompt_hint = ""
+
     st.write("")
     
     # 생성 버튼
@@ -513,11 +522,11 @@ with tab_create:
 
         # 2. 로직 분기
         if generation_type == "글 + 이미지 함께 만들기":
-            _run_combined_generation(name, desc_payload, final_ad_purpose, tone_val, style_val, selected_tone_ui, selected_style_ui, image_data)
+            _run_combined_generation(name, desc_payload, final_ad_purpose, tone_val, style_val, selected_tone_ui, selected_style_ui, image_data, image_prompt_hint)
         elif generation_type == "홍보 글만 만들기":
             _run_text_generation(name, desc_payload, final_ad_purpose, tone_val, selected_tone_ui, image_data)
         else: # 이미지만
-            _run_image_generation(name, desc_payload, final_ad_purpose, style_val, selected_style_ui, image_data)
+            _run_image_generation(name, desc_payload, final_ad_purpose, style_val, selected_style_ui, image_data, image_prompt_hint)
             
         st.rerun()
 

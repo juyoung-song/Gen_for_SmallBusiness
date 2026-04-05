@@ -134,7 +134,8 @@ class ImageService:
             style=request.style,
             goal=request.goal,
             ad_copy=request.prompt,
-            has_reference=(request.image_data is not None)
+            has_reference=(request.image_data is not None),
+            extra_hint=request.image_prompt_hint,
         )
 
         try:
@@ -144,8 +145,13 @@ class ImageService:
                 model=self.settings.TEXT_MODEL,
                 messages=[
                     {
-                        "role": "system", 
-                        "content": "You are an expert prompt engineer for Stable Diffusion and FLUX models. Translate and enhance the given Korean description into a highly detailed, comma-separated English prompt suitable for high-quality image generation. Output ONLY the English keywords, with no conversational text."
+                        "role": "system",
+                        "content": (
+                            "You are an expert prompt engineer for Stable Diffusion and FLUX models. "
+                            "Translate the given description into a highly detailed, comma-separated English prompt for high-quality image generation. "
+                            "CRITICAL: If the input contains 'Additional visual hints from user: ...', you MUST faithfully translate and include every element from that section exactly as described — do NOT omit, replace, or reinterpret them. "
+                            "Output ONLY the English keywords, with no conversational text."
+                        )
                     },
                     {"role": "user", "content": raw_image_prompt}
                 ],

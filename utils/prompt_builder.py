@@ -117,9 +117,15 @@ def build_image_prompt(
     style: str,
     goal: str = "일반 홍보",
     ad_copy: str = "",
-    has_reference: bool = False
+    has_reference: bool = False,
+    extra_hint: str = "",
 ) -> str:
-    """상품 정보와 홍보 목적을 포함한 시각적 광고 컨셉이미지 프롬프트를 생성합니다."""
+    """상품 정보와 홍보 목적을 포함한 시각적 광고 컨셉이미지 프롬프트를 생성합니다.
+
+    Args:
+        extra_hint: 사용자가 직접 입력한 분위기·소품·색감 힌트 (선택).
+                    예: "따뜻한 노을빛, 나무 테이블 위, 빈티지 분위기"
+    """
     style_desc = _IMAGE_STYLE_MAP.get(style, _IMAGE_STYLE_MAP["기본"])
 
     # 목적(Goal)에 따른 시각적 연출 가이드
@@ -130,19 +136,21 @@ def build_image_prompt(
         "시즌 홍보": "Seasonal color palette, thematic props matching the season, atmospheric lighting."
     }
     visual_strategy = goal_visual_map.get(goal, "Clean, commercial grade product photography.")
-    
+
     reference_guide = ""
     if has_reference:
         reference_guide = "Respect the composition and color scheme of the provided reference image. Maintain product identity. "
 
+    # 힌트가 있으면 앞쪽에 배치 — CLIP 토큰 한계상 뒤쪽은 잘릴 수 있음
+    hint_clause = f"{extra_hint}, " if extra_hint.strip() else ""
+
     return (
+        f"{hint_clause}"
         f"A professional commercial advertisement visual concept for '{product_name}'. "
         f"{reference_guide}"
         f"Promotional Context: {goal}. "
         f"Visual Strategy: {visual_strategy} "
         f"Style: {style_desc}. "
         f"Inspiration: {ad_copy} {description}. "
-        "The image should clearly reflect the marketing goal. "
-        "Clean composition, high-end product photography, commercial lighting. "
-        "High resolution, cinematic quality, no text on image."
+        "High-end product photography, commercial lighting, no text on image."
     )
