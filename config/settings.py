@@ -62,7 +62,11 @@ class Settings(BaseSettings):
     LOCAL_IP_ADAPTER_WEIGHT_NAME: str = "ip-adapter_sd15.bin"
     LOCAL_INFERENCE_STEPS: int = 30
     LOCAL_GUIDANCE_SCALE: float = 7.5
-    LOCAL_IP_ADAPTER_SCALE: float = 0.6  # 참조 이미지 반영 강도 (0.0~1.0)
+    LOCAL_IP_ADAPTER_SCALE: float = 0.6    # 참조 이미지 반영 강도 (0.0~1.0), IP-Adapter 전용
+    LOCAL_IMG2IMG_STRENGTH: float = 0.5    # img2img 노이즈 강도 (0=원본유지, 1=완전재생성)
+    # 백엔드 선택: "ip_adapter" | "img2img" | "hybrid"
+    # 참조 이미지 없을 때는 항상 sd15(txt2img) 사용
+    LOCAL_BACKEND: str = "ip_adapter"
 
     @property
     def is_api_ready(self) -> bool:

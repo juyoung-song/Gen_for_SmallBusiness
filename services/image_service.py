@@ -255,9 +255,17 @@ class ImageService:
         except Exception as e:
             raise ImageServiceError(f"프롬프트 번역 중 오류가 발생했습니다: {e}")
 
-        # 참조 이미지 유무에 따라 백엔드 선택
+        # 참조 이미지 유무 + LOCAL_BACKEND 설정에 따라 백엔드 선택
         if request.image_data:
-            backend = IPAdapterBackend(self.settings)
+            backend_name = getattr(self.settings, "LOCAL_BACKEND", "ip_adapter")
+            if backend_name == "img2img":
+                from models.img2img import Img2ImgBackend
+                backend = Img2ImgBackend(self.settings)
+            elif backend_name == "hybrid":
+                from models.hybrid import HybridBackend
+                backend = HybridBackend(self.settings)
+            else:  # "ip_adapter" (기본값)
+                backend = IPAdapterBackend(self.settings)
         else:
             backend = SD15Backend(self.settings)
 

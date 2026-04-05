@@ -14,6 +14,7 @@ import streamlit as st
 
 from config.database import init_db
 from config.settings import get_settings, setup_logging
+from ui.sidebar import render_sidebar_settings
 from models.history import GenerationType
 from schemas.history_schema import HistoryCreate
 from schemas.image_schema import ImageGenerationRequest
@@ -121,6 +122,7 @@ div[data-testid="stCodeBlock"] pre code {
 # ══════════════════════════════════════════════
 settings = get_settings()
 setup_logging(settings)
+render_sidebar_settings(settings)
 text_service = TextService(settings)
 image_service = ImageService(settings)
 
