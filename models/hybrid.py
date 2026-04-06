@@ -20,11 +20,51 @@ IP-Adapter scale (0.0~1.0):
 
 import io
 import logging
+from functools import lru_cache
 from pathlib import Path
 
 from schemas.image_schema import ImageGenerationRequest, ImageGenerationResponse
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_device_and_dtype():
+    import torch
+
+    if torch.backends.mps.is_available():
+        return "mps", "float16"
+    if torch.cuda.is_available():
+        return "cuda", "float16"
+    return "cpu", "float32"
+
+
+@lru_cache(maxsize=6)
+def _load_hybrid_pipeline(
+    model_id: str,
+    adapter_id: str,
+    adapter_subfolder: str,
+    adapter_weight_name: str,
+    cache_dir: str,
+    device: str,
+    dtype_name: str,
+):
+    import torch
+    from diffusers import StableDiffusionImg2ImgPipeline
+
+    logger.info("Hybrid 모델 로딩 (device=%s, model=%s)...", device, model_id)
+    pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+        model_id,
+        torch_dtype=getattr(torch, dtype_name),
+        cache_dir=cache_dir,
+    ).to(device)
+    pipe.load_ip_adapter(
+        adapter_id,
+        subfolder=adapter_subfolder,
+        weight_name=adapter_weight_name,
+        cache_dir=cache_dir,
+    )
+    logger.info("Hybrid 모델 로딩 완료 (weight=%s)", adapter_weight_name)
+    return pipe
 
 
 class HybridBackend:
@@ -52,39 +92,18 @@ class HybridBackend:
         if self._pipe is not None:
             return self._pipe
 
-        import torch
-        from diffusers import StableDiffusionImg2ImgPipeline
-
         cache_dir = Path(self.settings.LOCAL_MODEL_CACHE_DIR)
         cache_dir.mkdir(parents=True, exist_ok=True)
-
-        if torch.backends.mps.is_available():
-            device, dtype = "mps", torch.float16
-        elif torch.cuda.is_available():
-            device, dtype = "cuda", torch.float16
-        else:
-            device, dtype = "cpu", torch.float32
-
-        logger.info("Hybrid 모델 로딩 (device=%s, model=%s)...", device, self.settings.LOCAL_SD15_MODEL_ID)
-        pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+        device, dtype_name = _resolve_device_and_dtype()
+        self._pipe = _load_hybrid_pipeline(
             self.settings.LOCAL_SD15_MODEL_ID,
-            torch_dtype=dtype,
-            cache_dir=str(cache_dir),
-        ).to(device)
-
-        pipe.load_ip_adapter(
             self.settings.LOCAL_IP_ADAPTER_ID,
-            subfolder=self.settings.LOCAL_IP_ADAPTER_SUBFOLDER,
-            weight_name=self.settings.LOCAL_IP_ADAPTER_WEIGHT_NAME,
-            cache_dir=str(cache_dir),
+            self.settings.LOCAL_IP_ADAPTER_SUBFOLDER,
+            self.settings.LOCAL_IP_ADAPTER_WEIGHT_NAME,
+            str(cache_dir),
+            device,
+            dtype_name,
         )
-        pipe.set_ip_adapter_scale(self.settings.LOCAL_IP_ADAPTER_SCALE)
-        logger.info(
-            "Hybrid 모델 로딩 완료 (ip_adapter_scale=%.2f)",
-            self.settings.LOCAL_IP_ADAPTER_SCALE,
-        )
-
-        self._pipe = pipe
         return self._pipe
 
     @staticmethod
@@ -105,6 +124,7 @@ class HybridBackend:
 
         safe_prompt = self._truncate_prompt(request.prompt)
         strength = getattr(self.settings, "LOCAL_IMG2IMG_STRENGTH", 0.5)
+        self.pipe.set_ip_adapter_scale(self.settings.LOCAL_IP_ADAPTER_SCALE)
         logger.info(
             "Hybrid 추론 시작 (steps=%d, strength=%.2f, ip_scale=%.2f, prompt=%s...)",
             self.settings.LOCAL_INFERENCE_STEPS,

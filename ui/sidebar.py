@@ -14,9 +14,9 @@ import streamlit as st
 # hybrid:     img2img 베이스 위에 IP-Adapter 스타일 추가.
 #             strength 낮게 + ip_scale 중간으로 시작 권장.
 _BACKEND_DEFAULTS = {
-    "ip_adapter": {"steps": 25, "guidance": 5.0, "ip_scale": 0.9, "strength": None},
-    "img2img":    {"steps": 30, "guidance": 8.0, "ip_scale": None, "strength": 0.4},
-    "hybrid":     {"steps": 30, "guidance": 7.0, "ip_scale": 0.6, "strength": 0.45},
+    "ip_adapter": {"steps": 18, "guidance": 5.0, "ip_scale": 0.9, "strength": None},
+    "img2img":    {"steps": 20, "guidance": 8.0, "ip_scale": None, "strength": 0.4},
+    "hybrid":     {"steps": 20, "guidance": 7.0, "ip_scale": 0.6, "strength": 0.45},
 }
 
 _BACKEND_TIPS = {

@@ -15,6 +15,13 @@
 - Apple Silicon MPS 백엔드 지원, diffusers==0.31.0 + transformers<5.0.0 버전 고정
 - **실행 요건**: `USE_LOCAL_MODEL=true` 시 `torch`, `diffusers`, `transformers`, `accelerate`, `torchvision` 필요 (requirements.txt 참조)
 
+### [local + gcp worker] 공용 VM 이미지 워커 연동
+- `IMAGE_BACKEND=remote` 설정 시 로컬 앱에서 이미지 생성만 GCP VM 워커로 위임
+- `worker_api.py`: FastAPI 기반 이미지 생성 워커 API 추가
+- `services/image_service.py`: remote worker 호출 분기 추가
+- `config/settings.py`: `IMAGE_WORKER_URL`, `IMAGE_WORKER_TOKEN`, `IMAGE_WORKER_TIMEOUT` 등 설정 추가
+- 팀원은 각자 로컬 브랜치에서 앱을 실행하고, 이미지 생성만 공용 VM 한 대를 공유하도록 설계
+
 ## 1. 프로젝트 소개
 마케팅 전담 인력이 부족한 소상공인(1인 사업자, 초기 창업자)을 위해 자체적으로 광고 문구와 이미지를 손쉽게 생성하고, **인스타그램에 바로 자동 업로드까지** 할 수 있는 생성형 AI 서비스입니다. 
 빠른 기획 및 MVP 검증을 목적으로 1인 개발 환경에서 구축되었으며, 입력 화면부터 API 연동, 인스타 피드 포스팅까지 단일 페이지에서 원활하게 동작하도록 구성되었습니다.
@@ -55,6 +62,7 @@
 ```text
 .
 ├── app.py                   # Streamlit 메인 파일 (새로 만들기 / 아카이브 멀티 탭 및 UI 라우팅)
+├── worker_api.py            # GCP VM에서 실행하는 이미지 생성 워커 API
 ├── config/
 │   ├── __init__.py
 │   ├── database.py          # SQLAlchemy 비동기 세션 팩토리 및 DB 초기화
@@ -62,7 +70,11 @@
 ├── models/
 │   ├── __init__.py
 │   ├── base.py              # TimestampMixin을 포함한 ORM 베이스
-│   └── history.py           # 생성 내역 저장을 위한 History 테이블 모델
+│   ├── history.py           # 생성 내역 저장을 위한 History 테이블 모델
+│   ├── sd15.py              # SD 1.5 txt2img 로컬 백엔드
+│   ├── ip_adapter.py        # 참조 이미지 기반 IP-Adapter 백엔드
+│   ├── img2img.py           # 참조 이미지 기반 img2img 백엔드
+│   └── hybrid.py            # IP-Adapter + img2img 하이브리드 백엔드
 ├── schemas/
 │   ├── __init__.py
 │   ├── history_schema.py    # DB 입출력을 위한 히스토리 검증 Pydantic 모델
@@ -72,41 +84,47 @@
 │   ├── __init__.py
 │   ├── instagram_service.py # Meta API 및 FreeImage 연동 업로드 로직
 │   ├── history_service.py   # 비동기 DB 삽입 및 전체 과거 내역 조회 로직
-│   ├── image_service.py     # 영문 1차 번역 후 외부 이미지 생성(Hugging Face) 및 파일 시스템 저장 병합
+│   ├── image_service.py     # Hugging Face / 로컬 diffusers / 원격 워커 분기 포함 이미지 생성 로직
 │   └── text_service.py      # 텍스트 모델(GPT) 통신 로직
+├── ui/
+│   └── sidebar.py           # 로컬 모델 실험용 사이드바 설정 UI
 ├── utils/
 │   ├── __init__.py
 │   └── prompt_builder.py    # 사용자의 입력을 AI가 이해하기 쉬운 System/User 프롬프트로 변환
 ├── docs/                    # PRD, Architecture 등 기획 문서
 ├── .env                     # [Local] 환경 변수 및 보안 키 (Git 제외 대상)
 ├── requirements.txt         # 패키지 의존성 명세
+├── pyproject.toml           # uv 기반 의존성 정의
+├── uv.lock                  # uv lockfile
 └── README.md                # 프로젝트 가이드
 ```
 
-## 6. 실행 방법
+## 6. 실행 방식 개요
+- **로컬 앱 모드**: 각 팀원이 자기 브랜치에서 `app.py`를 실행합니다.
+- **공용 VM 워커 모드**: 이미지 생성만 GCP VM의 `worker_api.py`가 처리합니다.
+- **권장 협업 구조**: 텍스트 생성/화면/UI 실험은 각자 로컬에서 하고, 이미지 생성은 공용 VM 1대를 공유합니다.
+
+## 7. 패키지 설치
 ```bash
-# 1. 가상환경 생성 및 활성화
-python3 -m venv venv
-source venv/bin/activate  # Mac/Linux
-# venv\Scripts\activate   # Windows
+# 1. Python 3.12 가상환경 생성
+uv venv --python 3.12 venv
 
-# 2. 패키지 설치
-pip install -r requirements.txt
+# 2. 활성화
+source venv/bin/activate
 
-# 3. 환경 변수 설정 (다음 7번 항목 참조)
-cp .env.example .env
-
-# 4. 서비스 실행
-streamlit run app.py
+# 3. 패키지 설치
+UV_CACHE_DIR=.uv-cache uv sync
 ```
 
-## 7. 환경 변수 설정
-`.env` 파일을 앱 최상단 경로에 두고 다음과 같이 구성합니다. (동적 변경 시 `streamlit` 서버를 재시작해야 반영됩니다)
+## 8. 환경 변수 설정
+`.env` 파일은 **로컬 앱용**과 **GCP VM 워커용**을 분리해서 관리합니다. 값 변경 후에는 해당 프로세스를 재시작해야 반영됩니다.
+
+### 8-1. 로컬 앱용 `.env`
+팀원 각자의 로컬 저장소에서 사용하는 설정입니다. `IMAGE_BACKEND=remote`를 넣으면 이미지 생성만 GCP VM 워커로 보냅니다.
 
 ```env
 # ── AI API Keys ──
 OPENAI_API_KEY=sk-proj-...  # 발급받은 실제 OpenAI API 키 입력
-HUGGINGFACE_API_KEY=hf_...  # Hugging Face Access Token 입력
 
 # ── Application ──
 APP_ENV=development
@@ -114,10 +132,11 @@ LOG_LEVEL=INFO
 USE_MOCK=false              # false: 실제 AI 모델 호출 / true: 로컬 가상 코드 반환
 
 # ── Model Settings ──
-TEXT_MODEL=gpt-5-mini                         # 사용 텍스트 모델
-IMAGE_MODEL=black-forest-labs/FLUX.1-schnell  # 사용 이미지 모델 (Hugging Face)
-IMAGE_SIZE=1024x1024
-IMAGE_QUALITY=standard
+TEXT_MODEL=gpt-5-mini       # 로컬 텍스트 생성에 사용
+IMAGE_BACKEND=remote        # 이미지 생성은 GCP VM 워커로 위임
+IMAGE_WORKER_URL=http://<STATIC_IP>:8005
+IMAGE_WORKER_TOKEN=<IMAGE_WORKER_TOKEN_PLACEHOLDER>
+IMAGE_WORKER_TIMEOUT=180
 
 # ── Instagram Upload Settings ──
 IMGBB_API_KEY=your-imgbb-key          # (레거시, 사용하지 않음)
@@ -131,19 +150,109 @@ TEXT_TEMPERATURE=0.8
 TEXT_MAX_TOKENS=1000       
 ```
 
-## 8. mock / 실제 API 전환 방법
+### 8-2. GCP VM 워커용 `.env`
+이미지 생성 워커를 띄우는 VM에서 사용하는 설정입니다. **VM 워커에서는 `IMAGE_BACKEND=remote`를 넣지 마세요.** 워커가 자기 자신을 다시 호출하게 됩니다.
+
+#### A. Hugging Face 모델을 VM에서 사용할 때
+```env
+OPENAI_API_KEY=sk-proj-...
+HUGGINGFACE_API_KEY=hf_...
+
+APP_ENV=production
+LOG_LEVEL=INFO
+USE_MOCK=false
+USE_LOCAL_MODEL=false
+
+TEXT_MODEL=gpt-5-mini
+IMAGE_MODEL=black-forest-labs/FLUX.1-schnell
+IMAGE_WORKER_TOKEN=<IMAGE_WORKER_TOKEN_PLACEHOLDER>
+IMAGE_WORKER_HOST=0.0.0.0
+IMAGE_WORKER_PORT=8005
+
+TEXT_TIMEOUT=30
+IMAGE_TIMEOUT=120
+```
+
+#### B. 로컬 diffusers 모델을 VM에서 사용할 때
+```env
+OPENAI_API_KEY=sk-proj-...
+
+APP_ENV=production
+LOG_LEVEL=INFO
+USE_MOCK=false
+USE_LOCAL_MODEL=true
+
+TEXT_MODEL=gpt-5-mini
+LOCAL_BACKEND=ip_adapter   # ip_adapter | img2img | hybrid
+LOCAL_SD15_MODEL_ID=runwayml/stable-diffusion-v1-5
+LOCAL_INFERENCE_STEPS=18
+LOCAL_GUIDANCE_SCALE=7.5
+LOCAL_IP_ADAPTER_SCALE=0.6
+LOCAL_IMG2IMG_STRENGTH=0.5
+
+IMAGE_WORKER_TOKEN=<IMAGE_WORKER_TOKEN_PLACEHOLDER>
+IMAGE_WORKER_HOST=0.0.0.0
+IMAGE_WORKER_PORT=8005
+```
+
+### 8-3. 현재 어떤 모델이 실제로 쓰이는가
+- **로컬 앱**: `TEXT_MODEL`만 직접 사용합니다.
+- **이미지 생성 모델**: `IMAGE_BACKEND=remote`일 때는 **VM 워커의 `.env`**가 결정합니다.
+- VM에서 `USE_LOCAL_MODEL=false`면 `IMAGE_MODEL`이 실제 Hugging Face 모델입니다.
+- VM에서 `USE_LOCAL_MODEL=true`면 `LOCAL_BACKEND`와 `LOCAL_SD15_MODEL_ID` 기반의 diffusers 로컬 모델이 실제로 동작합니다.
+
+## 9. GCP VM 워커 실행
+### 9-1. GCP 방화벽 규칙
+GCP 콘솔에서 아래 값으로 인그레스 방화벽을 생성합니다.
+- 이름: `allow-img-worker-8005`
+- 네트워크: `default`
+- 대상: `지정된 대상 태그`
+- 대상 태그: `image-worker`
+- 소스 IPv4 범위: `0.0.0.0/0` (테스트용)
+- 프로토콜/포트: `TCP:8005`
+
+### 9-2. 워커 실행 명령어
+아래 명령어 블록 하나만 실행하면 됩니다. `IMAGE_WORKER_TOKEN`은 실제 값으로 바꿔서 VM의 `.env`에 넣어두세요.
+
+```bash
+cd /path/to/Gen_for_SmallBusiness
+source venv/bin/activate
+HF_HOME=.hf-cache \
+IMAGE_WORKER_TOKEN=<IMAGE_WORKER_TOKEN_PLACEHOLDER> \
+python worker_api.py
+```
+
+워커 기동 후 상태 확인:
+
+```bash
+curl http://<STATIC_IP>:8005/health
+```
+
+## 10. 로컬 앱 실행
+팀원 각자는 자기 브랜치에서 아래 명령으로 앱을 실행합니다.
+
+```bash
+cd /path/to/Gen_for_SmallBusiness
+source venv/bin/activate
+HF_HOME=.hf-cache streamlit run app.py
+```
+
+## 11. mock / 실제 API 전환 방법
 **Mock 모드 (`USE_MOCK=true`)**
 - 개발 초기 UI/UX 검증용 테스트 모드입니다.
 - `text_service.py`와 `image_service.py` 내부의 하드코딩된 더미 텍스트 묶음과 `Pillow`로 그린 그라데이션 이미지를 즉시 반환합니다.
 - OpenAI API 호출 코스트가 전혀 들지 않으며, 인터넷 연결이나 API Key가 없어도 UI 전체 흐름을 테스트할 수 있습니다.
 
-**실제 API 모드 (`USE_MOCK=false`)**
-- `OPENAI_API_KEY`가 유효한지 사전에 검증하며, 서비스 레이어에서 OpenAI SDK를 통해 HTTP 요청을 수행합니다.
-- 지정된 `TEXT_MODEL`을 통해 창의적인 실제 문장을 생성하고 `IMAGE_MODEL`을 통해 URL에서 렌더링된 썸네일 바이트를 받아옵니다.
+**원격 워커 모드 (`IMAGE_BACKEND=remote`)**
+- 로컬 앱은 이미지 생성을 직접 하지 않고 GCP VM의 `worker_api.py`를 호출합니다.
+- 팀원 각자는 로컬 브랜치를 유지한 채, 공용 VM 한 대를 이미지 생성 서버처럼 공유할 수 있습니다.
+
+**직접 API/로컬 모델 모드**
+- `IMAGE_BACKEND`를 비워두면 `USE_LOCAL_MODEL` 여부에 따라 Hugging Face 또는 diffusers 로컬 추론을 직접 사용합니다.
 - 인스타그램 업로드 버튼 클릭 시, 생성된 이미지를 JPEG 변환 → FreeImage.host 호스팅 → Meta Graph API를 거쳐 실제 인스타그램 피드에 자동 포스팅됩니다.
 - Streamlit 하단 푸터에 "모드: API"로 표시되어 현재 과금 요청 모드인지 명확하게 파악할 수 있습니다.
 
-## 9. 예시 화면 흐름
+## 12. 예시 화면 흐름
 1. **입력 단계**: 사용자가 상품명란에 "수제 마카롱", 상품 설명란에 "프랑스 이즈니 버터와 동물성 생크림을 듬뿍 넣은", 스타일은 "감성"을 선택.
 2. **생성 단계**: 생성 버튼 클릭 시, "텍스트 모델을 생성하고 있습니다 (gpt-4o-mini)" 로딩 표출.
 3. **결과 출출 단계**: 
@@ -151,7 +260,7 @@ TEXT_MAX_TOKENS=1000
    - [📣 홍보 문장 2종] "수제 마카롱이 가장 맛있는 오후 세 시, 따뜻한 커피 한 잔과 곁들여보세요..."
 4. **활용 단계**: 결과물이 적합하다면 `📥 문구 다운로드` 버튼으로 .txt 파일 저장. 톤앤매너 변경을 원하면 다시 옵션을 바꾸거나 `🔄 재생성` 버튼 클릭!
 
-## 10. 향후 개선 방향
+## 13. 향후 개선 방향
 - **문구+이미지 통합 동시 생성**: 현재는 텍스트와 이미지를 별도 생성하지마만, 사용성을 높이기 위해 텍스트 스토리를 배경으로 한 자동 병렬 호출 태스크 구조(async 파이프라인/Celery) 도입.
 - **다국어 글로벌 마케팅 시스템 연동**: 해외 플랫폼(아마존, 엣시, 쇼피) 판매자를 위해, 프롬프트를 영어, 일본어 등으로 파이프라인을 두 번 태워 번역 버전을 제공하는 LLM Chain 업그레이드.
 - **예약 업로드**: 날짜와 시간을 지정하여 예약된 시간에 자동으로 인스타그램에 포스팅하는 기능.

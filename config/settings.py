@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     IMAGE_MODEL: str = "stabilityai/stable-diffusion-xl-base-1.0"
     IMAGE_SIZE: Literal["1024x1024", "1024x1792", "1792x1024"] = "1024x1024"
     IMAGE_QUALITY: Literal["standard", "hd"] = "standard"
+    IMAGE_BACKEND: str = ""
+    IMAGE_WORKER_URL: str = ""
+    IMAGE_WORKER_TOKEN: str = ""
+    IMAGE_WORKER_TIMEOUT: float = 180.0
+    IMAGE_WORKER_HOST: str = "0.0.0.0"
+    IMAGE_WORKER_PORT: int = 8005
 
     # ── API 요청 설정 ──
     TEXT_TIMEOUT: float = 30.0    # GPT 호출 타임아웃 (초)
@@ -60,7 +66,7 @@ class Settings(BaseSettings):
     LOCAL_IP_ADAPTER_ID: str = "h94/IP-Adapter"
     LOCAL_IP_ADAPTER_SUBFOLDER: str = "models"
     LOCAL_IP_ADAPTER_WEIGHT_NAME: str = "ip-adapter_sd15.bin"
-    LOCAL_INFERENCE_STEPS: int = 30
+    LOCAL_INFERENCE_STEPS: int = 18
     LOCAL_GUIDANCE_SCALE: float = 7.5
     LOCAL_IP_ADAPTER_SCALE: float = 0.6    # 참조 이미지 반영 강도 (0.0~1.0), IP-Adapter 전용
     LOCAL_IMG2IMG_STRENGTH: float = 0.5    # img2img 노이즈 강도 (0=원본유지, 1=완전재생성)
@@ -87,6 +93,11 @@ class Settings(BaseSettings):
             not self.USE_MOCK
             and bool(self.HUGGINGFACE_API_KEY)
         )
+
+    @property
+    def is_image_worker_ready(self) -> bool:
+        """원격 이미지 워커 준비 여부"""
+        return bool(self.IMAGE_WORKER_URL and self.IMAGE_WORKER_TOKEN)
 
     @property
     def is_instagram_ready(self) -> bool:

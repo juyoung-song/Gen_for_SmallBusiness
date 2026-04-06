@@ -10,6 +10,7 @@ architecture.md 6장 전환 전략:
 - USE_MOCK=false → _api_response() (Hugging Face 호출)
 """
 
+import base64
 import io
 import logging
 
@@ -85,6 +86,10 @@ class ImageService:
         if self.settings.USE_MOCK:
             logger.info("Mock 모드: Pillow 이미지 생성 (prompt=%s)", request.prompt[:30])
             return self._mock_response(request)
+
+        if self.settings.IMAGE_BACKEND.lower() == "remote":
+            logger.info("원격 워커 모드: VM 이미지 워커 호출")
+            return self._remote_response(request)
 
         if self.settings.USE_LOCAL_MODEL:
             logger.info("로컬 모델 모드: diffusers 추론 (has_reference=%s)", request.image_data is not None)
@@ -205,6 +210,69 @@ class ImageService:
         except Exception as e:
             logger.error("이미지 생성 예외: %s", e)
             raise ImageServiceError(f"이미지 생성 중 예기치 않은 오류가 발생했습니다: {e}")
+
+    # ──────────────────────────────────────────
+    # 원격 이미지 워커 호출
+    # ──────────────────────────────────────────
+    def _remote_response(
+        self, request: ImageGenerationRequest
+    ) -> ImageGenerationResponse:
+        """원격 VM 이미지 워커를 호출하여 이미지를 생성."""
+        if not self.settings.is_image_worker_ready:
+            raise ImageServiceError(
+                "원격 이미지 워커 설정이 비어 있습니다. "
+                ".env 파일의 IMAGE_WORKER_URL, IMAGE_WORKER_TOKEN을 확인해주세요."
+            )
+
+        api_url = f"{self.settings.IMAGE_WORKER_URL.rstrip('/')}/generate-image"
+        headers = {
+            "Authorization": f"Bearer {self.settings.IMAGE_WORKER_TOKEN}",
+        }
+        payload = {
+            "prompt": request.prompt,
+            "product_name": request.product_name,
+            "description": request.description,
+            "goal": request.goal,
+            "style": request.style,
+            "image_data_b64": (
+                base64.b64encode(request.image_data).decode("utf-8")
+                if request.image_data
+                else None
+            ),
+        }
+
+        try:
+            response = httpx.post(
+                api_url,
+                headers=headers,
+                json=payload,
+                timeout=self.settings.IMAGE_WORKER_TIMEOUT,
+            )
+            response.raise_for_status()
+            data = response.json()
+            image_data_b64 = data.get("image_data_b64", "")
+            if not image_data_b64:
+                raise ImageServiceError("원격 이미지 워커가 이미지를 반환하지 않았습니다.")
+
+            return ImageGenerationResponse(
+                image_data=base64.b64decode(image_data_b64),
+                revised_prompt=data.get("revised_prompt", ""),
+            )
+        except ImageServiceError:
+            raise
+        except httpx.HTTPStatusError as e:
+            detail = e.response.text
+            if e.response.status_code == 401:
+                raise ImageServiceError("원격 이미지 워커 토큰이 유효하지 않습니다.")
+            raise ImageServiceError(
+                f"원격 이미지 워커 호출이 실패했습니다 (에러 코드: {e.response.status_code})\n상세: {detail}"
+            )
+        except httpx.TimeoutException:
+            raise ImageServiceError(
+                f"원격 이미지 워커 응답 시간이 초과되었습니다 ({self.settings.IMAGE_WORKER_TIMEOUT:.0f}초)."
+            )
+        except Exception as e:
+            raise ImageServiceError(f"원격 이미지 워커 호출 중 오류가 발생했습니다: {e}")
 
     # ──────────────────────────────────────────
     # 로컬 diffusers 추론 (SD 1.5 / IP-Adapter)
