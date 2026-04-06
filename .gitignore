@@ -168,3 +168,14 @@ mock_instagram_upload.json
 !crawl_and_analyze/image_crawled/**/*.jpeg
 !crawl_and_analyze/image_crawled/**/brand_analysis.json
 !crawl_and_analyze/image_crawled/**/brand_analysis.md
+# Local model cache (HuggingFace weights, large binary files)
+models/cache/
+
+# uv
+.python-version
+
+# Claude
+.claude/
+
+# Excalidraw
+*.excalidraw

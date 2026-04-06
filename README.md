@@ -2,6 +2,20 @@
 
 ## 변경 이력
 
+### [feature/won/img-reference] 로컬 참조 이미지 기반 이미지 생성 (IP-Adapter + SD 1.5)
+- 사용자 업로드 사진을 실제 이미지 생성에 반영하는 로컬 추론 파이프라인 구현
+- `models/local_backend.py`: `LocalImageBackend` 프로토콜 정의
+- `models/sd15.py`: SD 1.5 txt2img 백엔드 (참조 이미지 없을 때 fallback)
+- `models/ip_adapter.py`: IP-Adapter + SD 1.5 백엔드 (CLIP cross-attention으로 스타일 반영)
+- `models/img2img.py`: SD 1.5 img2img 백엔드 (구도·색감 직접 보존)
+- `models/hybrid.py`: IP-Adapter + img2img 하이브리드 백엔드
+- `ui/sidebar.py`: 사이드바에서 백엔드/파라미터 실시간 조정 UI (백엔드별 추천값 포함)
+- `config/settings.py`: `USE_LOCAL_MODEL`, `LOCAL_BACKEND`, `LOCAL_IMG2IMG_STRENGTH` 등 설정 추가
+- `services/image_service.py`: `LOCAL_BACKEND` 값에 따라 백엔드 동적 선택
+- Apple Silicon MPS 백엔드 지원, diffusers==0.31.0 + transformers<5.0.0 버전 고정
+- **실행 요건**: `USE_LOCAL_MODEL=true` 시 `torch`, `diffusers`, `transformers`, `accelerate`, `torchvision` 필요 (requirements.txt 참조)
+
+
 ### [feature/won/img-analysis] 브랜드 이미지 분석 파이프라인 (실험적)
 - `crawl_and_analyze/` 디렉토리 신설 — 크롤링·분석 독립 실행 스크립트 모음
 - `crawl_and_analyze/image_crawler.py`: Instaloader 기반 공개 인스타그램 계정 이미지 수집기

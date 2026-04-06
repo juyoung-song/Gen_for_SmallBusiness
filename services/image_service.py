@@ -86,6 +86,10 @@ class ImageService:
             logger.info("Mock 모드: Pillow 이미지 생성 (prompt=%s)", request.prompt[:30])
             return self._mock_response(request)
 
+        if self.settings.USE_LOCAL_MODEL:
+            logger.info("로컬 모델 모드: diffusers 추론 (has_reference=%s)", request.image_data is not None)
+            return self._local_response(request)
+
         logger.info("API 모드: Hugging Face 추론 호출 (prompt=%s, model=%s)",
                      request.prompt[:30], self.settings.IMAGE_MODEL)
         return self._api_response(request)
@@ -201,6 +205,83 @@ class ImageService:
         except Exception as e:
             logger.error("이미지 생성 예외: %s", e)
             raise ImageServiceError(f"이미지 생성 중 예기치 않은 오류가 발생했습니다: {e}")
+
+    # ──────────────────────────────────────────
+    # 로컬 diffusers 추론 (SD 1.5 / IP-Adapter)
+    # ──────────────────────────────────────────
+    def _local_response(
+        self, request: ImageGenerationRequest
+    ) -> ImageGenerationResponse:
+        """로컬 diffusers 모델로 이미지 생성.
+
+        참조 이미지 유무에 따라 백엔드를 자동 선택합니다.
+        - image_data 있음 → IPAdapterBackend (참조 이미지 스타일 반영)
+        - image_data 없음 → SD15Backend (순수 txt2img)
+
+        Raises:
+            ImageServiceError: diffusers 미설치 또는 추론 실패 시
+        """
+        from models.ip_adapter import IPAdapterBackend
+        from models.sd15 import SD15Backend
+
+        # GPT로 한글 프롬프트 → 영어 번역
+        raw_prompt = build_image_prompt(
+            product_name=request.product_name,
+            description=request.description,
+            style=request.style,
+            goal=request.goal,
+            ad_copy=request.prompt,
+            has_reference=(request.image_data is not None),
+        )
+        try:
+            translation = self.client.chat.completions.create(
+                model=self.settings.TEXT_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Translate the given Korean description into a concise English prompt "
+                            "for Stable Diffusion. "
+                            "STRICT LIMIT: output must be under 60 words (comma-separated keywords). "
+                            "Output ONLY the English keywords, no sentences, no extra text."
+                        ),
+                    },
+                    {"role": "user", "content": raw_prompt},
+                ],
+                timeout=self.settings.TEXT_TIMEOUT,
+            )
+            english_prompt = translation.choices[0].message.content.strip()
+            logger.info("영문 프롬프트 번역 완료: %s", english_prompt[:80])
+        except Exception as e:
+            raise ImageServiceError(f"프롬프트 번역 중 오류가 발생했습니다: {e}")
+
+        # 참조 이미지 유무 + LOCAL_BACKEND 설정에 따라 백엔드 선택
+        if request.image_data:
+            backend_name = getattr(self.settings, "LOCAL_BACKEND", "ip_adapter")
+            if backend_name == "img2img":
+                from models.img2img import Img2ImgBackend
+                backend = Img2ImgBackend(self.settings)
+            elif backend_name == "hybrid":
+                from models.hybrid import HybridBackend
+                backend = HybridBackend(self.settings)
+            else:  # "ip_adapter" (기본값)
+                backend = IPAdapterBackend(self.settings)
+        else:
+            backend = SD15Backend(self.settings)
+
+        if not backend.is_available():
+            raise ImageServiceError(
+                "로컬 모델 실행에 필요한 패키지가 설치되지 않았습니다. "
+                "다음 명령어로 설치해주세요:\n"
+                "pip install diffusers>=0.24.0 transformers>=4.35.0 accelerate>=0.24.0 torch>=2.1.0"
+            )
+
+        translated_request = request.model_copy(update={"prompt": english_prompt})
+        try:
+            return backend.generate(translated_request)
+        except Exception as e:
+            logger.error("로컬 추론 오류: %s", e)
+            raise ImageServiceError(f"로컬 이미지 생성 중 오류가 발생했습니다: {e}")
 
     def compose_story_image(self, image_bytes: bytes, text: str) -> bytes:
         """Pillow를 사용하여 1:1 광고 이미지를 9:16 스토리 포맷으로 인스타그램 레퍼런스 스타일로 합성합니다."""
