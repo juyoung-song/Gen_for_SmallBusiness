@@ -10,6 +10,66 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from schemas.text_schema import VALID_STYLES
 
 
+VALID_LOCAL_BACKENDS = {"ip_adapter", "img2img", "hybrid"}
+
+
+class ImageInferenceOptions(BaseModel):
+    """요청 단위로 덮어쓸 이미지 추론 설정."""
+
+    use_local_model: bool | None = Field(
+        default=None,
+        description="True면 로컬 diffusers, False면 Hugging Face API 사용",
+    )
+    image_model: str | None = Field(
+        default=None,
+        description="Hugging Face API 모드에서 사용할 모델 ID",
+    )
+    local_sd15_model_id: str | None = Field(
+        default=None,
+        description="로컬 diffusers 모드에서 사용할 베이스 모델 ID",
+    )
+    local_backend: str | None = Field(
+        default=None,
+        description="로컬 diffusers 백엔드 (ip_adapter / img2img / hybrid)",
+    )
+    local_inference_steps: int | None = Field(
+        default=None,
+        ge=1,
+        le=100,
+        description="로컬 diffusers 추론 스텝 수",
+    )
+    local_guidance_scale: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=20.0,
+        description="로컬 diffusers guidance scale",
+    )
+    local_ip_adapter_scale: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="IP-Adapter scale",
+    )
+    local_img2img_strength: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="img2img strength",
+    )
+    local_ip_adapter_weight_name: str | None = Field(
+        default=None,
+        description="IP-Adapter 가중치 파일명",
+    )
+
+    @field_validator("local_backend")
+    @classmethod
+    def validate_backend(cls, value: str | None) -> str | None:
+        """허용된 로컬 백엔드인지 검증."""
+        if value is None:
+            return value
+        return value if value in VALID_LOCAL_BACKENDS else "ip_adapter"
+
+
 class ImageGenerationRequest(BaseModel):
     """광고 이미지 생성 요청."""
 
@@ -36,6 +96,10 @@ class ImageGenerationRequest(BaseModel):
     image_data: bytes | None = Field(
         default=None,
         description="참조용 업로드 이미지",
+    )
+    inference_options: ImageInferenceOptions | None = Field(
+        default=None,
+        description="요청 단위 이미지 모델/추론 파라미터 override",
     )
 
     @field_validator("style")

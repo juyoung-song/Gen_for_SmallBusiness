@@ -17,7 +17,7 @@ from config.settings import get_settings, setup_logging
 from ui.sidebar import render_sidebar_settings
 from models.history import GenerationType
 from schemas.history_schema import HistoryCreate
-from schemas.image_schema import ImageGenerationRequest
+from schemas.image_schema import ImageGenerationRequest, ImageInferenceOptions
 from schemas.text_schema import TextGenerationRequest
 from services.history_service import HistoryService
 from services.image_service import ImageService, ImageServiceError
@@ -140,6 +140,53 @@ def run_async(coro):
         return asyncio.run(coro)
     else:
         return asyncio.run(coro)
+
+
+def _build_current_inference_options() -> ImageInferenceOptions:
+    """현재 사이드바 설정을 이미지 요청용 옵션으로 직렬화한다."""
+    use_local_model = settings.USE_LOCAL_MODEL
+    local_backend = settings.LOCAL_BACKEND if use_local_model else None
+
+    return ImageInferenceOptions(
+        use_local_model=use_local_model,
+        image_model=settings.IMAGE_MODEL if not use_local_model else None,
+        local_sd15_model_id=(
+            settings.LOCAL_SD15_MODEL_ID if use_local_model else None
+        ),
+        local_backend=local_backend,
+        local_inference_steps=(
+            settings.LOCAL_INFERENCE_STEPS if use_local_model else None
+        ),
+        local_guidance_scale=(
+            settings.LOCAL_GUIDANCE_SCALE if use_local_model else None
+        ),
+        local_ip_adapter_scale=(
+            settings.LOCAL_IP_ADAPTER_SCALE
+            if local_backend in {"ip_adapter", "hybrid"}
+            else None
+        ),
+        local_img2img_strength=(
+            settings.LOCAL_IMG2IMG_STRENGTH
+            if local_backend in {"img2img", "hybrid"}
+            else None
+        ),
+        local_ip_adapter_weight_name=(
+            settings.LOCAL_IP_ADAPTER_WEIGHT_NAME
+            if local_backend in {"ip_adapter", "hybrid"}
+            else None
+        ),
+    )
+
+
+def _coerce_inference_options(
+    value: ImageInferenceOptions | dict | None,
+) -> ImageInferenceOptions:
+    """재생성 시 session_state에 저장된 dict를 다시 모델로 복원한다."""
+    if value is None:
+        return _build_current_inference_options()
+    if isinstance(value, ImageInferenceOptions):
+        return value
+    return ImageInferenceOptions.model_validate(value)
 
 # ══════════════════════════════════════════════
 # Session State 초기화 (명확한 분리)
@@ -374,15 +421,33 @@ def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
 
-def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_style_name: str, image_data: bytes = None) -> None:
+def _run_image_generation(
+    name: str,
+    desc: str,
+    goal: str,
+    style_val: str,
+    ui_style_name: str,
+    image_data: bytes = None,
+    inference_options: ImageInferenceOptions | dict | None = None,
+) -> None:
+    inference_options_obj = _coerce_inference_options(inference_options)
     st.session_state.error_message = None
     st.session_state.last_request = {
         "product_name": name, "description": desc, "goal": goal, "image_style": style_val, "ui_image_style": ui_style_name, 
-        "image_data": image_data, "type": "홍보 사진"
+        "image_data": image_data,
+        "type": "홍보 사진",
+        "inference_options": inference_options_obj.model_dump(exclude_none=True),
     }
     try:
         with st.spinner("🖼️ 상품과 어울리는 예쁜 사진을 그리고 있어요... (약 10~20초 정도 걸립니다)"):
-            request = ImageGenerationRequest(product_name=name, description=desc, goal=goal, style=style_val, image_data=image_data)
+            request = ImageGenerationRequest(
+                product_name=name,
+                description=desc,
+                goal=goal,
+                style=style_val,
+                image_data=image_data,
+                inference_options=inference_options_obj,
+            )
             response = image_service.generate_ad_image(request)
 
             async def _save():
@@ -393,11 +458,26 @@ def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_st
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
 
-def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, style_val: str, ui_tone_name: str, ui_style_name: str, image_data: bytes = None) -> None:
+def _run_combined_generation(
+    name: str,
+    desc: str,
+    goal: str,
+    tone_val: str,
+    style_val: str,
+    ui_tone_name: str,
+    ui_style_name: str,
+    image_data: bytes = None,
+    inference_options: ImageInferenceOptions | dict | None = None,
+) -> None:
+    inference_options_obj = _coerce_inference_options(inference_options)
     st.session_state.error_message = None
     st.session_state.last_request = {
         "product_name": name, "description": desc, "goal": goal, "text_tone": tone_val, "image_style": style_val,
-        "ui_text_tone": ui_tone_name, "ui_image_style": ui_style_name, "image_data": image_data, "type": "글과 사진 세트"
+        "ui_text_tone": ui_tone_name,
+        "ui_image_style": ui_style_name,
+        "image_data": image_data,
+        "type": "글과 사진 세트",
+        "inference_options": inference_options_obj.model_dump(exclude_none=True),
     }
     
     res_t, res_i = None, None
@@ -409,7 +489,15 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
             
         with st.spinner("🖼️ [2단계] 작성된 글과 어울리는 예쁜 홍보 사진을 알아서 그리고 있어요... (약 10~20초)"):
             hint_copy = res_t.ad_copies[0] if res_t.ad_copies else ""
-            req_i = ImageGenerationRequest(product_name=name, description=desc, goal=goal, style=style_val, prompt=hint_copy, image_data=image_data)
+            req_i = ImageGenerationRequest(
+                product_name=name,
+                description=desc,
+                goal=goal,
+                style=style_val,
+                prompt=hint_copy,
+                image_data=image_data,
+                inference_options=inference_options_obj,
+            )
             res_i = image_service.generate_ad_image(req_i)
             st.session_state.image_result = res_i.model_dump()
             
@@ -512,14 +600,33 @@ with tab_create:
         
         # 이미지 데이터 추출
         image_data = product_image.getvalue() if product_image is not None else None
+        inference_options = _build_current_inference_options()
 
         # 2. 로직 분기
         if generation_type == "글 + 이미지 함께 만들기":
-            _run_combined_generation(name, desc_payload, final_ad_purpose, tone_val, style_val, selected_tone_ui, selected_style_ui, image_data)
+            _run_combined_generation(
+                name,
+                desc_payload,
+                final_ad_purpose,
+                tone_val,
+                style_val,
+                selected_tone_ui,
+                selected_style_ui,
+                image_data,
+                inference_options,
+            )
         elif generation_type == "홍보 글만 만들기":
             _run_text_generation(name, desc_payload, final_ad_purpose, tone_val, selected_tone_ui, image_data)
         else: # 이미지만
-            _run_image_generation(name, desc_payload, final_ad_purpose, style_val, selected_style_ui, image_data)
+            _run_image_generation(
+                name,
+                desc_payload,
+                final_ad_purpose,
+                style_val,
+                selected_style_ui,
+                image_data,
+                inference_options,
+            )
             
         st.rerun()
 
@@ -540,11 +647,29 @@ with tab_create:
                 st.session_state.caption_result = None
                 
                 if req["type"] == "글과 사진 세트":
-                    _run_combined_generation(req["product_name"], req["description"], req.get("goal", "일반 홍보"), req["text_tone"], req["image_style"], req["ui_text_tone"], req["ui_image_style"], req.get("image_data"))
+                    _run_combined_generation(
+                        req["product_name"],
+                        req["description"],
+                        req.get("goal", "일반 홍보"),
+                        req["text_tone"],
+                        req["image_style"],
+                        req["ui_text_tone"],
+                        req["ui_image_style"],
+                        req.get("image_data"),
+                        req.get("inference_options"),
+                    )
                 elif req["type"] == "홍보 글":
                     _run_text_generation(req["product_name"], req["description"], req.get("goal", "일반 홍보"), req["text_tone"], req["ui_text_tone"], req.get("image_data"))
                 else:
-                    _run_image_generation(req["product_name"], req["description"], req.get("goal", "일반 홍보"), req["image_style"], req["ui_image_style"], req.get("image_data"))
+                    _run_image_generation(
+                        req["product_name"],
+                        req["description"],
+                        req.get("goal", "일반 홍보"),
+                        req["image_style"],
+                        req["ui_image_style"],
+                        req.get("image_data"),
+                        req.get("inference_options"),
+                    )
                 st.rerun()
         
         st.write("")

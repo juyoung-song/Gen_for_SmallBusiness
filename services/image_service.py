@@ -26,7 +26,11 @@ from openai import (
 from PIL import Image, ImageDraw
 
 from config.settings import Settings
-from schemas.image_schema import ImageGenerationRequest, ImageGenerationResponse
+from schemas.image_schema import (
+    ImageGenerationRequest,
+    ImageGenerationResponse,
+    ImageInferenceOptions,
+)
 from utils.prompt_builder import build_image_prompt
 
 logger = logging.getLogger(__name__)
@@ -69,6 +73,34 @@ class ImageService:
             self._client = OpenAI(api_key=self.settings.OPENAI_API_KEY)
         return self._client
 
+    def _runtime_service(self, request: ImageGenerationRequest) -> "ImageService":
+        """요청 단위 추론 옵션이 있으면 해당 설정을 반영한 서비스 인스턴스를 만든다."""
+        options = request.inference_options
+        if options is None:
+            return self
+
+        update_map = {
+            "use_local_model": "USE_LOCAL_MODEL",
+            "image_model": "IMAGE_MODEL",
+            "local_sd15_model_id": "LOCAL_SD15_MODEL_ID",
+            "local_backend": "LOCAL_BACKEND",
+            "local_inference_steps": "LOCAL_INFERENCE_STEPS",
+            "local_guidance_scale": "LOCAL_GUIDANCE_SCALE",
+            "local_ip_adapter_scale": "LOCAL_IP_ADAPTER_SCALE",
+            "local_img2img_strength": "LOCAL_IMG2IMG_STRENGTH",
+            "local_ip_adapter_weight_name": "LOCAL_IP_ADAPTER_WEIGHT_NAME",
+        }
+        updates = {}
+        for option_key, setting_key in update_map.items():
+            value = getattr(options, option_key, None)
+            if value is not None:
+                updates[setting_key] = value
+
+        if not updates:
+            return self
+
+        return ImageService(self.settings.model_copy(update=updates))
+
     def generate_ad_image(
         self, request: ImageGenerationRequest
     ) -> ImageGenerationResponse:
@@ -83,21 +115,24 @@ class ImageService:
         Raises:
             ImageServiceError: 생성 실패 시 사용자 친화적 메시지
         """
-        if self.settings.USE_MOCK:
+        runtime_service = self._runtime_service(request)
+        runtime_settings = runtime_service.settings
+
+        if runtime_settings.USE_MOCK:
             logger.info("Mock 모드: Pillow 이미지 생성 (prompt=%s)", request.prompt[:30])
-            return self._mock_response(request)
+            return runtime_service._mock_response(request)
 
-        if self.settings.IMAGE_BACKEND.lower() == "remote":
+        if runtime_settings.IMAGE_BACKEND.lower() == "remote":
             logger.info("원격 워커 모드: VM 이미지 워커 호출")
-            return self._remote_response(request)
+            return runtime_service._remote_response(request)
 
-        if self.settings.USE_LOCAL_MODEL:
+        if runtime_settings.USE_LOCAL_MODEL:
             logger.info("로컬 모델 모드: diffusers 추론 (has_reference=%s)", request.image_data is not None)
-            return self._local_response(request)
+            return runtime_service._local_response(request)
 
         logger.info("API 모드: Hugging Face 추론 호출 (prompt=%s, model=%s)",
-                     request.prompt[:30], self.settings.IMAGE_MODEL)
-        return self._api_response(request)
+                     request.prompt[:30], runtime_settings.IMAGE_MODEL)
+        return runtime_service._api_response(request)
 
     # ──────────────────────────────────────────
     # Mock 응답 — Pillow 이미지 생성
@@ -237,6 +272,11 @@ class ImageService:
             "image_data_b64": (
                 base64.b64encode(request.image_data).decode("utf-8")
                 if request.image_data
+                else None
+            ),
+            "inference_options": (
+                request.inference_options.model_dump(exclude_none=True)
+                if request.inference_options
                 else None
             ),
         }

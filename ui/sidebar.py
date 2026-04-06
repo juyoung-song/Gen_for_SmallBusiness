@@ -30,6 +30,11 @@ _WEIGHT_OPTIONS = {
     "ip-adapter-plus_sd15.bin (디테일↑)": "ip-adapter-plus_sd15.bin",
 }
 
+_HF_MODEL_OPTIONS = {
+    "FLUX.1-schnell (고품질)": "black-forest-labs/FLUX.1-schnell",
+    "SDXL Base 1.0 (안정적)": "stabilityai/stable-diffusion-xl-base-1.0",
+}
+
 
 def render_sidebar_settings(settings) -> None:
     """사이드바에 로컬 모델 설정 UI를 렌더링하고 settings 객체를 직접 수정."""
@@ -45,6 +50,13 @@ def render_sidebar_settings(settings) -> None:
         settings.USE_LOCAL_MODEL = use_local
 
         if use_local:
+            st.markdown("#### 베이스 모델")
+            settings.LOCAL_SD15_MODEL_ID = st.text_input(
+                "로컬 Stable Diffusion 모델 ID",
+                value=settings.LOCAL_SD15_MODEL_ID,
+                help="고급 옵션입니다. 기본값은 runwayml/stable-diffusion-v1-5 입니다.",
+            )
+
             st.markdown("#### 백엔드 선택")
             backend_labels = {
                 "IP-Adapter (스타일 주입)": "ip_adapter",
@@ -99,6 +111,27 @@ def render_sidebar_settings(settings) -> None:
                     index=weight_index,
                 )
                 settings.LOCAL_IP_ADAPTER_WEIGHT_NAME = _WEIGHT_OPTIONS[selected_weight]
+        else:
+            st.markdown("#### 모델 선택")
+            current_image_model = getattr(
+                settings,
+                "IMAGE_MODEL",
+                "stabilityai/stable-diffusion-xl-base-1.0",
+            )
+            model_options = dict(_HF_MODEL_OPTIONS)
+            if current_image_model not in model_options.values():
+                model_options = {
+                    f"사용자 지정 ({current_image_model})": current_image_model,
+                    **model_options,
+                }
+
+            selected_model_label = st.selectbox(
+                "Hugging Face 모델",
+                list(model_options.keys()),
+                index=list(model_options.values()).index(current_image_model),
+                help="원격 워커 모드에서는 이 선택값이 요청마다 전달됩니다.",
+            )
+            settings.IMAGE_MODEL = model_options[selected_model_label]
 
         st.divider()
         st.caption(f"모드: {'🟢 로컬' if use_local else '☁️ API'}")

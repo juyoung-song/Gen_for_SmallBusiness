@@ -7,7 +7,7 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from config.settings import get_settings, setup_logging
-from schemas.image_schema import ImageGenerationRequest
+from schemas.image_schema import ImageGenerationRequest, ImageInferenceOptions
 from services.image_service import ImageService, ImageServiceError
 
 
@@ -20,6 +20,7 @@ class WorkerImageRequest(BaseModel):
     goal: str = Field(default="일반 홍보")
     style: str = Field(default="기본")
     image_data_b64: str | None = Field(default=None)
+    inference_options: ImageInferenceOptions | None = Field(default=None)
 
 
 class WorkerImageResponse(BaseModel):
@@ -84,6 +85,7 @@ def generate_image(
         goal=payload.goal,
         style=payload.style,
         image_data=image_data,
+        inference_options=payload.inference_options,
     )
 
     try:
