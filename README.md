@@ -1,5 +1,20 @@
 # 🎨 소상공인을 위한 AI 광고 콘텐츠 제작 서비스
 
+## 변경 이력
+
+### [feature/won/img-reference] 로컬 참조 이미지 기반 이미지 생성 (IP-Adapter + SD 1.5)
+- 사용자 업로드 사진을 실제 이미지 생성에 반영하는 로컬 추론 파이프라인 구현
+- `models/local_backend.py`: `LocalImageBackend` 프로토콜 정의
+- `models/sd15.py`: SD 1.5 txt2img 백엔드 (참조 이미지 없을 때 fallback)
+- `models/ip_adapter.py`: IP-Adapter + SD 1.5 백엔드 (CLIP cross-attention으로 스타일 반영)
+- `models/img2img.py`: SD 1.5 img2img 백엔드 (구도·색감 직접 보존)
+- `models/hybrid.py`: IP-Adapter + img2img 하이브리드 백엔드
+- `ui/sidebar.py`: 사이드바에서 백엔드/파라미터 실시간 조정 UI (백엔드별 추천값 포함)
+- `config/settings.py`: `USE_LOCAL_MODEL`, `LOCAL_BACKEND`, `LOCAL_IMG2IMG_STRENGTH` 등 설정 추가
+- `services/image_service.py`: `LOCAL_BACKEND` 값에 따라 백엔드 동적 선택
+- Apple Silicon MPS 백엔드 지원, diffusers==0.31.0 + transformers<5.0.0 버전 고정
+- **실행 요건**: `USE_LOCAL_MODEL=true` 시 `torch`, `diffusers`, `transformers`, `accelerate`, `torchvision` 필요 (requirements.txt 참조)
+
 ## 1. 프로젝트 소개
 마케팅 전담 인력이 부족한 소상공인(1인 사업자, 초기 창업자)을 위해 자체적으로 광고 문구와 이미지를 손쉽게 생성하고, **인스타그램에 바로 자동 업로드까지** 할 수 있는 생성형 AI 서비스입니다. 
 빠른 기획 및 MVP 검증을 목적으로 1인 개발 환경에서 구축되었으며, 입력 화면부터 API 연동, 인스타 피드 포스팅까지 단일 페이지에서 원활하게 동작하도록 구성되었습니다.
