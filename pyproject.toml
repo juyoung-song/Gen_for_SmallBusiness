@@ -3,7 +3,7 @@ name = "gen-for-smallbusiness"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 dependencies = [
     "aiosqlite>=0.19",
     "greenlet>=3.0.0",
