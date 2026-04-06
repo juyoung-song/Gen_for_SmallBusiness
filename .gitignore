@@ -148,6 +148,9 @@ cython_debug/
 Thumbs.db
 
 # Project specific
+image_crawled/
+crawled_images.json
+brand_analysis.json
 ad_history.db
 data/
 image_outputs/

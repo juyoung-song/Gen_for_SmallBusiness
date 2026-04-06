@@ -1,5 +1,26 @@
 # 🎨 소상공인을 위한 AI 광고 콘텐츠 제작 서비스
 
+## 변경 이력
+
+### [feature/won/img-analysis] 브랜드 이미지 분석 파이프라인 (실험적)
+- `crawl_and_analyze/` 디렉토리 신설 — 크롤링·분석 독립 실행 스크립트 모음
+- `crawl_and_analyze/image_crawler.py`: Instaloader 기반 공개 인스타그램 계정 이미지 수집기
+  - 현재 인스타그램 403 차단으로 로그인 없이는 미동작 (로그인 연동 예정)
+  - 수동으로 이미지를 `image_crawled/{계정명}/` 폴더에 넣어 분석기와 연동 가능
+- `crawl_and_analyze/image_analyzer.py`: GPT-5-mini Vision 기반 브랜드 이미지 분석기
+  - 로컬 이미지 폴더를 입력으로 받아 개별 이미지 분석 (색감·구도·분위기) 수행
+  - 분석 결과를 종합하여 브랜드 톤앤매너 가이드라인 도출
+  - 결과를 `image_crawled/{계정명}/brand_analysis.json` 에 저장
+  - RGBA PNG → RGB JPEG 자동 변환 처리
+  - `responses` API 사용 (gpt-5-mini는 reasoning 모델로 chat completions 미지원)
+- **목적**: 신제품 출시 광고 제작 시 기존 브랜드 광고 무드·톤을 참고하기 위한 기반 구축
+
+```bash
+# 사용법 (image_crawled/{계정명}/ 폴더에 이미지 직접 배치 후 실행)
+cd crawl_and_analyze
+python image_analyzer.py --dir image_crawled/torriden_official --limit 9
+```
+
 ## 1. 프로젝트 소개
 마케팅 전담 인력이 부족한 소상공인(1인 사업자, 초기 창업자)을 위해 자체적으로 광고 문구와 이미지를 손쉽게 생성하고, **인스타그램에 바로 자동 업로드까지** 할 수 있는 생성형 AI 서비스입니다. 
 빠른 기획 및 MVP 검증을 목적으로 1인 개발 환경에서 구축되었으며, 입력 화면부터 API 연동, 인스타 피드 포스팅까지 단일 페이지에서 원활하게 동작하도록 구성되었습니다.
