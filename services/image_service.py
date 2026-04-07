@@ -130,9 +130,37 @@ class ImageService:
         return f"data:{mime_type};base64,{image_b64}"
 
     @staticmethod
+    def _image_bytes_to_data_url(image_bytes: bytes, image_name: str = "") -> str:
+        """메모리 상의 이미지 바이트를 data URL로 변환."""
+        mime_type, _ = mimetypes.guess_type(image_name)
+        if not mime_type:
+            mime_type = "image/png"
+        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        return f"data:{mime_type};base64,{image_b64}"
+
+    def _reference_context_to_data_url(self, context: ReferenceImageContext) -> str:
+        """참고 이미지 컨텍스트를 data URL로 변환."""
+        if context.image_bytes:
+            return self._image_bytes_to_data_url(
+                context.image_bytes,
+                context.image_name or context.label,
+            )
+        if context.image_path and os.path.exists(context.image_path):
+            return self._image_file_to_data_url(context.image_path)
+        raise ImageServiceError("참고 이미지 파일을 읽을 수 없습니다.")
+
+    @staticmethod
     def _fallback_reference_analysis(contexts: list[ReferenceImageContext]) -> str:
         """OpenAI 비전 분석 전 간단한 메타데이터 기반 요약."""
-        products = ", ".join(context.product_name for context in contexts[:3] if context.product_name)
+        products = ", ".join(
+            (
+                context.product_name
+                or context.label
+                or context.image_name
+            )
+            for context in contexts[:3]
+            if context.product_name or context.label or context.image_name
+        )
         styles = ", ".join(sorted({context.style for context in contexts if context.style}))
         return (
             f"Reference products: {products}. "
@@ -149,7 +177,10 @@ class ImageService:
         valid_contexts = [
             context
             for context in contexts
-            if context.image_path and os.path.exists(context.image_path)
+            if (
+                context.image_bytes
+                or (context.image_path and os.path.exists(context.image_path))
+            )
         ]
         if not valid_contexts:
             return ""
@@ -182,6 +213,8 @@ class ImageService:
                 "type": "input_text",
                 "text": (
                     f"[Reference {idx} metadata]\n"
+                    f"Source: {context.source}\n"
+                    f"Label: {context.label}\n"
                     f"Product: {context.product_name}\n"
                     f"Description: {context.description}\n"
                     f"Style: {context.style}\n"
@@ -193,7 +226,7 @@ class ImageService:
             })
             content.append({
                 "type": "input_image",
-                "image_url": self._image_file_to_data_url(context.image_path),
+                "image_url": self._reference_context_to_data_url(context),
                 "detail": "low",
             })
 

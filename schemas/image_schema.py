@@ -73,13 +73,17 @@ class ImageInferenceOptions(BaseModel):
 class ReferenceImageContext(BaseModel):
     """보관함에서 선택한 참고 이미지와 메타데이터."""
 
+    source: str = Field(default="history")
+    label: str = Field(default="")
     history_id: str = Field(default="")
     generation_type: str = Field(default="")
     product_name: str = Field(default="")
     description: str = Field(default="")
     style: str = Field(default="")
     created_at: str = Field(default="")
+    image_name: str = Field(default="")
     image_path: str = Field(default="")
+    image_bytes: bytes | None = Field(default=None)
     revised_prompt: str = Field(default="")
     ad_copies: list[str] = Field(default_factory=list)
     promo_sentences: list[str] = Field(default_factory=list)

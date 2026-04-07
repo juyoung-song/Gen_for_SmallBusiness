@@ -296,16 +296,37 @@ def _build_reference_contexts(histories) -> list[ReferenceImageContext]:
         result_data = history.result_data or {}
         contexts.append(
             ReferenceImageContext(
+                source="history",
+                label=_history_reference_label(history),
                 history_id=str(history.id),
                 generation_type=history.generation_type.value,
                 product_name=history.product_name,
                 description=history.description or "",
                 style=history.style,
                 created_at=history.created_at.isoformat(),
+                image_name=os.path.basename(image_path),
                 image_path=image_path,
                 revised_prompt=result_data.get("revised_prompt", ""),
                 ad_copies=result_data.get("ad_copies", []),
                 promo_sentences=result_data.get("promo_sentences", []),
+            )
+        )
+    return contexts
+
+
+def _build_uploaded_reference_contexts(uploaded_files) -> list[ReferenceImageContext]:
+    """사용자가 새로 업로드한 참고 이미지를 분석용 컨텍스트로 변환."""
+    if not uploaded_files:
+        return []
+
+    contexts: list[ReferenceImageContext] = []
+    for uploaded_file in uploaded_files:
+        contexts.append(
+            ReferenceImageContext(
+                source="upload",
+                label=f"업로드 · {uploaded_file.name}",
+                image_name=uploaded_file.name,
+                image_bytes=uploaded_file.getvalue(),
             )
         )
     return contexts
@@ -729,8 +750,17 @@ with tab_create:
         if is_new_product and is_renewal_product:
             st.warning("신상품과 리뉴얼 상품은 동시에 선택할 수 없습니다. 하나만 선택해주세요.")
 
-        st.markdown("#### 🖼️ 보관함 이미지 참고")
-        st.caption("`data/history.db`에 저장된 기존 생성 이미지 중에서 여러 장을 골라 GPT-5-mini가 분석한 뒤 신규 이미지 프롬프트를 만듭니다.")
+        st.markdown("#### 🖼️ 이미지 레퍼런스")
+        st.caption("보관함 이미지와 새 업로드 이미지를 같은 영역에서 고를 수 있습니다. 선택한 레퍼런스는 최대 3장까지 GPT-5-mini가 함께 분석합니다.")
+
+        selected_reference_ids = []
+        selected_reference_histories = []
+        uploaded_reference_files = st.file_uploader(
+            "새 레퍼런스 이미지 업로드 (선택, 최대 3장 내)",
+            type=["png", "jpg", "jpeg"],
+            accept_multiple_files=True,
+            help="보관함 이미지와 합쳐서 총 3장까지만 선택하는 것을 권장합니다.",
+        )
 
         if reference_histories:
             with st.expander("최근 보관함 이미지 미리보기", expanded=False):
@@ -741,32 +771,45 @@ with tab_create:
                         st.caption(_history_reference_label(history))
 
             selected_reference_ids = st.multiselect(
-                "참고할 보관함 이미지 선택 (여러 장 가능)",
+                "보관함에서 참고할 이미지 선택",
                 options=list(reference_history_map.keys()),
                 default=st.session_state.selected_reference_history_ids,
                 format_func=lambda history_id: reference_history_labels[history_id],
-                help="선택된 이미지들의 실제 파일과 DB 메타데이터를 함께 GPT-5-mini에 전달합니다.",
+                help="선택된 이미지의 실제 파일과 DB 메타데이터를 함께 GPT-5-mini에 전달합니다.",
             )
-
             selected_reference_histories = [
                 reference_history_map[history_id]
                 for history_id in selected_reference_ids
                 if history_id in reference_history_map
             ]
+        else:
+            st.info("보관함에 아직 참고할 이미지가 없습니다. 새 레퍼런스 이미지를 업로드해서 시작할 수 있습니다.")
 
-            if selected_reference_histories:
-                st.caption(f"선택된 참고 이미지 {len(selected_reference_histories)}장")
-                selected_columns = st.columns(3)
-                for idx, history in enumerate(selected_reference_histories):
-                    with selected_columns[idx % 3]:
+        uploaded_reference_contexts = _build_uploaded_reference_contexts(uploaded_reference_files)
+        total_reference_count = len(selected_reference_histories) + len(uploaded_reference_contexts)
+        if total_reference_count > 3:
+            st.warning("참고 이미지는 보관함 선택과 새 업로드를 합쳐 최대 3장까지만 사용할 수 있습니다.")
+
+        if total_reference_count > 0:
+            st.caption(f"선택된 참고 이미지 {total_reference_count}장")
+            selected_columns = st.columns(3)
+            preview_items = [
+                ("history", history, None)
+                for history in selected_reference_histories
+            ] + [
+                ("upload", None, uploaded_file)
+                for uploaded_file in (uploaded_reference_files or [])
+            ]
+            for idx, (source, history, uploaded_file) in enumerate(preview_items):
+                with selected_columns[idx % 3]:
+                    if source == "history" and history is not None:
                         st.image(_history_image_path(history), width="stretch")
                         st.caption(_history_reference_label(history))
-            else:
-                st.caption("선택된 참고 이미지가 없습니다. 선택하지 않으면 일반 생성 흐름으로 진행합니다.")
+                    elif uploaded_file is not None:
+                        st.image(uploaded_file, width="stretch")
+                        st.caption(f"업로드 · {uploaded_file.name}")
         else:
-            selected_reference_ids = []
-            selected_reference_histories = []
-            st.info("보관함에 아직 참고할 이미지가 없습니다. 먼저 이미지 또는 글+사진 세트를 생성해 주세요.")
+            st.caption("선택된 참고 이미지가 없습니다. 선택하지 않으면 일반 생성 흐름으로 진행합니다.")
 
     # 2. 생성 타입 섹션
     with st.container(border=True):
@@ -819,6 +862,9 @@ with tab_create:
         if is_new_product and is_renewal_product:
             st.session_state.error_message = "⚠️ 신상품과 리뉴얼 상품은 동시에 선택할 수 없습니다. 하나만 선택해주세요."
             st.rerun()
+        if total_reference_count > 3:
+            st.session_state.error_message = "⚠️ 참고 이미지는 최대 3장까지만 선택할 수 있습니다."
+            st.rerun()
 
         # 1. 상태 업데이트
         st.session_state.product_name = name
@@ -840,17 +886,23 @@ with tab_create:
         # 설명에 목적 추가 로직 제거 (request.goal로 별도 전달됨)
         desc_payload = st.session_state.product_description
         
-        # 보관함에서 선택한 여러 참고 이미지를 GPT 분석에 사용하고, 첫 번째 이미지는 대표 참조 이미지로 전달
+        # 보관함 선택 + 새 업로드 이미지를 합쳐 GPT 분석에 사용하고, 첫 번째 이미지는 대표 참조 이미지로 전달
+        reference_contexts = (
+            _build_reference_contexts(selected_reference_histories)
+            + uploaded_reference_contexts
+        )
         attachment_names = [
-            _history_reference_label(history)
-            for history in selected_reference_histories
+            context.label or context.image_name or context.product_name or "참고 이미지"
+            for context in reference_contexts
         ]
-        reference_contexts = _build_reference_contexts(selected_reference_histories)
         st.session_state.uploaded_image_names = attachment_names
         image_data = None
         if reference_contexts:
-            with open(reference_contexts[0].image_path, "rb") as f:
-                image_data = f.read()
+            if reference_contexts[0].image_bytes:
+                image_data = reference_contexts[0].image_bytes
+            elif reference_contexts[0].image_path:
+                with open(reference_contexts[0].image_path, "rb") as f:
+                    image_data = f.read()
         inference_options = _build_current_inference_options()
 
         # 2. 로직 분기
