@@ -874,65 +874,69 @@ with tab_create:
 
     # ── 배경 교체 테스트 (일관성 검증용) ──
     with st.expander("🔬 배경 교체 테스트 (상품 일관성 검증용)", expanded=False):
-        st.caption("상품 이미지를 직접 올리고 두 가지 방식을 나란히 비교합니다.")
-        bg_upload = st.file_uploader("상품 이미지 업로드", type=["png", "jpg", "jpeg"], key="bg_swap_upload")
-        bg_style = st.selectbox("배경 스타일", list(STYLE_DISPLAY_MAP.keys()), key="bg_swap_style")
-        bg_hint = st.text_input("추가 배경 힌트 (영어, 선택)", placeholder="e.g. forest, city night, beach", key="bg_swap_hint")
-        bg_product_name = st.text_input("상품명 (선택)", placeholder="예: 토리든 세럼", key="bg_swap_name")
+        from services.background_swap_service import BackgroundSwapService, BackgroundSwapError
+        svc = BackgroundSwapService(settings)
+
+        # ── Step 1: 이미지 업로드 + 누끼 ──
+        st.markdown("**Step 1. 상품 이미지 업로드 → 누끼 확인**")
+        bg_upload = st.file_uploader("상품 이미지", type=["png", "jpg", "jpeg"], key="bg_swap_upload")
 
         if bg_upload:
             original_image_data: bytes = bg_upload.getvalue()
-            col_btn_a, col_btn_b = st.columns(2)
-            with col_btn_a:
-                run_a = st.button("🖼️ A. 프롬프트만으로 교체", key="bg_swap_btn_a", help="원본 이미지 + '배경만 바꿔라' 프롬프트")
-            with col_btn_b:
-                run_b = st.button("✂️ B. 누끼 + 배경 생성", key="bg_swap_btn_b", help="rembg 누끼 → HF 배경생성 → 합성")
 
-            from services.background_swap_service import BackgroundSwapService, BackgroundSwapError
-            svc = BackgroundSwapService(settings)
-            swap_kwargs = dict(
-                product_image_bytes=bytes(original_image_data),
-                style=STYLE_DISPLAY_MAP.get(bg_style, "기본"),
-                goal="일반 홍보",
-                product_name=bg_product_name,
-                extra_hint=bg_hint,
-            )
-
-            if run_a:
-                with st.status("A. 프롬프트로 배경 교체 중...", expanded=True) as status_a:
+            if st.button("✂️ 누끼 따기", key="bg_rembg_btn"):
+                with st.status("rembg 누끼 제거 중...", expanded=True) as status_rembg:
                     try:
-                        st.write("HF API 호출 중...")
-                        st.session_state["bg_swap_a"] = svc.swap_prompt_only(**swap_kwargs)
-                        status_a.update(label="A. 완료", state="complete")
+                        st.write("U2Net 모델 로딩 + 배경 제거 중...")
+                        st.session_state["bg_subject"] = svc.extract_subject(original_image_data)
+                        status_rembg.update(label="누끼 완료", state="complete")
                     except BackgroundSwapError as e:
-                        status_a.update(label=f"A. 오류: {e}", state="error")
-                        st.error(f"❌ A 방식 오류: {e}")
+                        status_rembg.update(label=f"오류: {e}", state="error")
+                        st.error(f"❌ {e}")
 
-            if run_b:
-                with st.status("B. 누끼 + 배경 생성 중...", expanded=True) as status_b:
-                    try:
-                        st.write("rembg 누끼 제거 중...")
-                        st.session_state["bg_swap_b"] = svc.swap_rembg(**swap_kwargs)
-                        status_b.update(label="B. 완료", state="complete")
-                    except BackgroundSwapError as e:
-                        status_b.update(label=f"B. 오류: {e}", state="error")
-                        st.error(f"❌ B 방식 오류: {e}")
-
-            if st.session_state.get("bg_swap_a") or st.session_state.get("bg_swap_b"):
-                col_orig, col_a, col_b = st.columns(3)
+            if st.session_state.get("bg_subject"):
+                col_orig, col_subject = st.columns(2)
                 with col_orig:
                     st.caption("원본")
                     st.image(original_image_data, use_container_width=True)
-                with col_a:
-                    st.caption("A. 프롬프트만")
-                    if st.session_state.get("bg_swap_a"):
-                        st.image(st.session_state["bg_swap_a"], use_container_width=True)
-                        st.download_button("💾 A 저장", data=st.session_state["bg_swap_a"], file_name="bg_swap_A.png", mime="image/png", key="dl_a")
-                with col_b:
-                    st.caption("B. 누끼+합성")
-                    if st.session_state.get("bg_swap_b"):
-                        st.image(st.session_state["bg_swap_b"], use_container_width=True)
-                        st.download_button("💾 B 저장", data=st.session_state["bg_swap_b"], file_name="bg_swap_B.png", mime="image/png", key="dl_b")
+                with col_subject:
+                    st.caption("누끼 결과")
+                    st.image(st.session_state["bg_subject"], use_container_width=True)
+
+                # ── Step 2: 프롬프트 입력 + 배경 생성 ──
+                st.markdown("**Step 2. 프롬프트 입력 → 배경 생성 + 합성**")
+                st.caption(f"현재 모델: `{settings.IMAGE_MODEL}` (사이드바에서 변경 가능)")
+                bg_prompt = st.text_area(
+                    "배경 프롬프트",
+                    placeholder="예: product placed naturally on a wooden desk, warm lighting, cozy cafe background",
+                    key="bg_prompt",
+                    height=80,
+                )
+
+                if st.button("🎨 배경 생성 + 합성", key="bg_gen_btn", disabled=not bg_prompt):
+                    with st.status("배경 생성 중...", expanded=True) as status_gen:
+                        try:
+                            st.write(f"HF API 호출 중 (model={settings.IMAGE_MODEL})...")
+                            result = svc.swap_with_prompt(
+                                subject_rgba_bytes=bytes(st.session_state["bg_subject"]),
+                                prompt=bg_prompt,
+                                model_id=settings.IMAGE_MODEL,
+                            )
+                            st.session_state["bg_swap_result"] = result
+                            status_gen.update(label="완료", state="complete")
+                        except BackgroundSwapError as e:
+                            status_gen.update(label=f"오류: {e}", state="error")
+                            st.error(f"❌ {e}")
+
+                if st.session_state.get("bg_swap_result"):
+                    st.image(st.session_state["bg_swap_result"], use_container_width=True)
+                    st.download_button(
+                        "💾 결과 저장",
+                        data=st.session_state["bg_swap_result"],
+                        file_name="bg_swap_result.png",
+                        mime="image/png",
+                        key="dl_bg_result",
+                    )
 
     if st.session_state.get("text_result") and st.session_state.get("image_result"):
         req_info = st.session_state.last_request

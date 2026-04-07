@@ -118,7 +118,10 @@ def _remove_background(image_bytes: bytes) -> Image.Image:
 
     logger.info("배경 제거 시작...")
     result = remove(image_bytes)
-    img = Image.open(io.BytesIO(result)).convert("RGBA")
+    if isinstance(result, Image.Image):
+        img = result.convert("RGBA")
+    else:
+        img = Image.open(io.BytesIO(bytes(result))).convert("RGBA")
     logger.info("배경 제거 완료 (size=%s)", img.size)
     return img
 
@@ -145,7 +148,7 @@ def _composite(product_rgba: Image.Image, background_bytes: bytes) -> bytes:
 
 
 class BackgroundSwapService:
-    """배경 교체 서비스 — prompt_only / rembg 두 방식 제공."""
+    """배경 교체 서비스 — rembg 누끼 / prompt_only / rembg+합성 세 방식 제공."""
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -153,6 +156,34 @@ class BackgroundSwapService:
     def _check_hf(self) -> None:
         if not self.settings.HUGGINGFACE_API_KEY:
             raise BackgroundSwapError("HUGGINGFACE_API_KEY가 설정되지 않았습니다.")
+
+    def extract_subject(self, image_bytes: bytes) -> bytes:
+        """누끼만 따서 PNG bytes 반환 (배경 생성 없음)."""
+        img = _remove_background(image_bytes)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+
+    def swap_with_prompt(
+        self,
+        subject_rgba_bytes: bytes,
+        prompt: str,
+        model_id: str | None = None,
+        output_size: tuple[int, int] = (1024, 1024),
+    ) -> bytes:
+        """누끼 이미지 + 사용자 프롬프트 → HF txt2img 배경 생성 → 합성."""
+        self._check_hf()
+        bg_model = model_id or self.settings.IMAGE_MODEL
+        logger.info("프롬프트 기반 배경 생성 (model=%s, prompt=%s...)", bg_model, prompt[:60])
+        bg_bytes = _call_hf_api(
+            prompt=prompt,
+            model_id=bg_model,
+            hf_api_key=self.settings.HUGGINGFACE_API_KEY,
+            timeout=self.settings.IMAGE_TIMEOUT,
+        )
+        subject_rgba = Image.open(io.BytesIO(subject_rgba_bytes)).convert("RGBA")
+        subject_rgba = subject_rgba.resize(output_size, Image.Resampling.LANCZOS)
+        return _composite(subject_rgba, bg_bytes)
 
     def swap_prompt_only(
         self,
