@@ -85,6 +85,10 @@ class ImageGenerationRequest(BaseModel):
         default="",
         description="상품 설명",
     )
+    brand_philosophy: str = Field(
+        default="",
+        description="브랜드 철학/핵심 가치",
+    )
     goal: str = Field(
         default="일반 홍보",
         description="홍보 목적",
@@ -96,6 +100,19 @@ class ImageGenerationRequest(BaseModel):
     image_data: bytes | None = Field(
         default=None,
         description="참조용 업로드 이미지",
+    )
+    is_new_product: bool = Field(
+        default=False,
+        description="신상품 여부",
+    )
+    is_renewal_product: bool = Field(
+        default=False,
+        description="리뉴얼 상품 여부",
+    )
+    attachment_count: int = Field(
+        default=0,
+        ge=0,
+        description="첨부 이미지 개수",
     )
     inference_options: ImageInferenceOptions | None = Field(
         default=None,
