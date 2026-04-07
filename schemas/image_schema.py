@@ -70,6 +70,25 @@ class ImageInferenceOptions(BaseModel):
         return value if value in VALID_LOCAL_BACKENDS else "ip_adapter"
 
 
+class ReferenceImageContext(BaseModel):
+    """보관함에서 선택한 참고 이미지와 메타데이터."""
+
+    source: str = Field(default="history")
+    label: str = Field(default="")
+    history_id: str = Field(default="")
+    generation_type: str = Field(default="")
+    product_name: str = Field(default="")
+    description: str = Field(default="")
+    style: str = Field(default="")
+    created_at: str = Field(default="")
+    image_name: str = Field(default="")
+    image_path: str = Field(default="")
+    image_bytes: bytes | None = Field(default=None)
+    revised_prompt: str = Field(default="")
+    ad_copies: list[str] = Field(default_factory=list)
+    promo_sentences: list[str] = Field(default_factory=list)
+
+
 class ImageGenerationRequest(BaseModel):
     """광고 이미지 생성 요청."""
 
@@ -113,6 +132,14 @@ class ImageGenerationRequest(BaseModel):
         default=0,
         ge=0,
         description="첨부 이미지 개수",
+    )
+    reference_analysis: str = Field(
+        default="",
+        description="선택한 참고 이미지들에 대한 GPT 분석 요약",
+    )
+    reference_contexts: list[ReferenceImageContext] = Field(
+        default_factory=list,
+        description="보관함에서 선택한 참고 이미지/메타데이터 목록",
     )
     inference_options: ImageInferenceOptions | None = Field(
         default=None,

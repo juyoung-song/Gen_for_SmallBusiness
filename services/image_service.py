@@ -13,6 +13,8 @@ architecture.md 6장 전환 전략:
 import base64
 import io
 import logging
+import mimetypes
+import os
 
 import httpx
 from openai import (
@@ -30,6 +32,7 @@ from schemas.image_schema import (
     ImageGenerationRequest,
     ImageGenerationResponse,
     ImageInferenceOptions,
+    ReferenceImageContext,
 )
 from utils.prompt_builder import build_image_prompt
 
@@ -101,6 +104,171 @@ class ImageService:
 
         return ImageService(self.settings.model_copy(update=updates))
 
+    @staticmethod
+    def _normalize_reference_contexts(
+        contexts: list[ReferenceImageContext] | list[dict] | None,
+    ) -> list[ReferenceImageContext]:
+        """세션/요청에 담긴 참고 이미지 컨텍스트를 모델 리스트로 정규화."""
+        if not contexts:
+            return []
+        normalized: list[ReferenceImageContext] = []
+        for context in contexts:
+            if isinstance(context, ReferenceImageContext):
+                normalized.append(context)
+            else:
+                normalized.append(ReferenceImageContext.model_validate(context))
+        return normalized
+
+    @staticmethod
+    def _image_file_to_data_url(image_path: str) -> str:
+        """로컬 이미지 파일을 data URL로 변환."""
+        mime_type, _ = mimetypes.guess_type(image_path)
+        if not mime_type:
+            mime_type = "image/png"
+        with open(image_path, "rb") as f:
+            image_b64 = base64.b64encode(f.read()).decode("utf-8")
+        return f"data:{mime_type};base64,{image_b64}"
+
+    @staticmethod
+    def _image_bytes_to_data_url(image_bytes: bytes, image_name: str = "") -> str:
+        """메모리 상의 이미지 바이트를 data URL로 변환."""
+        mime_type, _ = mimetypes.guess_type(image_name)
+        if not mime_type:
+            mime_type = "image/png"
+        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        return f"data:{mime_type};base64,{image_b64}"
+
+    def _reference_context_to_data_url(self, context: ReferenceImageContext) -> str:
+        """참고 이미지 컨텍스트를 data URL로 변환."""
+        if context.image_bytes:
+            return self._image_bytes_to_data_url(
+                context.image_bytes,
+                context.image_name or context.label,
+            )
+        if context.image_path and os.path.exists(context.image_path):
+            return self._image_file_to_data_url(context.image_path)
+        raise ImageServiceError("참고 이미지 파일을 읽을 수 없습니다.")
+
+    @staticmethod
+    def _fallback_reference_analysis(contexts: list[ReferenceImageContext]) -> str:
+        """OpenAI 비전 분석 전 간단한 메타데이터 기반 요약."""
+        products = ", ".join(
+            (
+                context.product_name
+                or context.label
+                or context.image_name
+            )
+            for context in contexts[:3]
+            if context.product_name or context.label or context.image_name
+        )
+        styles = ", ".join(sorted({context.style for context in contexts if context.style}))
+        return (
+            f"Reference products: {products}. "
+            f"Observed style tags: {styles}. "
+            "Synthesize a coherent brand image from the selected references."
+        ).strip()
+
+    def _build_reference_analysis(
+        self,
+        request: ImageGenerationRequest,
+    ) -> str:
+        """선택한 여러 참고 이미지와 메타데이터를 GPT-5-mini로 분석해 신규 프롬프트용 요약을 만든다."""
+        contexts = self._normalize_reference_contexts(request.reference_contexts)
+        valid_contexts = [
+            context
+            for context in contexts
+            if (
+                context.image_bytes
+                or (context.image_path and os.path.exists(context.image_path))
+            )
+        ]
+        if not valid_contexts:
+            return ""
+
+        if self.settings.USE_MOCK or not self.settings.is_api_ready:
+            return self._fallback_reference_analysis(valid_contexts)
+
+        content: list[dict] = [{
+            "type": "input_text",
+            "text": (
+                "You are analyzing multiple archived marketing images and their metadata to prepare a prompt brief "
+                "for generating one new image. Synthesize common visual patterns, not literal copies.\n"
+                f"Target product: {request.product_name}\n"
+                f"Product description: {request.description}\n"
+                f"Brand philosophy: {request.brand_philosophy}\n"
+                f"Marketing goal: {request.goal}\n"
+                f"Requested style: {request.style}\n"
+                "Output ONLY a concise English reference brief with exactly these 6 lines:\n"
+                "Mood: ...\n"
+                "Composition: ...\n"
+                "Product framing: ...\n"
+                "Color and lighting: ...\n"
+                "Brand cues: ...\n"
+                "Avoid: ..."
+            ),
+        }]
+
+        for idx, context in enumerate(valid_contexts[:6], start=1):
+            content.append({
+                "type": "input_text",
+                "text": (
+                    f"[Reference {idx} metadata]\n"
+                    f"Source: {context.source}\n"
+                    f"Label: {context.label}\n"
+                    f"Product: {context.product_name}\n"
+                    f"Description: {context.description}\n"
+                    f"Style: {context.style}\n"
+                    f"Created at: {context.created_at}\n"
+                    f"Prompt: {context.revised_prompt}\n"
+                    f"Ad copies: {' | '.join(context.ad_copies[:3])}\n"
+                    f"Promo sentences: {' | '.join(context.promo_sentences[:2])}"
+                ),
+            })
+            content.append({
+                "type": "input_image",
+                "image_url": self._reference_context_to_data_url(context),
+                "detail": "low",
+            })
+
+        try:
+            response = self.client.responses.create(
+                model="gpt-5-mini",
+                input=[{
+                    "role": "user",
+                    "content": content,
+                }],
+            )
+            analysis = (response.output_text or "").strip()
+            if not analysis:
+                raise ImageServiceError("참고 이미지 분석 결과가 비어 있습니다.")
+            logger.info("참고 이미지 GPT 분석 완료 (references=%d)", len(valid_contexts))
+            return analysis
+        except Exception as e:
+            logger.error("참고 이미지 분석 실패: %s", e)
+            raise ImageServiceError(f"참고 이미지 분석 중 오류가 발생했습니다: {e}")
+
+    def _prepare_request_with_reference_analysis(
+        self,
+        request: ImageGenerationRequest,
+    ) -> ImageGenerationRequest:
+        """필요 시 참고 이미지 분석 결과를 요청 객체에 주입."""
+        normalized_contexts = self._normalize_reference_contexts(request.reference_contexts)
+        if not normalized_contexts:
+            return request
+
+        analysis = request.reference_analysis.strip() if request.reference_analysis else ""
+        if not analysis:
+            analysis = self._build_reference_analysis(
+                request.model_copy(update={"reference_contexts": normalized_contexts})
+            )
+
+        return request.model_copy(
+            update={
+                "reference_contexts": normalized_contexts,
+                "reference_analysis": analysis,
+            }
+        )
+
     def generate_ad_image(
         self, request: ImageGenerationRequest
     ) -> ImageGenerationResponse:
@@ -116,6 +284,7 @@ class ImageService:
             ImageServiceError: 생성 실패 시 사용자 친화적 메시지
         """
         runtime_service = self._runtime_service(request)
+        request = runtime_service._prepare_request_with_reference_analysis(request)
         runtime_settings = runtime_service.settings
 
         if runtime_settings.USE_MOCK:
@@ -176,6 +345,7 @@ class ImageService:
             product_name=request.product_name,
             description=request.description,
             brand_philosophy=request.brand_philosophy,
+            reference_analysis=request.reference_analysis,
             style=request.style,
             goal=request.goal,
             ad_copy=request.prompt,
@@ -271,8 +441,13 @@ class ImageService:
             "prompt": request.prompt,
             "product_name": request.product_name,
             "description": request.description,
+            "brand_philosophy": request.brand_philosophy,
             "goal": request.goal,
             "style": request.style,
+            "is_new_product": request.is_new_product,
+            "is_renewal_product": request.is_renewal_product,
+            "attachment_count": request.attachment_count,
+            "reference_analysis": request.reference_analysis,
             "image_data_b64": (
                 base64.b64encode(request.image_data).decode("utf-8")
                 if request.image_data
@@ -341,6 +516,7 @@ class ImageService:
             product_name=request.product_name,
             description=request.description,
             brand_philosophy=request.brand_philosophy,
+            reference_analysis=request.reference_analysis,
             style=request.style,
             goal=request.goal,
             ad_copy=request.prompt,

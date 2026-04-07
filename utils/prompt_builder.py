@@ -152,6 +152,7 @@ def build_image_prompt(
     product_name: str,
     description: str,
     brand_philosophy: str,
+    reference_analysis: str,
     style: str,
     goal: str = "일반 홍보",
     ad_copy: str = "",
@@ -186,6 +187,13 @@ def build_image_prompt(
             "Translate this philosophy into the mood, composition, material feeling, and lighting direction of the image. "
         )
 
+    reference_analysis_guide = ""
+    if reference_analysis:
+        reference_analysis_guide = (
+            f"Selected reference analysis: {reference_analysis}. "
+            "Use this as the primary visual synthesis for the new image while avoiding direct duplication. "
+        )
+
     product_status_guide = (
         f"Product status: {product_status}. "
         + (
@@ -201,6 +209,7 @@ def build_image_prompt(
         f"A professional commercial advertisement visual concept for '{product_name}'. "
         f"{reference_guide}"
         f"{philosophy_guide}"
+        f"{reference_analysis_guide}"
         f"{product_status_guide}"
         f"Promotional Context: {goal}. "
         f"Visual Strategy: {visual_strategy} "
