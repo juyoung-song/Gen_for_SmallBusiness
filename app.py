@@ -233,6 +233,136 @@ def _prepare_reference_analysis(
         reference_analysis=reference_analysis,
     )
 
+
+def _reset_photo_adjustments_state() -> None:
+    """사진 보정 상태를 기본값으로 초기화."""
+    st.session_state.photo_filter_preset = "기본"
+    for key, value in _PHOTO_FILTER_PRESETS["기본"].items():
+        st.session_state[key] = value
+    st.session_state.story_result = None
+
+
+def _apply_photo_preset(preset_name: str) -> None:
+    """선택한 프리셋을 사진 보정 슬라이더에 반영."""
+    st.session_state.photo_filter_preset = preset_name
+    for key, value in _PHOTO_FILTER_PRESETS[preset_name].items():
+        st.session_state[key] = value
+    st.session_state.story_result = None
+
+
+def _current_photo_adjustments() -> dict[str, int]:
+    """현재 세션에 저장된 사진 보정값."""
+    return {
+        "exposure": int(st.session_state.photo_exposure),
+        "brightness": int(st.session_state.photo_brightness),
+        "contrast": int(st.session_state.photo_contrast),
+        "saturation": int(st.session_state.photo_saturation),
+        "sharpness": int(st.session_state.photo_sharpness),
+        "warmth": int(st.session_state.photo_warmth),
+    }
+
+
+def _sync_adjusted_image_result() -> None:
+    """원본 이미지와 현재 보정값을 기준으로 미리보기 이미지를 동기화."""
+    result = st.session_state.get("image_result")
+    if not result or not result.get("image_data"):
+        return
+
+    original_image_data = result.get("original_image_data")
+    if not original_image_data:
+        original_image_data = result["image_data"]
+        result["original_image_data"] = original_image_data
+        st.session_state.image_result = result
+
+    if not result.get("preview_image_data"):
+        result["preview_image_data"] = result.get("image_data", original_image_data)
+        st.session_state.image_result = result
+
+    adjusted_image_data = image_service.apply_photo_adjustments(
+        original_image_data,
+        **_current_photo_adjustments(),
+    )
+    if adjusted_image_data != result.get("preview_image_data"):
+        result["preview_image_data"] = adjusted_image_data
+        st.session_state.image_result = result
+        st.session_state.story_result = None
+
+
+def _save_adjusted_image_result() -> None:
+    """현재 보정 미리보기를 실제 적용본으로 저장."""
+    result = st.session_state.get("image_result")
+    if not result:
+        return
+    preview_image_data = result.get("preview_image_data", result.get("image_data"))
+    if not preview_image_data:
+        return
+    result["image_data"] = preview_image_data
+    st.session_state.image_result = result
+    st.session_state.story_result = None
+
+
+def _has_unsaved_photo_adjustments() -> bool:
+    """미리보기와 저장된 적용본이 다른지 여부."""
+    result = st.session_state.get("image_result")
+    if not result:
+        return False
+    return result.get("preview_image_data", result.get("image_data")) != result.get("image_data")
+
+
+def _render_photo_adjustment_panel() -> None:
+    """생성된 이미지에 후처리 필터/보정 UI를 렌더링."""
+    st.markdown("##### 🎛️ 사진 보정")
+    st.caption(
+        "카메라 필터처럼 분위기를 바꾸거나, 노출/밝기/대비 등을 조절할 수 있습니다. "
+        "슬라이더를 움직이면 미리보기에 바로 반영되고, `보정본 저장` 후에 인스타 피드/스토리 만들기에 적용됩니다."
+    )
+
+    current_preset_values = {
+        key: st.session_state[key]
+        for key in _PHOTO_FILTER_PRESETS["기본"].keys()
+    }
+    active_preset_name = next(
+        (
+            preset_name
+            for preset_name, values in _PHOTO_FILTER_PRESETS.items()
+            if values == current_preset_values
+        ),
+        "직접 보정",
+    )
+    if active_preset_name == "직접 보정":
+        st.caption("현재 상태: `직접 보정`")
+
+    preset_columns = st.columns(len(_PHOTO_FILTER_PRESETS) + 1)
+    for idx, preset_name in enumerate(_PHOTO_FILTER_PRESETS.keys()):
+        with preset_columns[idx]:
+            if st.button(
+                preset_name,
+                key=f"photo_preset_{preset_name}",
+                width="stretch",
+                type="primary" if active_preset_name == preset_name else "secondary",
+            ):
+                _apply_photo_preset(preset_name)
+                st.rerun()
+    with preset_columns[-1]:
+        if st.button("원본으로", key="photo_preset_reset", width="stretch"):
+            _reset_photo_adjustments_state()
+            st.rerun()
+
+    slider_row_1 = st.columns(3)
+    slider_row_2 = st.columns(3)
+    with slider_row_1[0]:
+        st.slider("노출", min_value=-30, max_value=30, key="photo_exposure")
+    with slider_row_1[1]:
+        st.slider("밝기", min_value=-30, max_value=30, key="photo_brightness")
+    with slider_row_1[2]:
+        st.slider("대비", min_value=-40, max_value=40, key="photo_contrast")
+    with slider_row_2[0]:
+        st.slider("채도", min_value=-40, max_value=40, key="photo_saturation")
+    with slider_row_2[1]:
+        st.slider("선명도", min_value=-40, max_value=40, key="photo_sharpness")
+    with slider_row_2[2]:
+        st.slider("따뜻함", min_value=-40, max_value=40, key="photo_warmth")
+
 # ══════════════════════════════════════════════
 # Session State 초기화 (명확한 분리)
 # ══════════════════════════════════════════════
@@ -247,6 +377,13 @@ _DEFAULT_STATE: dict = {
     "selected_reference_priority_keys": [],
     "selected_uploaded_reference_keys": [],
     "known_uploaded_reference_keys": [],
+    "photo_filter_preset": "기본",
+    "photo_exposure": 0,
+    "photo_brightness": 0,
+    "photo_contrast": 0,
+    "photo_saturation": 0,
+    "photo_sharpness": 0,
+    "photo_warmth": 0,
     "is_new_product": False,
     "is_renewal_product": False,
     "generation_type": "글 + 사진 함께 만들기",
@@ -267,6 +404,50 @@ _DEFAULT_STATE: dict = {
 for key, default in _DEFAULT_STATE.items():
     if key not in st.session_state:
         st.session_state[key] = default
+
+
+_PHOTO_FILTER_PRESETS: dict[str, dict[str, int]] = {
+    "기본": {
+        "photo_exposure": 0,
+        "photo_brightness": 0,
+        "photo_contrast": 0,
+        "photo_saturation": 0,
+        "photo_sharpness": 0,
+        "photo_warmth": 0,
+    },
+    "따뜻하게": {
+        "photo_exposure": 6,
+        "photo_brightness": 4,
+        "photo_contrast": 6,
+        "photo_saturation": 10,
+        "photo_sharpness": 4,
+        "photo_warmth": 22,
+    },
+    "선명하게": {
+        "photo_exposure": 3,
+        "photo_brightness": 2,
+        "photo_contrast": 14,
+        "photo_saturation": 8,
+        "photo_sharpness": 20,
+        "photo_warmth": 0,
+    },
+    "무드있게": {
+        "photo_exposure": -6,
+        "photo_brightness": -2,
+        "photo_contrast": 12,
+        "photo_saturation": -6,
+        "photo_sharpness": 8,
+        "photo_warmth": 12,
+    },
+    "빈티지": {
+        "photo_exposure": 4,
+        "photo_brightness": 6,
+        "photo_contrast": -8,
+        "photo_saturation": -18,
+        "photo_sharpness": -4,
+        "photo_warmth": 18,
+    },
+}
 
 # ══════════════════════════════════════════════
 # UI 매핑용 딕셔너리
@@ -730,6 +911,9 @@ def _run_image_generation(
                 await HistoryService().save_history(create_data)
             run_async(_save())
         st.session_state.image_result = response.model_dump()
+        st.session_state.image_result["original_image_data"] = response.image_data
+        st.session_state.image_result["preview_image_data"] = response.image_data
+        _reset_photo_adjustments_state()
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
 
@@ -830,6 +1014,9 @@ def _run_combined_generation(
             create_data = HistoryCreate(generation_type=GenerationType.COMBINED, product_name=name, description=desc, style=f"글:{tone_val}/사진:{style_val}", result_data=combined_dict)
             await HistoryService().save_history(create_data)
         run_async(_save_combined())
+        st.session_state.image_result["original_image_data"] = res_i.image_data
+        st.session_state.image_result["preview_image_data"] = res_i.image_data
+        _reset_photo_adjustments_state()
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
 
@@ -1287,12 +1474,14 @@ with tab_create:
                     st.code(sentence, language="plaintext")
 
     if st.session_state.get("image_result"):
+        _sync_adjusted_image_result()
         with st.container(border=True):
             result, request_info = st.session_state.image_result, st.session_state.last_request
+            preview_image_data = result.get("preview_image_data", result.get("image_data", b""))
             st.markdown(f"#### 📸 홍보 사진 (선택하신 느낌: **{request_info.get('ui_image_style', request_info.get('image_style', '기본'))}**)")
             col_img, col_info = st.columns([1, 1], gap="large")
             with col_img:
-                st.image(result.get("image_data", b""), width="stretch", output_format="PNG")
+                st.image(preview_image_data, width="stretch", output_format="PNG")
             with col_info:
                 st.markdown("**✔️ 고화질 홍보용 사진이 예쁘게 완성되었습니다.**")
                 st.caption(f"- 사용된 상품명: `{request_info['product_name']}`")
@@ -1302,8 +1491,26 @@ with tab_create:
                     st.caption(f"- 브랜드 철학: `{request_info['brand_philosophy']}`")
                 with st.expander("🛠️ (참고용) AI가 그림을 그릴 때 사용한 명령어 엿보기"):
                     st.code(result.get("revised_prompt"), language="text")
-                st.success("사진에 오른쪽 클릭을 하거나, 아래 버튼을 눌러 저장할 수 있습니다.")
-                st.download_button("💾 사진 기기에 다운로드 (저장)", data=result.get("image_data", b""), file_name=f"{request_info['product_name']}_홍보사진.png", mime="image/png", width="stretch")
+                if _has_unsaved_photo_adjustments():
+                    st.warning("현재 슬라이더 조정값은 미리보기에만 반영되어 있습니다. 아래 `보정본 저장`을 눌러야 인스타 피드/스토리 만들기에 적용됩니다.")
+                else:
+                    st.success("현재 보정본이 저장되어 있으며, 아래 인스타 피드/스토리 만들기에 그대로 사용됩니다.")
+                action_col_save, action_col_original = st.columns(2)
+                with action_col_save:
+                    if st.button("💾 보정본 저장", key="save_adjusted_photo", width="stretch"):
+                        _save_adjusted_image_result()
+                        st.rerun()
+                with action_col_original:
+                    st.download_button(
+                        "🖼️ 원본 다운로드",
+                        data=result.get("original_image_data", result.get("image_data", b"")),
+                        file_name=f"{request_info['product_name']}_홍보사진_원본.png",
+                        mime="image/png",
+                        width="stretch",
+                    )
+
+            st.write("")
+            _render_photo_adjustment_panel()
 
     if st.session_state.get("text_result") and st.session_state.get("image_result"):
         req_info = st.session_state.last_request
@@ -1313,6 +1520,8 @@ with tab_create:
         with st.container(border=True):
             st.markdown("#### <span class='step-badge'>4</span> 인스타그램(SNS)에 바로 편하게 올리기", unsafe_allow_html=True)
             st.write("위에서 다 만들어진 글과 사진을 실제 인스타그램 피드나 스토리 포맷에 맞춰 보기 좋게 다듬어 가겠습니다.")
+            if _has_unsaved_photo_adjustments():
+                st.warning("사진 보정 미리보기가 아직 저장되지 않았습니다. `보정본 저장`을 누른 뒤 피드/스토리 만들기를 진행하면 보정본 이미지가 적용됩니다.")
             
             col_feed_btn, col_story_btn = st.columns(2)
             

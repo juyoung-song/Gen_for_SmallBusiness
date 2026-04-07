@@ -661,6 +661,59 @@ class ImageService:
         story_canvas.save(buffer, format="PNG")
         return buffer.getvalue()
 
+    def apply_photo_adjustments(
+        self,
+        image_bytes: bytes,
+        *,
+        exposure: int = 0,
+        brightness: int = 0,
+        contrast: int = 0,
+        saturation: int = 0,
+        sharpness: int = 0,
+        warmth: int = 0,
+    ) -> bytes:
+        """생성 이미지를 사진 편집 앱처럼 가볍게 후처리한다."""
+        from PIL import ImageEnhance
+
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
+        def _lut(scale: float) -> list[int]:
+            return [
+                max(0, min(255, int(round(value * scale))))
+                for value in range(256)
+            ]
+
+        if exposure:
+            exposure_scale = pow(2.0, exposure / 50.0)
+            img = img.point(_lut(exposure_scale) * 3)
+
+        if brightness:
+            img = ImageEnhance.Brightness(img).enhance(1.0 + brightness / 100.0)
+
+        if contrast:
+            img = ImageEnhance.Contrast(img).enhance(1.0 + contrast / 100.0)
+
+        if saturation:
+            img = ImageEnhance.Color(img).enhance(1.0 + saturation / 100.0)
+
+        if sharpness:
+            img = ImageEnhance.Sharpness(img).enhance(1.0 + sharpness / 80.0)
+
+        if warmth:
+            warmth_ratio = warmth / 100.0
+            red_scale = 1.0 + (0.18 * warmth_ratio)
+            green_scale = 1.0 + (0.05 * warmth_ratio)
+            blue_scale = 1.0 - (0.18 * warmth_ratio)
+            r, g, b = img.split()
+            r = r.point(_lut(red_scale))
+            g = g.point(_lut(green_scale))
+            b = b.point(_lut(blue_scale))
+            img = Image.merge("RGB", (r, g, b))
+
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        return buffer.getvalue()
+
 
     # ──────────────────────────────────────────
     # Mock 이미지 생성 헬퍼
