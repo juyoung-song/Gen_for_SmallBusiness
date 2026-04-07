@@ -8,6 +8,7 @@ API 연동 및 데이터베이스(히스토리) 완성:
 """
 
 import asyncio
+import hashlib
 import os
 
 import streamlit as st
@@ -218,6 +219,7 @@ _DEFAULT_STATE: dict = {
     "product_image": None,
     "uploaded_image_names": [],
     "selected_reference_history_ids": [],
+    "selected_reference_priority_keys": [],
     "is_new_product": False,
     "is_renewal_product": False,
     "generation_type": "글 + 사진 함께 만들기",
@@ -330,6 +332,33 @@ def _build_uploaded_reference_contexts(uploaded_files) -> list[ReferenceImageCon
             )
         )
     return contexts
+
+
+def _reference_context_priority_key(context: ReferenceImageContext) -> str:
+    """참고 이미지 우선순위 정렬을 위한 안정적인 키."""
+    if context.source == "history" and context.history_id:
+        return f"history:{context.history_id}"
+    if context.source == "upload" and context.image_bytes:
+        digest = hashlib.sha1(context.image_bytes).hexdigest()[:12]
+        return f"upload:{context.image_name}:{digest}"
+    if context.image_path:
+        return f"path:{context.image_path}"
+    return f"fallback:{context.label or context.image_name or context.product_name}"
+
+
+def _ordered_priority_keys(
+    contexts: list[ReferenceImageContext],
+    stored_priority_keys: list[str] | None,
+) -> list[str]:
+    """현재 선택된 참고 이미지 기준으로 우선순위 키를 정렬."""
+    available_keys = [_reference_context_priority_key(context) for context in contexts]
+    ordered_keys = [
+        key for key in (stored_priority_keys or []) if key in available_keys
+    ]
+    ordered_keys.extend(
+        key for key in available_keys if key not in ordered_keys
+    )
+    return ordered_keys
 
 
 # ══════════════════════════════════════════════
@@ -785,30 +814,85 @@ with tab_create:
         else:
             st.info("보관함에 아직 참고할 이미지가 없습니다. 새 레퍼런스 이미지를 업로드해서 시작할 수 있습니다.")
 
+        history_reference_contexts = _build_reference_contexts(selected_reference_histories)
         uploaded_reference_contexts = _build_uploaded_reference_contexts(uploaded_reference_files)
-        total_reference_count = len(selected_reference_histories) + len(uploaded_reference_contexts)
+        selected_reference_contexts = history_reference_contexts + uploaded_reference_contexts
+        total_reference_count = len(selected_reference_contexts)
+        ordered_reference_contexts = selected_reference_contexts
+        priority_keys = _ordered_priority_keys(
+            selected_reference_contexts,
+            st.session_state.selected_reference_priority_keys,
+        )
         if total_reference_count > 3:
             st.warning("참고 이미지는 보관함 선택과 새 업로드를 합쳐 최대 3장까지만 사용할 수 있습니다.")
 
         if total_reference_count > 0:
+            context_by_priority_key = {
+                _reference_context_priority_key(context): context
+                for context in selected_reference_contexts
+            }
+            priority_labels = {
+                key: (
+                    context.label
+                    or context.image_name
+                    or context.product_name
+                    or "참고 이미지"
+                )
+                for key, context in context_by_priority_key.items()
+            }
+
+            if total_reference_count > 1:
+                st.markdown("##### 참조 우선순위")
+                st.caption("우선순위 1 이미지는 실제 생성 백엔드에 직접 들어가는 대표 참조 이미지입니다. 나머지 이미지는 GPT-5-mini 분석에 함께 반영됩니다.")
+                used_priority_keys = []
+                priority_slots = st.columns(total_reference_count)
+                new_priority_keys: list[str] = []
+                for idx in range(total_reference_count):
+                    slot_options = [
+                        key for key in priority_keys if key not in used_priority_keys
+                    ]
+                    widget_key = f"reference_priority_{idx + 1}"
+                    default_key = slot_options[0]
+                    if st.session_state.get(widget_key) not in slot_options:
+                        st.session_state[widget_key] = default_key
+                    with priority_slots[idx]:
+                        selected_priority_key = st.selectbox(
+                            f"우선순위 {idx + 1}",
+                            options=slot_options,
+                            format_func=lambda key: priority_labels[key],
+                            key=widget_key,
+                        )
+                    new_priority_keys.append(selected_priority_key)
+                    used_priority_keys.append(selected_priority_key)
+                priority_keys = new_priority_keys
+            else:
+                st.caption("선택된 참고 이미지 1장이 대표 참조 이미지로 사용됩니다.")
+
+            ordered_reference_contexts = [
+                context_by_priority_key[key]
+                for key in priority_keys
+                if key in context_by_priority_key
+            ]
+            st.session_state.selected_reference_priority_keys = priority_keys
+            for idx in range(total_reference_count + 1, 4):
+                st.session_state.pop(f"reference_priority_{idx}", None)
+
             st.caption(f"선택된 참고 이미지 {total_reference_count}장")
             selected_columns = st.columns(3)
-            preview_items = [
-                ("history", history, None)
-                for history in selected_reference_histories
-            ] + [
-                ("upload", None, uploaded_file)
-                for uploaded_file in (uploaded_reference_files or [])
-            ]
-            for idx, (source, history, uploaded_file) in enumerate(preview_items):
+            for idx, context in enumerate(ordered_reference_contexts):
                 with selected_columns[idx % 3]:
-                    if source == "history" and history is not None:
-                        st.image(_history_image_path(history), width="stretch")
-                        st.caption(_history_reference_label(history))
-                    elif uploaded_file is not None:
-                        st.image(uploaded_file, width="stretch")
-                        st.caption(f"업로드 · {uploaded_file.name}")
+                    if context.image_bytes:
+                        st.image(context.image_bytes, width="stretch")
+                    elif context.image_path:
+                        st.image(context.image_path, width="stretch")
+                    st.caption(
+                        f"우선순위 {idx + 1} · "
+                        f"{context.label or context.image_name or context.product_name or '참고 이미지'}"
+                    )
         else:
+            st.session_state.selected_reference_priority_keys = []
+            for idx in range(1, 4):
+                st.session_state.pop(f"reference_priority_{idx}", None)
             st.caption("선택된 참고 이미지가 없습니다. 선택하지 않으면 일반 생성 흐름으로 진행합니다.")
 
     # 2. 생성 타입 섹션
@@ -887,10 +971,7 @@ with tab_create:
         desc_payload = st.session_state.product_description
         
         # 보관함 선택 + 새 업로드 이미지를 합쳐 GPT 분석에 사용하고, 첫 번째 이미지는 대표 참조 이미지로 전달
-        reference_contexts = (
-            _build_reference_contexts(selected_reference_histories)
-            + uploaded_reference_contexts
-        )
+        reference_contexts = ordered_reference_contexts
         attachment_names = [
             context.label or context.image_name or context.product_name or "참고 이미지"
             for context in reference_contexts
