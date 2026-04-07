@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 class CaptionGenerationRequest(BaseModel):
     product_name: str
+    description: str = ""
     ad_copies: list[str]
     style: str
     brand_philosophy: str = ""
