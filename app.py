@@ -1155,44 +1155,45 @@ with tab_create:
         with col_reference_pool:
             if reference_histories:
                 with st.expander("최근 보관함 이미지 보기", expanded=False):
-                    st.caption("이미지를 눌러 참고 목록에 추가하거나 제거하세요.")
-                    preview_columns = st.columns(2)
-                    for idx, history in enumerate(reference_histories[:12]):
-                        history_id = str(history.id)
-                        is_selected = history_id in selected_reference_ids
-                        selection_full = total_reference_count >= 3
-                        with preview_columns[idx % 2]:
-                            st.image(_history_image_path(history), width="stretch")
-                            st.caption(_history_reference_label(history))
-                            button_label = "선택 해제" if is_selected else "선택"
-                            button_disabled = (not is_selected) and selection_full
-                            if st.button(
-                                button_label,
-                                key=f"history_reference_toggle_{history_id}",
-                                width="stretch",
-                                disabled=button_disabled,
-                            ):
-                                if is_selected:
-                                    st.session_state.selected_reference_history_ids = [
-                                        value
-                                        for value in st.session_state.selected_reference_history_ids
-                                        if value != history_id
-                                    ]
-                                    st.session_state.selected_reference_priority_keys = [
-                                        key
-                                        for key in st.session_state.selected_reference_priority_keys
-                                        if key != f"history:{history_id}"
-                                    ]
-                                else:
-                                    st.session_state.selected_reference_history_ids = (
-                                        st.session_state.selected_reference_history_ids
-                                        + [history_id]
-                                    )
-                                    st.session_state.selected_reference_priority_keys = (
-                                        st.session_state.selected_reference_priority_keys
-                                        + [f"history:{history_id}"]
-                                    )
-                                st.rerun()
+                    st.caption("최근 보관함 이미지 50장까지만 보여드립니다. 이미지를 눌러 참고 목록에 추가하거나 제거하세요.")
+                    with st.container(height=640):
+                        preview_columns = st.columns(4)
+                        for idx, history in enumerate(reference_histories[:50]):
+                            history_id = str(history.id)
+                            is_selected = history_id in selected_reference_ids
+                            selection_full = total_reference_count >= 3
+                            with preview_columns[idx % 4]:
+                                st.image(_history_image_path(history), width="stretch")
+                                st.caption(_history_reference_label(history))
+                                button_label = "선택 해제" if is_selected else "선택"
+                                button_disabled = (not is_selected) and selection_full
+                                if st.button(
+                                    button_label,
+                                    key=f"history_reference_toggle_{history_id}",
+                                    width="stretch",
+                                    disabled=button_disabled,
+                                ):
+                                    if is_selected:
+                                        st.session_state.selected_reference_history_ids = [
+                                            value
+                                            for value in st.session_state.selected_reference_history_ids
+                                            if value != history_id
+                                        ]
+                                        st.session_state.selected_reference_priority_keys = [
+                                            key
+                                            for key in st.session_state.selected_reference_priority_keys
+                                            if key != f"history:{history_id}"
+                                        ]
+                                    else:
+                                        st.session_state.selected_reference_history_ids = (
+                                            st.session_state.selected_reference_history_ids
+                                            + [history_id]
+                                        )
+                                        st.session_state.selected_reference_priority_keys = (
+                                            st.session_state.selected_reference_priority_keys
+                                            + [f"history:{history_id}"]
+                                        )
+                                    st.rerun()
             else:
                 st.info("보관함에 아직 참고할 이미지가 없습니다. 새 레퍼런스 이미지를 업로드해서 시작할 수 있습니다.")
 
@@ -1488,9 +1489,12 @@ with tab_create:
             result, request_info = st.session_state.image_result, st.session_state.last_request
             preview_image_data = result.get("preview_image_data", result.get("image_data", b""))
             st.markdown(f"#### 📸 홍보 사진 (선택하신 느낌: **{request_info.get('ui_image_style', request_info.get('image_style', '기본'))}**)")
-            col_img, col_info = st.columns([1, 1], gap="large")
-            with col_img:
+            col_visual, col_info = st.columns([1.65, 0.85], gap="large")
+            with col_visual:
                 st.image(preview_image_data, width="stretch", output_format="PNG")
+                st.write("")
+                with st.container(border=True):
+                    _render_photo_adjustment_panel()
             with col_info:
                 st.markdown("**✔️ 고화질 홍보용 사진이 예쁘게 완성되었습니다.**")
                 st.caption(f"- 사용된 상품명: `{request_info['product_name']}`")
@@ -1498,8 +1502,6 @@ with tab_create:
                 st.caption(f"- 참고 이미지: `{request_info.get('attachment_count', 0)}장`")
                 if request_info.get("brand_philosophy"):
                     st.caption(f"- 브랜드 철학: `{request_info['brand_philosophy']}`")
-                with st.expander("🛠️ (참고용) AI가 그림을 그릴 때 사용한 명령어 엿보기"):
-                    st.code(result.get("revised_prompt"), language="text")
                 if _has_unsaved_photo_adjustments():
                     st.warning("현재 슬라이더 조정값은 미리보기에만 반영되어 있습니다. 아래 `보정본 저장`을 눌러야 인스타 피드/스토리 만들기에 적용됩니다.")
                 else:
@@ -1517,9 +1519,8 @@ with tab_create:
                         mime="image/png",
                         width="stretch",
                     )
-
-            st.write("")
-            _render_photo_adjustment_panel()
+            with st.expander("🛠️ (참고용) AI가 그림을 그릴 때 사용한 명령어 엿보기"):
+                st.code(result.get("revised_prompt"), language="text")
 
     if st.session_state.get("text_result") and st.session_state.get("image_result"):
         req_info = st.session_state.last_request
