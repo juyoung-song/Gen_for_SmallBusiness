@@ -25,6 +25,11 @@ class TextGenerationRequest(BaseModel):
         max_length=200,
         description="상품 설명 (선택, 최대 200자)",
     )
+    brand_philosophy: str = Field(
+        default="",
+        max_length=300,
+        description="브랜드 철학/핵심 가치",
+    )
     style: str = Field(
         default="기본",
         description="광고 스타일 (기본/감성/고급/유머/심플)",
@@ -37,11 +42,30 @@ class TextGenerationRequest(BaseModel):
         default=None,
         description="업로드된 상품 이미지 바이너리",
     )
+    is_new_product: bool = Field(
+        default=False,
+        description="신상품 여부",
+    )
+    is_renewal_product: bool = Field(
+        default=False,
+        description="리뉴얼 상품 여부",
+    )
+    attachment_count: int = Field(
+        default=0,
+        ge=0,
+        description="첨부 이미지 개수",
+    )
 
     @field_validator("product_name")
     @classmethod
     def strip_product_name(cls, v: str) -> str:
         """앞뒤 공백 제거."""
+        return v.strip()
+
+    @field_validator("description", "brand_philosophy")
+    @classmethod
+    def strip_optional_text(cls, v: str) -> str:
+        """선택 입력값의 앞뒤 공백 제거."""
         return v.strip()
 
     @field_validator("style")

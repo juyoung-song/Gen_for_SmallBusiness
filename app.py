@@ -195,7 +195,11 @@ _DEFAULT_STATE: dict = {
     # 1. 입력부 세션 관리
     "product_name": "",
     "product_description": "",
+    "brand_philosophy": "",
     "product_image": None,
+    "uploaded_image_names": [],
+    "is_new_product": False,
+    "is_renewal_product": False,
     "generation_type": "글 + 사진 함께 만들기",
     "ad_purpose": "신상품 홍보",
     "text_tone": "기본",
@@ -235,6 +239,15 @@ STYLE_DISPLAY_MAP = {
 PURPOSE_OPTIONS = [
     "신상품 홍보", "할인 행사", "매장 소개", "시즌 홍보", "기타 (직접 입력)"
 ]
+
+
+def _format_product_status(is_new_product: bool, is_renewal_product: bool) -> str:
+    """선택된 상품 상태를 사람이 읽기 쉬운 라벨로 변환."""
+    if is_new_product:
+        return "신상품"
+    if is_renewal_product:
+        return "리뉴얼 상품"
+    return "기존 상품"
 
 
 # ══════════════════════════════════════════════
@@ -402,15 +415,46 @@ def render_instagram_story_preview_and_upload(product_name: str, image_bytes: by
 # ══════════════════════════════════════════════
 # 공통 헬퍼 — 업무 실행 함수
 # ══════════════════════════════════════════════
-def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone_name: str, image_data: bytes = None) -> None:
+def _run_text_generation(
+    name: str,
+    desc: str,
+    goal: str,
+    tone_val: str,
+    ui_tone_name: str,
+    image_data: bytes = None,
+    brand_philosophy: str = "",
+    is_new_product: bool = False,
+    is_renewal_product: bool = False,
+    attachment_names: list[str] | None = None,
+) -> None:
     st.session_state.error_message = None
     st.session_state.last_request = {
-        "product_name": name, "description": desc, "goal": goal, "text_tone": tone_val, "ui_text_tone": ui_tone_name, 
-        "image_data": image_data, "type": "홍보 글"
+        "product_name": name,
+        "description": desc,
+        "goal": goal,
+        "text_tone": tone_val,
+        "ui_text_tone": ui_tone_name,
+        "image_data": image_data,
+        "brand_philosophy": brand_philosophy,
+        "is_new_product": is_new_product,
+        "is_renewal_product": is_renewal_product,
+        "attachment_names": attachment_names or [],
+        "attachment_count": len(attachment_names or []),
+        "type": "홍보 글",
     }
     try:
         with st.spinner("💬 사장님을 대신해 멋진 홍보 글을 작성하고 있어요. 잠시만 기다려주세요..."):
-            request = TextGenerationRequest(product_name=name, description=desc, style=tone_val, goal=goal, image_data=image_data)
+            request = TextGenerationRequest(
+                product_name=name,
+                description=desc,
+                brand_philosophy=brand_philosophy,
+                style=tone_val,
+                goal=goal,
+                image_data=image_data,
+                is_new_product=is_new_product,
+                is_renewal_product=is_renewal_product,
+                attachment_count=len(attachment_names or []),
+            )
             response = text_service.generate_ad_copy(request)
             
             async def _save():
@@ -428,13 +472,26 @@ def _run_image_generation(
     style_val: str,
     ui_style_name: str,
     image_data: bytes = None,
+    brand_philosophy: str = "",
+    is_new_product: bool = False,
+    is_renewal_product: bool = False,
+    attachment_names: list[str] | None = None,
     inference_options: ImageInferenceOptions | dict | None = None,
 ) -> None:
     inference_options_obj = _coerce_inference_options(inference_options)
     st.session_state.error_message = None
     st.session_state.last_request = {
-        "product_name": name, "description": desc, "goal": goal, "image_style": style_val, "ui_image_style": ui_style_name, 
+        "product_name": name,
+        "description": desc,
+        "goal": goal,
+        "image_style": style_val,
+        "ui_image_style": ui_style_name,
         "image_data": image_data,
+        "brand_philosophy": brand_philosophy,
+        "is_new_product": is_new_product,
+        "is_renewal_product": is_renewal_product,
+        "attachment_names": attachment_names or [],
+        "attachment_count": len(attachment_names or []),
         "type": "홍보 사진",
         "inference_options": inference_options_obj.model_dump(exclude_none=True),
     }
@@ -443,9 +500,13 @@ def _run_image_generation(
             request = ImageGenerationRequest(
                 product_name=name,
                 description=desc,
+                brand_philosophy=brand_philosophy,
                 goal=goal,
                 style=style_val,
                 image_data=image_data,
+                is_new_product=is_new_product,
+                is_renewal_product=is_renewal_product,
+                attachment_count=len(attachment_names or []),
                 inference_options=inference_options_obj,
             )
             response = image_service.generate_ad_image(request)
@@ -467,15 +528,28 @@ def _run_combined_generation(
     ui_tone_name: str,
     ui_style_name: str,
     image_data: bytes = None,
+    brand_philosophy: str = "",
+    is_new_product: bool = False,
+    is_renewal_product: bool = False,
+    attachment_names: list[str] | None = None,
     inference_options: ImageInferenceOptions | dict | None = None,
 ) -> None:
     inference_options_obj = _coerce_inference_options(inference_options)
     st.session_state.error_message = None
     st.session_state.last_request = {
-        "product_name": name, "description": desc, "goal": goal, "text_tone": tone_val, "image_style": style_val,
+        "product_name": name,
+        "description": desc,
+        "goal": goal,
+        "text_tone": tone_val,
+        "image_style": style_val,
         "ui_text_tone": ui_tone_name,
         "ui_image_style": ui_style_name,
         "image_data": image_data,
+        "brand_philosophy": brand_philosophy,
+        "is_new_product": is_new_product,
+        "is_renewal_product": is_renewal_product,
+        "attachment_names": attachment_names or [],
+        "attachment_count": len(attachment_names or []),
         "type": "글과 사진 세트",
         "inference_options": inference_options_obj.model_dump(exclude_none=True),
     }
@@ -483,7 +557,17 @@ def _run_combined_generation(
     res_t, res_i = None, None
     try:
         with st.spinner("💬 [1단계] 사장님을 대신해 멋진 홍보 글을 먼저 작성하고 있어요..."):
-            req_t = TextGenerationRequest(product_name=name, description=desc, style=tone_val, goal=goal, image_data=image_data)
+            req_t = TextGenerationRequest(
+                product_name=name,
+                description=desc,
+                brand_philosophy=brand_philosophy,
+                style=tone_val,
+                goal=goal,
+                image_data=image_data,
+                is_new_product=is_new_product,
+                is_renewal_product=is_renewal_product,
+                attachment_count=len(attachment_names or []),
+            )
             res_t = text_service.generate_ad_copy(req_t)
             st.session_state.text_result = res_t.model_dump()
             
@@ -492,10 +576,14 @@ def _run_combined_generation(
             req_i = ImageGenerationRequest(
                 product_name=name,
                 description=desc,
+                brand_philosophy=brand_philosophy,
                 goal=goal,
                 style=style_val,
                 prompt=hint_copy,
                 image_data=image_data,
+                is_new_product=is_new_product,
+                is_renewal_product=is_renewal_product,
+                attachment_count=len(attachment_names or []),
                 inference_options=inference_options_obj,
             )
             res_i = image_service.generate_ad_image(req_i)
@@ -531,7 +619,32 @@ with tab_create:
         st.markdown("#### <span class='step-badge'>1</span> 우리 가게 상품 정보 ✏️", unsafe_allow_html=True)
         product_name = st.text_input("📦 어떤 상품을 홍보할까요? (필수)", value=st.session_state.product_name, placeholder="예: 무화과 크림치즈 휘낭시에")
         product_description = st.text_input("✒️ 상품의 장점을 짤막하게 알려주세요 (선택)", value=st.session_state.product_description, placeholder="예: 최고급 원재료, 유기농, 당일 한정 수량 등")
-        product_image = st.file_uploader("📸 상품 사진을 올려주시면 AI가 더 잘 이해해요 (선택사항)", type=["png", "jpg", "jpeg"])
+        brand_philosophy = st.text_area(
+            "🧭 브랜드 철학이나 핵심 가치 (선택)",
+            value=st.session_state.brand_philosophy,
+            height=100,
+            placeholder="예: 정직한 재료, 느린 장인정신, 일상 속 작은 사치",
+        )
+        col_product_flag_1, col_product_flag_2 = st.columns(2)
+        with col_product_flag_1:
+            is_new_product = st.checkbox("신상품입니다", value=st.session_state.is_new_product)
+        with col_product_flag_2:
+            is_renewal_product = st.checkbox("리뉴얼 상품입니다", value=st.session_state.is_renewal_product)
+
+        if is_new_product and is_renewal_product:
+            st.warning("신상품과 리뉴얼 상품은 동시에 선택할 수 없습니다. 하나만 선택해주세요.")
+
+        product_images = st.file_uploader(
+            "📸 첨부 이미지 (여러 장 가능, 선택사항)",
+            type=["png", "jpg", "jpeg"],
+            accept_multiple_files=True,
+            help="여러 장을 올릴 수 있습니다. 현재 생성 파이프라인은 첫 번째 이미지를 대표 이미지로 사용합니다.",
+        )
+        if product_images:
+            st.caption(
+                f"첨부된 이미지 {len(product_images)}장: "
+                + ", ".join(uploaded_file.name for uploaded_file in product_images)
+            )
 
     # 2. 생성 타입 섹션
     with st.container(border=True):
@@ -581,10 +694,16 @@ with tab_create:
         if not name:
             st.session_state.error_message = "⚠️ 위에 상품 이름을 먼저 입력해주세요! (예: 맛있는 사과)"
             st.rerun()
+        if is_new_product and is_renewal_product:
+            st.session_state.error_message = "⚠️ 신상품과 리뉴얼 상품은 동시에 선택할 수 없습니다. 하나만 선택해주세요."
+            st.rerun()
 
         # 1. 상태 업데이트
         st.session_state.product_name = name
         st.session_state.product_description = product_description.strip()
+        st.session_state.brand_philosophy = brand_philosophy.strip()
+        st.session_state.is_new_product = is_new_product
+        st.session_state.is_renewal_product = is_renewal_product
         st.session_state.generation_type = generation_type
         
         final_ad_purpose = ad_purpose_custom if ad_purpose_ui == "기타 (직접 입력)" else ad_purpose_ui
@@ -598,8 +717,10 @@ with tab_create:
         # 설명에 목적 추가 로직 제거 (request.goal로 별도 전달됨)
         desc_payload = st.session_state.product_description
         
-        # 이미지 데이터 추출
-        image_data = product_image.getvalue() if product_image is not None else None
+        # 여러 장 업로드를 받되, 현재 생성 파이프라인에는 첫 번째 이미지만 대표로 전달
+        attachment_names = [uploaded_file.name for uploaded_file in product_images] if product_images else []
+        st.session_state.uploaded_image_names = attachment_names
+        image_data = product_images[0].getvalue() if product_images else None
         inference_options = _build_current_inference_options()
 
         # 2. 로직 분기
@@ -613,10 +734,25 @@ with tab_create:
                 selected_tone_ui,
                 selected_style_ui,
                 image_data,
+                st.session_state.brand_philosophy,
+                is_new_product,
+                is_renewal_product,
+                attachment_names,
                 inference_options,
             )
         elif generation_type == "홍보 글만 만들기":
-            _run_text_generation(name, desc_payload, final_ad_purpose, tone_val, selected_tone_ui, image_data)
+            _run_text_generation(
+                name,
+                desc_payload,
+                final_ad_purpose,
+                tone_val,
+                selected_tone_ui,
+                image_data,
+                st.session_state.brand_philosophy,
+                is_new_product,
+                is_renewal_product,
+                attachment_names,
+            )
         else: # 이미지만
             _run_image_generation(
                 name,
@@ -625,6 +761,10 @@ with tab_create:
                 style_val,
                 selected_style_ui,
                 image_data,
+                st.session_state.brand_philosophy,
+                is_new_product,
+                is_renewal_product,
+                attachment_names,
                 inference_options,
             )
             
@@ -656,10 +796,25 @@ with tab_create:
                         req["ui_text_tone"],
                         req["ui_image_style"],
                         req.get("image_data"),
+                        req.get("brand_philosophy", ""),
+                        req.get("is_new_product", False),
+                        req.get("is_renewal_product", False),
+                        req.get("attachment_names"),
                         req.get("inference_options"),
                     )
                 elif req["type"] == "홍보 글":
-                    _run_text_generation(req["product_name"], req["description"], req.get("goal", "일반 홍보"), req["text_tone"], req["ui_text_tone"], req.get("image_data"))
+                    _run_text_generation(
+                        req["product_name"],
+                        req["description"],
+                        req.get("goal", "일반 홍보"),
+                        req["text_tone"],
+                        req["ui_text_tone"],
+                        req.get("image_data"),
+                        req.get("brand_philosophy", ""),
+                        req.get("is_new_product", False),
+                        req.get("is_renewal_product", False),
+                        req.get("attachment_names"),
+                    )
                 else:
                     _run_image_generation(
                         req["product_name"],
@@ -668,6 +823,10 @@ with tab_create:
                         req["image_style"],
                         req["ui_image_style"],
                         req.get("image_data"),
+                        req.get("brand_philosophy", ""),
+                        req.get("is_new_product", False),
+                        req.get("is_renewal_product", False),
+                        req.get("attachment_names"),
                         req.get("inference_options"),
                     )
                 st.rerun()
@@ -678,6 +837,10 @@ with tab_create:
         with st.container(border=True):
             result, request_info = st.session_state.text_result, st.session_state.last_request
             st.markdown(f"#### ✒️ 홍보 글 (선택하신 느낌: **{request_info.get('ui_text_tone', request_info.get('text_tone', '기본'))}**)")
+            st.caption(f"- 상품 상태: `{_format_product_status(request_info.get('is_new_product', False), request_info.get('is_renewal_product', False))}`")
+            st.caption(f"- 첨부 이미지: `{request_info.get('attachment_count', 0)}장`")
+            if request_info.get("brand_philosophy"):
+                st.caption(f"- 브랜드 철학: `{request_info['brand_philosophy']}`")
             col_ad, col_promo = st.columns(2, gap="large")
             with col_ad:
                 st.markdown("**💡 추천하는 짧은 홍보 문장**")
@@ -700,6 +863,10 @@ with tab_create:
             with col_info:
                 st.markdown("**✔️ 고화질 홍보용 사진이 예쁘게 완성되었습니다.**")
                 st.caption(f"- 사용된 상품명: `{request_info['product_name']}`")
+                st.caption(f"- 상품 상태: `{_format_product_status(request_info.get('is_new_product', False), request_info.get('is_renewal_product', False))}`")
+                st.caption(f"- 첨부 이미지: `{request_info.get('attachment_count', 0)}장`")
+                if request_info.get("brand_philosophy"):
+                    st.caption(f"- 브랜드 철학: `{request_info['brand_philosophy']}`")
                 with st.expander("🛠️ (참고용) AI가 그림을 그릴 때 사용한 명령어 엿보기"):
                     st.code(result.get("revised_prompt"), language="text")
                 st.success("사진에 오른쪽 클릭을 하거나, 아래 버튼을 눌러 저장할 수 있습니다.")
@@ -723,7 +890,15 @@ with tab_create:
                     with st.spinner("피드용 글과 태그를 정리하고 있어요..."):
                         try:
                             cap_svc = CaptionService(settings)
-                            req = CaptionGenerationRequest(product_name=req_info["product_name"], ad_copies=txt_res.get("ad_copies", []), style=req_info["text_tone"])
+                            req = CaptionGenerationRequest(
+                                product_name=req_info["product_name"],
+                                ad_copies=txt_res.get("ad_copies", []),
+                                style=req_info["text_tone"],
+                                brand_philosophy=req_info.get("brand_philosophy", ""),
+                                is_new_product=req_info.get("is_new_product", False),
+                                is_renewal_product=req_info.get("is_renewal_product", False),
+                                attachment_count=req_info.get("attachment_count", 0),
+                            )
                             st.session_state.caption_result = cap_svc.generate_caption(req)
                             st.session_state.show_story_ui = False
                         except Exception as e:

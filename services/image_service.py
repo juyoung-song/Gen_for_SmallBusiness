@@ -175,10 +175,14 @@ class ImageService:
         raw_image_prompt = build_image_prompt(
             product_name=request.product_name,
             description=request.description,
+            brand_philosophy=request.brand_philosophy,
             style=request.style,
             goal=request.goal,
             ad_copy=request.prompt,
-            has_reference=(request.image_data is not None)
+            has_reference=(request.image_data is not None),
+            is_new_product=request.is_new_product,
+            is_renewal_product=request.is_renewal_product,
+            attachment_count=request.attachment_count,
         )
 
         try:
@@ -336,10 +340,14 @@ class ImageService:
         raw_prompt = build_image_prompt(
             product_name=request.product_name,
             description=request.description,
+            brand_philosophy=request.brand_philosophy,
             style=request.style,
             goal=request.goal,
             ad_copy=request.prompt,
             has_reference=(request.image_data is not None),
+            is_new_product=request.is_new_product,
+            is_renewal_product=request.is_renewal_product,
+            attachment_count=request.attachment_count,
         )
         try:
             translation = self.client.chat.completions.create(

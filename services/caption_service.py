@@ -1,10 +1,20 @@
 """인스타그램용 캡션 및 해시태그 생성 서비스."""
 import logging
+
 from openai import OpenAI
+
 from config.settings import Settings
 from schemas.instagram_schema import CaptionGenerationRequest, CaptionGenerationResponse
 
 logger = logging.getLogger(__name__)
+
+
+def _product_status_label(is_new_product: bool, is_renewal_product: bool) -> str:
+    if is_new_product:
+        return "신상품"
+    if is_renewal_product:
+        return "리뉴얼 상품"
+    return "기존 상품"
 
 class CaptionService:
     def __init__(self, settings: Settings):
@@ -19,15 +29,33 @@ class CaptionService:
 
     def generate_caption(self, request: CaptionGenerationRequest) -> CaptionGenerationResponse:
         logger.info("GPT를 이용해 인스타그램 캡션과 해시태그 생성 중...")
-        
+
+        product_status = _product_status_label(
+            request.is_new_product,
+            request.is_renewal_product,
+        )
+        philosophy_line = (
+            f"브랜드 철학: {request.brand_philosophy}\n"
+            if request.brand_philosophy
+            else ""
+        )
+
         system_prompt = (
             "당신은 인스타그램 전문 SNS 마케터입니다. 생성된 광고 문구들을 활용하여 1개의 매력적인 인스타그램 본문(캡션)과 "
             "해당 상품에 어울리는 최적의 해시태그 5~10개를 생성해주세요. "
+            "브랜드 철학과 상품 상태가 주어지면 본문의 어조와 메시지에 자연스럽게 반영하세요. "
             "응답은 반드시 아래 형식을 지켜주세요.\n\n"
             "[본문]\n(여기에 줄바꿈과 이모지를 듬뿍 활용한 SNS 감성 본문 작성)\n\n"
             "[해시태그]\n#해시태그1 #해시태그2"
         )
-        user_prompt = f"상품명: {request.product_name}\n광고 스타일: {request.style}\n참고용 광고 문구들: {', '.join(request.ad_copies)}"
+        user_prompt = (
+            f"상품명: {request.product_name}\n"
+            f"상품 상태: {product_status}\n"
+            f"{philosophy_line}"
+            f"첨부 이미지 수: {request.attachment_count}장\n"
+            f"광고 스타일: {request.style}\n"
+            f"참고용 광고 문구들: {', '.join(request.ad_copies)}"
+        )
 
         response = self.client.chat.completions.create(
             model=self.settings.TEXT_MODEL,
