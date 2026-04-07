@@ -831,6 +831,9 @@ def _run_text_generation(
                 result_payload = {
                     **response.model_dump(),
                     "reference_analysis": reference_analysis,
+                    "brand_philosophy": brand_philosophy,
+                    "is_new_product": is_new_product,
+                    "is_renewal_product": is_renewal_product,
                 }
                 create_data = HistoryCreate(generation_type=GenerationType.TEXT, product_name=name, description=desc, style=tone_val, result_data=result_payload)
                 await HistoryService().save_history(create_data)
@@ -906,6 +909,9 @@ def _run_image_generation(
                 result_payload = {
                     **response.model_dump(),
                     "reference_analysis": reference_analysis,
+                    "brand_philosophy": brand_philosophy,
+                    "is_new_product": is_new_product,
+                    "is_renewal_product": is_renewal_product,
                 }
                 create_data = HistoryCreate(generation_type=GenerationType.IMAGE, product_name=name, description=desc, style=style_val, result_data=result_payload)
                 await HistoryService().save_history(create_data)
@@ -1010,6 +1016,9 @@ def _run_combined_generation(
                 **res_t.model_dump(),
                 **res_i.model_dump(),
                 "reference_analysis": reference_analysis,
+                "brand_philosophy": brand_philosophy,
+                "is_new_product": is_new_product,
+                "is_renewal_product": is_renewal_product,
             }
             create_data = HistoryCreate(generation_type=GenerationType.COMBINED, product_name=name, description=desc, style=f"글:{tone_val}/사진:{style_val}", result_data=combined_dict)
             await HistoryService().save_history(create_data)
@@ -1534,6 +1543,7 @@ with tab_create:
                             cap_svc = CaptionService(settings)
                             req = CaptionGenerationRequest(
                                 product_name=req_info["product_name"],
+                                description=req_info.get("description", ""),
                                 ad_copies=txt_res.get("ad_copies", []),
                                 style=req_info["text_tone"],
                                 brand_philosophy=req_info.get("brand_philosophy", ""),
@@ -1626,8 +1636,12 @@ with tab_archive:
                             # caption_service는 style 파라미터를 그대로 사용하므로 전달
                             req = CaptionGenerationRequest(
                                 product_name=history.product_name,
+                                description=history.description or "",
                                 ad_copies=res_data.get("ad_copies", []),
                                 style="기본",
+                                brand_philosophy=res_data.get("brand_philosophy", ""),
+                                is_new_product=res_data.get("is_new_product", False),
+                                is_renewal_product=res_data.get("is_renewal_product", False),
                                 reference_analysis=res_data.get("reference_analysis", ""),
                             )
                             st.session_state.history_captions[str(history.id)] = cap_svc.generate_caption(req)
