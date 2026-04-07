@@ -199,27 +199,15 @@ class TextService:
                 ".env 파일에서 OPENAI_API_KEY를 설정해주세요."
             )
 
-        # 파일 힌트 생성
-        image_hint = None
-        if request.image_data:
-            if request.attachment_count > 1:
-                image_hint = (
-                    f"상점에 상품 이미지가 {request.attachment_count}장 업로드되었습니다. "
-                    "대표 이미지를 중심으로 전체 분위기를 참고하세요."
-                )
-            else:
-                image_hint = "상점에 상품 이미지가 업로드되었습니다. 그 분위기를 참고하세요."
-
         system_prompt, user_prompt = build_text_prompt(
             product_name=request.product_name,
             description=request.description,
             brand_philosophy=request.brand_philosophy,
             style=request.style,
             goal=request.goal,
-            image_hint=image_hint,
             is_new_product=request.is_new_product,
             is_renewal_product=request.is_renewal_product,
-            attachment_count=request.attachment_count,
+            reference_analysis=request.reference_analysis,
         )
 
         try:

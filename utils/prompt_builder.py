@@ -31,7 +31,7 @@ _IMAGE_STYLE_MAP: dict[str, str] = {
 # 레퍼런스 기반 정교화 레이어 (스타벅스/투썸/할리스)
 # ──────────────────────────────────────────────
 _BRAND_CUES = (
-    "- 브랜드 톤앤매너: 감성적인 도입부 + 명확한 핵심 정보 (군더더기 배제)\n"
+    "- 브랜드 톤앤매너: 따뜻한 도입부 + 명확한 핵심 정보 (군더더기 배제)\n"
     "- 분위기: 과한 광고(예: 파격 세일!) 보다는 일상의 소소한 행복, 취향, 경험을 자극할 것\n"
     "- 문장 스타일: 정돈된 브랜드 문장처럼 작성할 것\n"
     "- 이미지 가이드: 제품 중심의 여백 미, 자연스러운 빛 활용 강조\n"
@@ -60,32 +60,26 @@ def build_text_prompt(
     brand_philosophy: str,
     style: str,
     goal: str = "일반 홍보",
-    image_hint: str = None,
     is_new_product: bool = False,
     is_renewal_product: bool = False,
-    attachment_count: int = 0,
+    reference_analysis: str = "",
 ) -> tuple[str, str]:
     """광고 문구 생성을 위한 프롬프트를 반환합니다. 홍보 목적과 이미지 특징을 반영합니다."""
     style_instruction = _STYLE_GUIDE.get(style, _STYLE_GUIDE["기본"])
     product_status_instruction = _product_status_prompt(is_new_product, is_renewal_product)
-    
-    image_context = ""
-    if image_hint:
-        image_context = (
-            f"업로드 이미지 특징: {image_hint}\n"
-            "업로드 이미지의 색감, 분위기, 제품 인상을 문구에 자연스럽게 참고하세요.\n"
-        )
-    elif attachment_count > 0:
-        image_context = (
-            f"업로드 이미지 수: {attachment_count}장\n"
-            "이미지 해석 정보가 부족하더라도, 시각 자료가 있다는 전제로 어색하지 않게 문구를 구성하세요.\n"
-        )
 
     philosophy_context = ""
     if brand_philosophy:
         philosophy_context = (
             f"브랜드 철학: {brand_philosophy}\n"
             "브랜드 철학은 문구의 세계관, 단어 선택, 분위기에 자연스럽게 녹여내세요.\n"
+        )
+
+    reference_context = ""
+    if reference_analysis:
+        reference_context = (
+            f"참고 이미지 분석 요약: {reference_analysis}\n"
+            "이 요약에서 드러난 분위기, 색감, 제품 프레이밍, 브랜드 단서를 문구의 장면감과 어휘에 자연스럽게 반영하세요.\n"
         )
 
     system_prompt = (
@@ -112,7 +106,8 @@ def build_text_prompt(
         f"상품 상태: {_product_status_label(is_new_product, is_renewal_product)}\n"
         f"홍보 목적: {goal}\n"
         f"{philosophy_context}"
-        f"{image_context}\n"
+        f"{reference_context}"
+        "\n"
         "위 정보를 바탕으로 아래 세 가지 섹션을 작성하세요. "
         "홍보 목적 달성과 상세한 설명이 가장 중요합니다.\n\n"
 
@@ -159,7 +154,6 @@ def build_image_prompt(
     has_reference: bool = False,
     is_new_product: bool = False,
     is_renewal_product: bool = False,
-    attachment_count: int = 0,
 ) -> str:
     """상품 정보와 홍보 목적을 포함한 시각적 광고 컨셉이미지 프롬프트를 생성합니다."""
     style_desc = _IMAGE_STYLE_MAP.get(style, _IMAGE_STYLE_MAP["기본"])
@@ -177,8 +171,6 @@ def build_image_prompt(
     reference_guide = ""
     if has_reference:
         reference_guide = "Respect the composition and color scheme of the provided reference image. Maintain product identity. "
-    elif attachment_count > 0:
-        reference_guide = "Visual references were uploaded for this product. Keep the product identity consistent with the supplied materials. "
 
     philosophy_guide = ""
     if brand_philosophy:

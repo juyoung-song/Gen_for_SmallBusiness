@@ -269,6 +269,31 @@ class ImageService:
             }
         )
 
+    def prepare_reference_analysis(
+        self,
+        *,
+        product_name: str = "",
+        description: str = "",
+        brand_philosophy: str = "",
+        goal: str = "일반 홍보",
+        style: str = "기본",
+        reference_contexts: list[ReferenceImageContext] | list[dict] | None = None,
+        reference_analysis: str = "",
+    ) -> tuple[list[ReferenceImageContext], str]:
+        """참고 이미지 컨텍스트를 정규화하고 분석 요약을 준비한다."""
+        prepared_request = self._prepare_request_with_reference_analysis(
+            ImageGenerationRequest(
+                product_name=product_name,
+                description=description,
+                brand_philosophy=brand_philosophy,
+                goal=goal,
+                style=style,
+                reference_contexts=self._normalize_reference_contexts(reference_contexts),
+                reference_analysis=reference_analysis,
+            )
+        )
+        return prepared_request.reference_contexts, prepared_request.reference_analysis
+
     def generate_ad_image(
         self, request: ImageGenerationRequest
     ) -> ImageGenerationResponse:
@@ -352,7 +377,6 @@ class ImageService:
             has_reference=(request.image_data is not None),
             is_new_product=request.is_new_product,
             is_renewal_product=request.is_renewal_product,
-            attachment_count=request.attachment_count,
         )
 
         try:
@@ -523,7 +547,6 @@ class ImageService:
             has_reference=(request.image_data is not None),
             is_new_product=request.is_new_product,
             is_renewal_product=request.is_renewal_product,
-            attachment_count=request.attachment_count,
         )
         try:
             translation = self.client.chat.completions.create(

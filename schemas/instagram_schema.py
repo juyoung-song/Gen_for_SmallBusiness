@@ -9,6 +9,7 @@ class CaptionGenerationRequest(BaseModel):
     is_new_product: bool = False
     is_renewal_product: bool = False
     attachment_count: int = 0
+    reference_analysis: str = ""
 
 class CaptionGenerationResponse(BaseModel):
     caption: str

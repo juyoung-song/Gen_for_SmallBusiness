@@ -39,20 +39,25 @@ class CaptionService:
             if request.brand_philosophy
             else ""
         )
+        reference_line = (
+            f"참고 이미지 분석 요약: {request.reference_analysis}\n"
+            if request.reference_analysis
+            else ""
+        )
 
         system_prompt = (
             "당신은 인스타그램 전문 SNS 마케터입니다. 생성된 광고 문구들을 활용하여 1개의 매력적인 인스타그램 본문(캡션)과 "
             "해당 상품에 어울리는 최적의 해시태그 5~10개를 생성해주세요. "
-            "브랜드 철학과 상품 상태가 주어지면 본문의 어조와 메시지에 자연스럽게 반영하세요. "
+            "브랜드 철학, 상품 상태, 참고 이미지 분석 요약이 주어지면 본문의 어조와 메시지에 자연스럽게 반영하세요. "
             "응답은 반드시 아래 형식을 지켜주세요.\n\n"
-            "[본문]\n(여기에 줄바꿈과 이모지를 듬뿍 활용한 SNS 감성 본문 작성)\n\n"
+            "[본문]\n(여기에 줄바꿈과 이모지를 적절히 활용한 SNS 감성 본문 작성)\n\n"
             "[해시태그]\n#해시태그1 #해시태그2"
         )
         user_prompt = (
             f"상품명: {request.product_name}\n"
             f"상품 상태: {product_status}\n"
             f"{philosophy_line}"
-            f"첨부 이미지 수: {request.attachment_count}장\n"
+            f"{reference_line}"
             f"광고 스타일: {request.style}\n"
             f"참고용 광고 문구들: {', '.join(request.ad_copies)}"
         )
