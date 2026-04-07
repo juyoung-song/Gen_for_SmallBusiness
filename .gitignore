@@ -177,5 +177,8 @@ models/cache/
 # Claude
 .claude/
 
+# Instaloader session files
+.instaloader_session_*
+
 # Excalidraw
 *.excalidraw
