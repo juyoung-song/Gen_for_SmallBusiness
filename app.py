@@ -881,7 +881,7 @@ with tab_create:
         bg_product_name = st.text_input("상품명 (선택)", placeholder="예: 토리든 세럼", key="bg_swap_name")
 
         if bg_upload:
-            original_image_data = bg_upload.getvalue()
+            original_image_data: bytes = bg_upload.getvalue()
             col_btn_a, col_btn_b = st.columns(2)
             with col_btn_a:
                 run_a = st.button("🖼️ A. 프롬프트만으로 교체", key="bg_swap_btn_a", help="원본 이미지 + '배경만 바꿔라' 프롬프트")
@@ -891,7 +891,7 @@ with tab_create:
             from services.background_swap_service import BackgroundSwapService, BackgroundSwapError
             svc = BackgroundSwapService(settings)
             swap_kwargs = dict(
-                product_image_bytes=original_image_data,
+                product_image_bytes=bytes(original_image_data),
                 style=STYLE_DISPLAY_MAP.get(bg_style, "기본"),
                 goal="일반 홍보",
                 product_name=bg_product_name,
