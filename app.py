@@ -1488,39 +1488,49 @@ with tab_create:
         with st.container(border=True):
             result, request_info = st.session_state.image_result, st.session_state.last_request
             preview_image_data = result.get("preview_image_data", result.get("image_data", b""))
+            original_image_data = result.get("original_image_data", result.get("image_data", b""))
             st.markdown(f"#### 📸 홍보 사진 (선택하신 느낌: **{request_info.get('ui_image_style', request_info.get('image_style', '기본'))}**)")
-            col_visual, col_info = st.columns([1.65, 0.85], gap="large")
-            with col_visual:
+            compare_col_after, compare_col_before = st.columns(2, gap="medium")
+            with compare_col_after:
+                st.caption("보정본 (After)")
                 st.image(preview_image_data, width="stretch", output_format="PNG")
-                st.write("")
+            with compare_col_before:
+                st.caption("원본 (Before)")
+                st.image(original_image_data, width="stretch", output_format="PNG")
+
+            st.write("")
+
+            col_adjustment, col_info = st.columns([1.2, 0.8], gap="large")
+            with col_adjustment:
                 with st.container(border=True):
                     _render_photo_adjustment_panel()
             with col_info:
-                st.markdown("**✔️ 고화질 홍보용 사진이 예쁘게 완성되었습니다.**")
-                st.caption(f"- 사용된 상품명: `{request_info['product_name']}`")
-                st.caption(f"- 상품 상태: `{_format_product_status(request_info.get('is_new_product', False), request_info.get('is_renewal_product', False))}`")
-                st.caption(f"- 참고 이미지: `{request_info.get('attachment_count', 0)}장`")
-                if request_info.get("brand_philosophy"):
-                    st.caption(f"- 브랜드 철학: `{request_info['brand_philosophy']}`")
-                if _has_unsaved_photo_adjustments():
-                    st.warning("현재 슬라이더 조정값은 미리보기에만 반영되어 있습니다. 아래 `보정본 저장`을 눌러야 인스타 피드/스토리 만들기에 적용됩니다.")
-                else:
-                    st.success("현재 보정본이 저장되어 있으며, 아래 인스타 피드/스토리 만들기에 그대로 사용됩니다.")
-                action_col_save, action_col_original = st.columns(2)
-                with action_col_save:
-                    if st.button("💾 보정본 저장", key="save_adjusted_photo", width="stretch"):
-                        _save_adjusted_image_result()
-                        st.rerun()
-                with action_col_original:
-                    st.download_button(
-                        "🖼️ 원본 다운로드",
-                        data=result.get("original_image_data", result.get("image_data", b"")),
-                        file_name=f"{request_info['product_name']}_홍보사진_원본.png",
-                        mime="image/png",
-                        width="stretch",
-                    )
-            with st.expander("🛠️ (참고용) AI가 그림을 그릴 때 사용한 명령어 엿보기"):
-                st.code(result.get("revised_prompt"), language="text")
+                with st.container(border=True):
+                    st.markdown("**✔️ 고화질 홍보용 사진이 예쁘게 완성되었습니다.**")
+                    st.caption(f"- 사용된 상품명: `{request_info['product_name']}`")
+                    st.caption(f"- 상품 상태: `{_format_product_status(request_info.get('is_new_product', False), request_info.get('is_renewal_product', False))}`")
+                    st.caption(f"- 참고 이미지: `{request_info.get('attachment_count', 0)}장`")
+                    if request_info.get("brand_philosophy"):
+                        st.caption(f"- 브랜드 철학: `{request_info['brand_philosophy']}`")
+                    if _has_unsaved_photo_adjustments():
+                        st.warning("현재 슬라이더 조정값은 미리보기에만 반영되어 있습니다. 아래 `보정본 저장`을 눌러야 인스타 피드/스토리 만들기에 적용됩니다.")
+                    else:
+                        st.success("현재 보정본이 저장되어 있으며, 아래 인스타 피드/스토리 만들기에 그대로 사용됩니다.")
+                    action_col_save, action_col_original = st.columns(2)
+                    with action_col_save:
+                        if st.button("💾 보정본 저장", key="save_adjusted_photo", width="stretch"):
+                            _save_adjusted_image_result()
+                            st.rerun()
+                    with action_col_original:
+                        st.download_button(
+                            "🖼️ 원본 다운로드",
+                            data=original_image_data,
+                            file_name=f"{request_info['product_name']}_홍보사진_원본.png",
+                            mime="image/png",
+                            width="stretch",
+                        )
+                    with st.expander("🛠️ (참고용) AI가 그림을 그릴 때 사용한 명령어 엿보기"):
+                        st.code(result.get("revised_prompt"), language="text")
 
     if st.session_state.get("text_result") and st.session_state.get("image_result"):
         req_info = st.session_state.last_request
