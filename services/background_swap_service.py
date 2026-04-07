@@ -185,6 +185,50 @@ class BackgroundSwapService:
         subject_rgba = subject_rgba.resize(output_size, Image.Resampling.LANCZOS)
         return _composite(subject_rgba, bg_bytes)
 
+    def _analyze_image_bytes(self, image_bytes: bytes) -> str:
+        """GPT Vision으로 이미지 분석 → 상품 특징 텍스트 반환."""
+        import base64
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from openai import OpenAI
+        client = OpenAI(api_key=self.settings.OPENAI_API_KEY)
+
+        # RGBA → RGB JPEG 변환
+        from PIL import Image as PILImage
+        img = PILImage.open(io.BytesIO(image_bytes))
+        if img.mode != "RGB":
+            bg = PILImage.new("RGB", img.size, (255, 255, 255))
+            if img.mode in ("RGBA", "LA"):
+                bg.paste(img, mask=img.split()[-1])
+            else:
+                bg.paste(img.convert("RGB"))
+            img = bg
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        image_src = f"data:image/jpeg;base64,{b64}"
+
+        logger.info("GPT Vision 이미지 분석 중...")
+        response = client.responses.create(
+            model="gpt-5-mini",
+            input=[{
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": (
+                        "이 상품 이미지를 분석하세요. "
+                        "상품의 종류, 색상, 형태, 재질감, 크기감을 영어 키워드로 간결하게 설명하세요. "
+                        "10단어 이내로, 쉼표로 구분해주세요."
+                    )},
+                    {"type": "input_image", "image_url": image_src},
+                ],
+            }],
+            max_output_tokens=200,
+        )
+        result = (response.output_text or "").strip()
+        logger.info("이미지 분석 완료: %s", result)
+        return result
+
     def swap_prompt_only(
         self,
         product_image_bytes: bytes,
@@ -194,17 +238,32 @@ class BackgroundSwapService:
         extra_hint: str = "",
         model_id: str | None = None,
     ) -> bytes:
-        """방식 A: 원본 이미지 + 프롬프트로 HF img2img 호출. 배경만 바꾸도록 지시."""
+        """방식 A: 원본 이미지 + 프롬프트로 HF img2img 호출.
+        FLUX 모델은 img2img 미지원 → 이미지 분석 후 txt2img로 fallback.
+        """
         self._check_hf()
-        prompt = _build_prompt_only_prompt(product_name, style, goal, extra_hint)
         bg_model = model_id or self.settings.IMAGE_MODEL
-        logger.info("방식 A (prompt_only) 시작")
+        is_flux = "flux" in bg_model.lower()
+
+        if is_flux:
+            # FLUX: 이미지 분석 → txt2img
+            logger.info("FLUX 모델 감지 → txt2img fallback (이미지 분석 포함)")
+            product_desc = self._analyze_image_bytes(product_image_bytes)
+            prompt = (
+                f"Commercial product photography. Product: {product_desc}. "
+                f"{extra_hint}. "
+                "High resolution, photorealistic, no text, clean composition."
+            )
+        else:
+            prompt = _build_prompt_only_prompt(product_name, style, goal, extra_hint)
+
+        logger.info("방식 A (prompt_only, flux=%s) 시작", is_flux)
         result = _call_hf_api(
             prompt=prompt,
             model_id=bg_model,
+            image_bytes=None if is_flux else product_image_bytes,
             hf_api_key=self.settings.HUGGINGFACE_API_KEY,
             timeout=self.settings.IMAGE_TIMEOUT,
-            image_bytes=product_image_bytes,
         )
         return result
 
