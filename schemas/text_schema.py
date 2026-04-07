@@ -55,6 +55,10 @@ class TextGenerationRequest(BaseModel):
         ge=0,
         description="첨부 이미지 개수",
     )
+    reference_analysis: str = Field(
+        default="",
+        description="선택한 참고 이미지들에 대한 GPT 분석 요약",
+    )
 
     @field_validator("product_name")
     @classmethod

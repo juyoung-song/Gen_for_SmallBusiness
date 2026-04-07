@@ -208,6 +208,31 @@ def _coerce_reference_contexts(
             normalized.append(ReferenceImageContext.model_validate(item))
     return normalized
 
+
+def _prepare_reference_analysis(
+    *,
+    product_name: str,
+    description: str,
+    brand_philosophy: str,
+    goal: str,
+    style: str,
+    reference_contexts: list[ReferenceImageContext] | list[dict] | None,
+    reference_analysis: str = "",
+) -> tuple[list[ReferenceImageContext], str]:
+    """텍스트/이미지 생성 전에 참고 이미지 분석 요약을 1회 준비한다."""
+    reference_contexts_obj = _coerce_reference_contexts(reference_contexts)
+    if not reference_contexts_obj and not reference_analysis:
+        return [], ""
+    return image_service.prepare_reference_analysis(
+        product_name=product_name,
+        description=description,
+        brand_philosophy=brand_philosophy,
+        goal=goal,
+        style=style,
+        reference_contexts=reference_contexts_obj,
+        reference_analysis=reference_analysis,
+    )
+
 # ══════════════════════════════════════════════
 # Session State 초기화 (명확한 분리)
 # ══════════════════════════════════════════════
@@ -575,8 +600,17 @@ def _run_text_generation(
     is_renewal_product: bool = False,
     attachment_names: list[str] | None = None,
     reference_contexts: list[ReferenceImageContext] | list[dict] | None = None,
+    reference_analysis: str = "",
 ) -> None:
-    reference_contexts_obj = _coerce_reference_contexts(reference_contexts)
+    reference_contexts_obj, reference_analysis = _prepare_reference_analysis(
+        product_name=name,
+        description=desc,
+        brand_philosophy=brand_philosophy,
+        goal=goal,
+        style=tone_val,
+        reference_contexts=reference_contexts,
+        reference_analysis=reference_analysis,
+    )
     st.session_state.error_message = None
     st.session_state.last_request = {
         "product_name": name,
@@ -593,6 +627,7 @@ def _run_text_generation(
         "reference_contexts": [
             context.model_dump() for context in reference_contexts_obj
         ],
+        "reference_analysis": reference_analysis,
         "type": "홍보 글",
     }
     try:
@@ -607,11 +642,16 @@ def _run_text_generation(
                 is_new_product=is_new_product,
                 is_renewal_product=is_renewal_product,
                 attachment_count=len(attachment_names or []),
+                reference_analysis=reference_analysis,
             )
             response = text_service.generate_ad_copy(request)
             
             async def _save():
-                create_data = HistoryCreate(generation_type=GenerationType.TEXT, product_name=name, description=desc, style=tone_val, result_data=response.model_dump())
+                result_payload = {
+                    **response.model_dump(),
+                    "reference_analysis": reference_analysis,
+                }
+                create_data = HistoryCreate(generation_type=GenerationType.TEXT, product_name=name, description=desc, style=tone_val, result_data=result_payload)
                 await HistoryService().save_history(create_data)
             run_async(_save())
         st.session_state.text_result = response.model_dump()
@@ -630,10 +670,19 @@ def _run_image_generation(
     is_renewal_product: bool = False,
     attachment_names: list[str] | None = None,
     reference_contexts: list[ReferenceImageContext] | list[dict] | None = None,
+    reference_analysis: str = "",
     inference_options: ImageInferenceOptions | dict | None = None,
 ) -> None:
     inference_options_obj = _coerce_inference_options(inference_options)
-    reference_contexts_obj = _coerce_reference_contexts(reference_contexts)
+    reference_contexts_obj, reference_analysis = _prepare_reference_analysis(
+        product_name=name,
+        description=desc,
+        brand_philosophy=brand_philosophy,
+        goal=goal,
+        style=style_val,
+        reference_contexts=reference_contexts,
+        reference_analysis=reference_analysis,
+    )
     st.session_state.error_message = None
     st.session_state.last_request = {
         "product_name": name,
@@ -650,6 +699,7 @@ def _run_image_generation(
         "reference_contexts": [
             context.model_dump() for context in reference_contexts_obj
         ],
+        "reference_analysis": reference_analysis,
         "type": "홍보 사진",
         "inference_options": inference_options_obj.model_dump(exclude_none=True),
     }
@@ -665,13 +715,18 @@ def _run_image_generation(
                 is_new_product=is_new_product,
                 is_renewal_product=is_renewal_product,
                 attachment_count=len(attachment_names or []),
+                reference_analysis=reference_analysis,
                 reference_contexts=reference_contexts_obj,
                 inference_options=inference_options_obj,
             )
             response = image_service.generate_ad_image(request)
 
             async def _save():
-                create_data = HistoryCreate(generation_type=GenerationType.IMAGE, product_name=name, description=desc, style=style_val, result_data=response.model_dump())
+                result_payload = {
+                    **response.model_dump(),
+                    "reference_analysis": reference_analysis,
+                }
+                create_data = HistoryCreate(generation_type=GenerationType.IMAGE, product_name=name, description=desc, style=style_val, result_data=result_payload)
                 await HistoryService().save_history(create_data)
             run_async(_save())
         st.session_state.image_result = response.model_dump()
@@ -692,10 +747,19 @@ def _run_combined_generation(
     is_renewal_product: bool = False,
     attachment_names: list[str] | None = None,
     reference_contexts: list[ReferenceImageContext] | list[dict] | None = None,
+    reference_analysis: str = "",
     inference_options: ImageInferenceOptions | dict | None = None,
 ) -> None:
     inference_options_obj = _coerce_inference_options(inference_options)
-    reference_contexts_obj = _coerce_reference_contexts(reference_contexts)
+    reference_contexts_obj, reference_analysis = _prepare_reference_analysis(
+        product_name=name,
+        description=desc,
+        brand_philosophy=brand_philosophy,
+        goal=goal,
+        style=style_val,
+        reference_contexts=reference_contexts,
+        reference_analysis=reference_analysis,
+    )
     st.session_state.error_message = None
     st.session_state.last_request = {
         "product_name": name,
@@ -714,6 +778,7 @@ def _run_combined_generation(
         "reference_contexts": [
             context.model_dump() for context in reference_contexts_obj
         ],
+        "reference_analysis": reference_analysis,
         "type": "글과 사진 세트",
         "inference_options": inference_options_obj.model_dump(exclude_none=True),
     }
@@ -731,6 +796,7 @@ def _run_combined_generation(
                 is_new_product=is_new_product,
                 is_renewal_product=is_renewal_product,
                 attachment_count=len(attachment_names or []),
+                reference_analysis=reference_analysis,
             )
             res_t = text_service.generate_ad_copy(req_t)
             st.session_state.text_result = res_t.model_dump()
@@ -748,6 +814,7 @@ def _run_combined_generation(
                 is_new_product=is_new_product,
                 is_renewal_product=is_renewal_product,
                 attachment_count=len(attachment_names or []),
+                reference_analysis=reference_analysis,
                 reference_contexts=reference_contexts_obj,
                 inference_options=inference_options_obj,
             )
@@ -755,7 +822,11 @@ def _run_combined_generation(
             st.session_state.image_result = res_i.model_dump()
             
         async def _save_combined():
-            combined_dict = {**res_t.model_dump(), **res_i.model_dump()}
+            combined_dict = {
+                **res_t.model_dump(),
+                **res_i.model_dump(),
+                "reference_analysis": reference_analysis,
+            }
             create_data = HistoryCreate(generation_type=GenerationType.COMBINED, product_name=name, description=desc, style=f"글:{tone_val}/사진:{style_val}", result_data=combined_dict)
             await HistoryService().save_history(create_data)
         run_async(_save_combined())
@@ -1089,6 +1160,7 @@ with tab_create:
                 is_renewal_product,
                 attachment_names,
                 reference_contexts,
+                "",
                 inference_options,
             )
         elif generation_type == "홍보 글만 만들기":
@@ -1104,6 +1176,7 @@ with tab_create:
                 is_renewal_product,
                 attachment_names,
                 reference_contexts,
+                "",
             )
         else: # 이미지만
             _run_image_generation(
@@ -1118,6 +1191,7 @@ with tab_create:
                 is_renewal_product,
                 attachment_names,
                 reference_contexts,
+                "",
                 inference_options,
             )
             
@@ -1154,6 +1228,7 @@ with tab_create:
                         req.get("is_renewal_product", False),
                         req.get("attachment_names"),
                         req.get("reference_contexts"),
+                        req.get("reference_analysis", ""),
                         req.get("inference_options"),
                     )
                 elif req["type"] == "홍보 글":
@@ -1169,6 +1244,7 @@ with tab_create:
                         req.get("is_renewal_product", False),
                         req.get("attachment_names"),
                         req.get("reference_contexts"),
+                        req.get("reference_analysis", ""),
                     )
                 else:
                     _run_image_generation(
@@ -1183,6 +1259,7 @@ with tab_create:
                         req.get("is_renewal_product", False),
                         req.get("attachment_names"),
                         req.get("reference_contexts"),
+                        req.get("reference_analysis", ""),
                         req.get("inference_options"),
                     )
                 st.rerun()
@@ -1254,6 +1331,7 @@ with tab_create:
                                 is_new_product=req_info.get("is_new_product", False),
                                 is_renewal_product=req_info.get("is_renewal_product", False),
                                 attachment_count=req_info.get("attachment_count", 0),
+                                reference_analysis=req_info.get("reference_analysis", ""),
                             )
                             st.session_state.caption_result = cap_svc.generate_caption(req)
                             st.session_state.show_story_ui = False
@@ -1337,7 +1415,12 @@ with tab_archive:
                             cap_svc = CaptionService(settings)
                             # 히스토리에 있는 건 원본 style (tone/style 복합 문자열일수도 있지만)
                             # caption_service는 style 파라미터를 그대로 사용하므로 전달
-                            req = CaptionGenerationRequest(product_name=history.product_name, ad_copies=res_data.get("ad_copies", []), style="기본")
+                            req = CaptionGenerationRequest(
+                                product_name=history.product_name,
+                                ad_copies=res_data.get("ad_copies", []),
+                                style="기본",
+                                reference_analysis=res_data.get("reference_analysis", ""),
+                            )
                             st.session_state.history_captions[str(history.id)] = cap_svc.generate_caption(req)
                     
                     cap_result = st.session_state.history_captions.get(str(history.id))
