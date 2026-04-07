@@ -899,17 +899,23 @@ with tab_create:
             )
 
             if run_a:
-                with st.spinner("A. 프롬프트로 배경 교체 중..."):
+                with st.status("A. 프롬프트로 배경 교체 중...", expanded=True) as status_a:
                     try:
+                        st.write("HF API 호출 중...")
                         st.session_state["bg_swap_a"] = svc.swap_prompt_only(**swap_kwargs)
+                        status_a.update(label="A. 완료", state="complete")
                     except BackgroundSwapError as e:
+                        status_a.update(label=f"A. 오류: {e}", state="error")
                         st.error(f"❌ A 방식 오류: {e}")
 
             if run_b:
-                with st.spinner("B. 누끼 따는 중 + 배경 생성 중..."):
+                with st.status("B. 누끼 + 배경 생성 중...", expanded=True) as status_b:
                     try:
+                        st.write("rembg 누끼 제거 중...")
                         st.session_state["bg_swap_b"] = svc.swap_rembg(**swap_kwargs)
+                        status_b.update(label="B. 완료", state="complete")
                     except BackgroundSwapError as e:
+                        status_b.update(label=f"B. 오류: {e}", state="error")
                         st.error(f"❌ B 방식 오류: {e}")
 
             if st.session_state.get("bg_swap_a") or st.session_state.get("bg_swap_b"):
