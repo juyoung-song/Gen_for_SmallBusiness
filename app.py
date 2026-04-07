@@ -17,7 +17,11 @@ from config.settings import get_settings, setup_logging
 from ui.sidebar import render_sidebar_settings
 from models.history import GenerationType
 from schemas.history_schema import HistoryCreate
-from schemas.image_schema import ImageGenerationRequest, ImageInferenceOptions
+from schemas.image_schema import (
+    ImageGenerationRequest,
+    ImageInferenceOptions,
+    ReferenceImageContext,
+)
 from schemas.text_schema import TextGenerationRequest
 from services.history_service import HistoryService
 from services.image_service import ImageService, ImageServiceError
@@ -188,6 +192,21 @@ def _coerce_inference_options(
         return value
     return ImageInferenceOptions.model_validate(value)
 
+
+def _coerce_reference_contexts(
+    value: list[ReferenceImageContext] | list[dict] | None,
+) -> list[ReferenceImageContext]:
+    """재생성 시 session_state에 저장된 참고 이미지 컨텍스트를 다시 모델로 복원한다."""
+    if not value:
+        return []
+    normalized: list[ReferenceImageContext] = []
+    for item in value:
+        if isinstance(item, ReferenceImageContext):
+            normalized.append(item)
+        else:
+            normalized.append(ReferenceImageContext.model_validate(item))
+    return normalized
+
 # ══════════════════════════════════════════════
 # Session State 초기화 (명확한 분리)
 # ══════════════════════════════════════════════
@@ -198,6 +217,7 @@ _DEFAULT_STATE: dict = {
     "brand_philosophy": "",
     "product_image": None,
     "uploaded_image_names": [],
+    "selected_reference_history_ids": [],
     "is_new_product": False,
     "is_renewal_product": False,
     "generation_type": "글 + 사진 함께 만들기",
@@ -248,6 +268,47 @@ def _format_product_status(is_new_product: bool, is_renewal_product: bool) -> st
     if is_renewal_product:
         return "리뉴얼 상품"
     return "기존 상품"
+
+
+def _history_image_path(history) -> str | None:
+    """히스토리에서 실제 존재하는 이미지 경로를 반환."""
+    image_path = history.result_data.get("image_path")
+    if image_path and os.path.exists(image_path):
+        return image_path
+    return None
+
+
+def _history_reference_label(history) -> str:
+    """참고 이미지 선택용 라벨."""
+    return (
+        f"{history.product_name} · {history.style} · "
+        f"{history.created_at.strftime('%m/%d %H:%M')}"
+    )
+
+
+def _build_reference_contexts(histories) -> list[ReferenceImageContext]:
+    """선택된 히스토리들을 이미지 생성용 참고 컨텍스트로 변환."""
+    contexts: list[ReferenceImageContext] = []
+    for history in histories:
+        image_path = _history_image_path(history)
+        if not image_path:
+            continue
+        result_data = history.result_data or {}
+        contexts.append(
+            ReferenceImageContext(
+                history_id=str(history.id),
+                generation_type=history.generation_type.value,
+                product_name=history.product_name,
+                description=history.description or "",
+                style=history.style,
+                created_at=history.created_at.isoformat(),
+                image_path=image_path,
+                revised_prompt=result_data.get("revised_prompt", ""),
+                ad_copies=result_data.get("ad_copies", []),
+                promo_sentences=result_data.get("promo_sentences", []),
+            )
+        )
+    return contexts
 
 
 # ══════════════════════════════════════════════
@@ -426,7 +487,9 @@ def _run_text_generation(
     is_new_product: bool = False,
     is_renewal_product: bool = False,
     attachment_names: list[str] | None = None,
+    reference_contexts: list[ReferenceImageContext] | list[dict] | None = None,
 ) -> None:
+    reference_contexts_obj = _coerce_reference_contexts(reference_contexts)
     st.session_state.error_message = None
     st.session_state.last_request = {
         "product_name": name,
@@ -440,6 +503,9 @@ def _run_text_generation(
         "is_renewal_product": is_renewal_product,
         "attachment_names": attachment_names or [],
         "attachment_count": len(attachment_names or []),
+        "reference_contexts": [
+            context.model_dump() for context in reference_contexts_obj
+        ],
         "type": "홍보 글",
     }
     try:
@@ -476,9 +542,11 @@ def _run_image_generation(
     is_new_product: bool = False,
     is_renewal_product: bool = False,
     attachment_names: list[str] | None = None,
+    reference_contexts: list[ReferenceImageContext] | list[dict] | None = None,
     inference_options: ImageInferenceOptions | dict | None = None,
 ) -> None:
     inference_options_obj = _coerce_inference_options(inference_options)
+    reference_contexts_obj = _coerce_reference_contexts(reference_contexts)
     st.session_state.error_message = None
     st.session_state.last_request = {
         "product_name": name,
@@ -492,6 +560,9 @@ def _run_image_generation(
         "is_renewal_product": is_renewal_product,
         "attachment_names": attachment_names or [],
         "attachment_count": len(attachment_names or []),
+        "reference_contexts": [
+            context.model_dump() for context in reference_contexts_obj
+        ],
         "type": "홍보 사진",
         "inference_options": inference_options_obj.model_dump(exclude_none=True),
     }
@@ -507,6 +578,7 @@ def _run_image_generation(
                 is_new_product=is_new_product,
                 is_renewal_product=is_renewal_product,
                 attachment_count=len(attachment_names or []),
+                reference_contexts=reference_contexts_obj,
                 inference_options=inference_options_obj,
             )
             response = image_service.generate_ad_image(request)
@@ -532,9 +604,11 @@ def _run_combined_generation(
     is_new_product: bool = False,
     is_renewal_product: bool = False,
     attachment_names: list[str] | None = None,
+    reference_contexts: list[ReferenceImageContext] | list[dict] | None = None,
     inference_options: ImageInferenceOptions | dict | None = None,
 ) -> None:
     inference_options_obj = _coerce_inference_options(inference_options)
+    reference_contexts_obj = _coerce_reference_contexts(reference_contexts)
     st.session_state.error_message = None
     st.session_state.last_request = {
         "product_name": name,
@@ -550,6 +624,9 @@ def _run_combined_generation(
         "is_renewal_product": is_renewal_product,
         "attachment_names": attachment_names or [],
         "attachment_count": len(attachment_names or []),
+        "reference_contexts": [
+            context.model_dump() for context in reference_contexts_obj
+        ],
         "type": "글과 사진 세트",
         "inference_options": inference_options_obj.model_dump(exclude_none=True),
     }
@@ -584,6 +661,7 @@ def _run_combined_generation(
                 is_new_product=is_new_product,
                 is_renewal_product=is_renewal_product,
                 attachment_count=len(attachment_names or []),
+                reference_contexts=reference_contexts_obj,
                 inference_options=inference_options_obj,
             )
             res_i = image_service.generate_ad_image(req_i)
@@ -610,6 +688,23 @@ with st.expander("🛠️ 시스템 환경 확인 (관리자용)", expanded=Fals
 
 st.write("")
 
+async def _fetch_histories():
+    return await HistoryService().get_all_histories()
+
+histories = run_async(_fetch_histories())
+reference_histories = [
+    history for history in histories
+    if history.generation_type in {GenerationType.IMAGE, GenerationType.COMBINED}
+    and _history_image_path(history)
+]
+reference_history_map = {
+    str(history.id): history for history in reference_histories
+}
+reference_history_labels = {
+    str(history.id): _history_reference_label(history)
+    for history in reference_histories
+}
+
 tab_create, tab_archive = st.tabs(["✨ 새로 만들기", "🗂️ 예전에 만든 홍보물 보기"])
 
 # ── 탭 1: 새로 만들기 ──
@@ -634,17 +729,44 @@ with tab_create:
         if is_new_product and is_renewal_product:
             st.warning("신상품과 리뉴얼 상품은 동시에 선택할 수 없습니다. 하나만 선택해주세요.")
 
-        product_images = st.file_uploader(
-            "📸 첨부 이미지 (여러 장 가능, 선택사항)",
-            type=["png", "jpg", "jpeg"],
-            accept_multiple_files=True,
-            help="여러 장을 올릴 수 있습니다. 현재 생성 파이프라인은 첫 번째 이미지를 대표 이미지로 사용합니다.",
-        )
-        if product_images:
-            st.caption(
-                f"첨부된 이미지 {len(product_images)}장: "
-                + ", ".join(uploaded_file.name for uploaded_file in product_images)
+        st.markdown("#### 🖼️ 보관함 이미지 참고")
+        st.caption("`data/history.db`에 저장된 기존 생성 이미지 중에서 여러 장을 골라 GPT-5-mini가 분석한 뒤 신규 이미지 프롬프트를 만듭니다.")
+
+        if reference_histories:
+            with st.expander("최근 보관함 이미지 미리보기", expanded=False):
+                preview_columns = st.columns(3)
+                for idx, history in enumerate(reference_histories[:12]):
+                    with preview_columns[idx % 3]:
+                        st.image(_history_image_path(history), width="stretch")
+                        st.caption(_history_reference_label(history))
+
+            selected_reference_ids = st.multiselect(
+                "참고할 보관함 이미지 선택 (여러 장 가능)",
+                options=list(reference_history_map.keys()),
+                default=st.session_state.selected_reference_history_ids,
+                format_func=lambda history_id: reference_history_labels[history_id],
+                help="선택된 이미지들의 실제 파일과 DB 메타데이터를 함께 GPT-5-mini에 전달합니다.",
             )
+
+            selected_reference_histories = [
+                reference_history_map[history_id]
+                for history_id in selected_reference_ids
+                if history_id in reference_history_map
+            ]
+
+            if selected_reference_histories:
+                st.caption(f"선택된 참고 이미지 {len(selected_reference_histories)}장")
+                selected_columns = st.columns(3)
+                for idx, history in enumerate(selected_reference_histories):
+                    with selected_columns[idx % 3]:
+                        st.image(_history_image_path(history), width="stretch")
+                        st.caption(_history_reference_label(history))
+            else:
+                st.caption("선택된 참고 이미지가 없습니다. 선택하지 않으면 일반 생성 흐름으로 진행합니다.")
+        else:
+            selected_reference_ids = []
+            selected_reference_histories = []
+            st.info("보관함에 아직 참고할 이미지가 없습니다. 먼저 이미지 또는 글+사진 세트를 생성해 주세요.")
 
     # 2. 생성 타입 섹션
     with st.container(border=True):
@@ -704,6 +826,7 @@ with tab_create:
         st.session_state.brand_philosophy = brand_philosophy.strip()
         st.session_state.is_new_product = is_new_product
         st.session_state.is_renewal_product = is_renewal_product
+        st.session_state.selected_reference_history_ids = selected_reference_ids
         st.session_state.generation_type = generation_type
         
         final_ad_purpose = ad_purpose_custom if ad_purpose_ui == "기타 (직접 입력)" else ad_purpose_ui
@@ -717,10 +840,17 @@ with tab_create:
         # 설명에 목적 추가 로직 제거 (request.goal로 별도 전달됨)
         desc_payload = st.session_state.product_description
         
-        # 여러 장 업로드를 받되, 현재 생성 파이프라인에는 첫 번째 이미지만 대표로 전달
-        attachment_names = [uploaded_file.name for uploaded_file in product_images] if product_images else []
+        # 보관함에서 선택한 여러 참고 이미지를 GPT 분석에 사용하고, 첫 번째 이미지는 대표 참조 이미지로 전달
+        attachment_names = [
+            _history_reference_label(history)
+            for history in selected_reference_histories
+        ]
+        reference_contexts = _build_reference_contexts(selected_reference_histories)
         st.session_state.uploaded_image_names = attachment_names
-        image_data = product_images[0].getvalue() if product_images else None
+        image_data = None
+        if reference_contexts:
+            with open(reference_contexts[0].image_path, "rb") as f:
+                image_data = f.read()
         inference_options = _build_current_inference_options()
 
         # 2. 로직 분기
@@ -738,6 +868,7 @@ with tab_create:
                 is_new_product,
                 is_renewal_product,
                 attachment_names,
+                reference_contexts,
                 inference_options,
             )
         elif generation_type == "홍보 글만 만들기":
@@ -752,6 +883,7 @@ with tab_create:
                 is_new_product,
                 is_renewal_product,
                 attachment_names,
+                reference_contexts,
             )
         else: # 이미지만
             _run_image_generation(
@@ -765,6 +897,7 @@ with tab_create:
                 is_new_product,
                 is_renewal_product,
                 attachment_names,
+                reference_contexts,
                 inference_options,
             )
             
@@ -800,6 +933,7 @@ with tab_create:
                         req.get("is_new_product", False),
                         req.get("is_renewal_product", False),
                         req.get("attachment_names"),
+                        req.get("reference_contexts"),
                         req.get("inference_options"),
                     )
                 elif req["type"] == "홍보 글":
@@ -814,6 +948,7 @@ with tab_create:
                         req.get("is_new_product", False),
                         req.get("is_renewal_product", False),
                         req.get("attachment_names"),
+                        req.get("reference_contexts"),
                     )
                 else:
                     _run_image_generation(
@@ -827,6 +962,7 @@ with tab_create:
                         req.get("is_new_product", False),
                         req.get("is_renewal_product", False),
                         req.get("attachment_names"),
+                        req.get("reference_contexts"),
                         req.get("inference_options"),
                     )
                 st.rerun()
@@ -838,7 +974,7 @@ with tab_create:
             result, request_info = st.session_state.text_result, st.session_state.last_request
             st.markdown(f"#### ✒️ 홍보 글 (선택하신 느낌: **{request_info.get('ui_text_tone', request_info.get('text_tone', '기본'))}**)")
             st.caption(f"- 상품 상태: `{_format_product_status(request_info.get('is_new_product', False), request_info.get('is_renewal_product', False))}`")
-            st.caption(f"- 첨부 이미지: `{request_info.get('attachment_count', 0)}장`")
+            st.caption(f"- 참고 이미지: `{request_info.get('attachment_count', 0)}장`")
             if request_info.get("brand_philosophy"):
                 st.caption(f"- 브랜드 철학: `{request_info['brand_philosophy']}`")
             col_ad, col_promo = st.columns(2, gap="large")
@@ -864,7 +1000,7 @@ with tab_create:
                 st.markdown("**✔️ 고화질 홍보용 사진이 예쁘게 완성되었습니다.**")
                 st.caption(f"- 사용된 상품명: `{request_info['product_name']}`")
                 st.caption(f"- 상품 상태: `{_format_product_status(request_info.get('is_new_product', False), request_info.get('is_renewal_product', False))}`")
-                st.caption(f"- 첨부 이미지: `{request_info.get('attachment_count', 0)}장`")
+                st.caption(f"- 참고 이미지: `{request_info.get('attachment_count', 0)}장`")
                 if request_info.get("brand_philosophy"):
                     st.caption(f"- 브랜드 철학: `{request_info['brand_philosophy']}`")
                 with st.expander("🛠️ (참고용) AI가 그림을 그릴 때 사용한 명령어 엿보기"):
@@ -934,11 +1070,6 @@ with tab_create:
 with tab_archive:
     st.markdown("### 🗂️ 예전에 만든 홍보물 보관함")
     st.caption("지금까지 사장님이 만드셨던 모든 홍보 글과 사진들이 날아가지 않고 이곳에 안전하게 보관되어 있습니다.")
-
-    async def _fetch_histories():
-        return await HistoryService().get_all_histories()
-
-    histories = run_async(_fetch_histories())
 
     if not histories:
         st.info("아직 보관된 홍보물이 없습니다. '✨ 새로 만들기' 탭에서 우리 가게의 첫 번째 홍보물을 멋지게 만들어보세요!")

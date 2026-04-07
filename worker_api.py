@@ -17,8 +17,13 @@ class WorkerImageRequest(BaseModel):
     prompt: str = Field(default="")
     product_name: str = Field(default="")
     description: str = Field(default="")
+    brand_philosophy: str = Field(default="")
     goal: str = Field(default="일반 홍보")
     style: str = Field(default="기본")
+    is_new_product: bool = Field(default=False)
+    is_renewal_product: bool = Field(default=False)
+    attachment_count: int = Field(default=0)
+    reference_analysis: str = Field(default="")
     image_data_b64: str | None = Field(default=None)
     inference_options: ImageInferenceOptions | None = Field(default=None)
 
@@ -82,8 +87,13 @@ def generate_image(
         prompt=payload.prompt,
         product_name=payload.product_name,
         description=payload.description,
+        brand_philosophy=payload.brand_philosophy,
         goal=payload.goal,
         style=payload.style,
+        is_new_product=payload.is_new_product,
+        is_renewal_product=payload.is_renewal_product,
+        attachment_count=payload.attachment_count,
+        reference_analysis=payload.reference_analysis,
         image_data=image_data,
         inference_options=payload.inference_options,
     )
