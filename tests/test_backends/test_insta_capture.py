@@ -47,3 +47,50 @@ scroll: (0, 0)
     [132]<svg aria-label=닫기 role=img />
 """
         assert parse_close_button_index(state) == 131
+
+    def test_real_instagram_state_with_multiple_close_buttons(self):
+        """Regression: parnell.official 프로필 실제 state 출력.
+
+        인스타 프로필 페이지는 "관련 계정" 카드들에 각자 '닫기' 버튼을 가지고 있고,
+        로그인 모달도 맨 아래에 overlay 로 닫기 버튼을 가진다. 총 닫기 버튼이
+        10개 이상 되는데, 우리가 원하는 건 맨 아래 '로그인 모달의' svg 닫기.
+
+        이전 버그: 첫 '닫기' 를 만나 위로 올라가 '관련 계정' 카드의 role=button
+        인덱스를 반환 → 엉뚱한 버튼 클릭 → 로그인 모달 그대로 남음.
+
+        올바른 동작: svg role=img + aria-label=닫기 조합만 후보로 삼고,
+        마지막 매칭의 위쪽 role=button 인덱스를 반환.
+        """
+        state = """viewport: 1905x1080
+page: 1905x1080
+|scroll element|<div id=scrollview />
+	[109]<div />
+		로그인
+		가입하기
+		parnell.official
+		브랜드
+		관련 계정
+		[134]<a role=link />
+			모두 보기
+		|scroll element|<div role=presentation />
+			[969]<li />
+				[136]<div role=button />
+					[137]<button alt=닫기 aria-label=닫기 />
+					[138]<a role=link />
+			[985]<li />
+				[142]<div role=button />
+					[143]<button alt=닫기 aria-label=닫기 />
+					[144]<a role=link />
+			[1001]<li />
+				[147]<div role=button />
+					[148]<button alt=닫기 aria-label=닫기 />
+					[149]<a role=link />
+[2075]<div />
+	[84]<div />
+		[2079]<div />
+			[393]<div role=button />
+				[2081]<svg aria-label=닫기 role=img /> <!-- SVG content collapsed -->
+"""
+        # 관련 계정 카드들의 [136], [142], [147] 이 아니라
+        # 맨 아래 로그인 모달 overlay 의 [393] 을 반환해야 한다.
+        assert parse_close_button_index(state) == 393

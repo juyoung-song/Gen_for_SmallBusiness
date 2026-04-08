@@ -31,27 +31,37 @@ _DEFAULT_CLI_COMMAND: tuple[str, ...] = ("uv", "run", "browser-use")
 
 
 def parse_close_button_index(state_output: str) -> int | None:
-    """browser-use `state` 출력에서 "닫기" 버튼의 인덱스를 찾는다.
+    """browser-use `state` 출력에서 로그인 모달 "닫기" 버튼의 인덱스를 찾는다.
 
-    browser-use state 출력은 다음과 같은 형태:
+    인스타 프로필 페이지에는 '닫기' 라벨이 여러 종류 존재:
 
-        [131]<div role=button />
-            [914]<svg aria-label=닫기 role=img />
+    1) "관련 계정" 카드의 작은 X 버튼들 (여러 개, `button alt=닫기`)
+    2) 로그인 유도 overlay 모달의 진짜 X 버튼 (맨 아래, `svg aria-label=닫기 role=img`)
 
-    위 경우 131 을 반환한다. 없으면 None.
+    우리는 (2) 만 원한다. 전략:
+    - `svg ... aria-label=닫기 role=img` 패턴만 후보로 (관련 계정 카드의
+      `button alt=닫기` 는 제외)
+    - 그 중 **가장 마지막** 매칭의 위쪽 `[숫자]<... role=button` 인덱스 반환
+      (overlay 는 DOM 트리 끝에 붙으므로)
 
-    구현:
-    - 'aria-label=닫기' 라인을 찾고, 해당 줄부터 역방향으로 올라가며
-      가장 가까운 `[숫자]<... role=button` 라인의 인덱스를 반환한다.
+    없으면 None.
     """
     lines = state_output.splitlines()
+
+    # 로그인 모달 후보: svg + role=img + aria-label=닫기 가 같은 라인에 있어야 함
+    candidate_line_idx: int | None = None
     for i, line in enumerate(lines):
-        if "aria-label=닫기" not in line:
-            continue
-        for j in range(i, -1, -1):
-            match = re.search(r"\[(\d+)\]<[^>]*role=button", lines[j])
-            if match:
-                return int(match.group(1))
+        if "svg" in line and "aria-label=닫기" in line and "role=img" in line:
+            candidate_line_idx = i  # 마지막 매칭을 유지
+
+    if candidate_line_idx is None:
+        return None
+
+    # 후보 라인에서 위로 올라가 가장 가까운 role=button 인덱스 반환
+    for j in range(candidate_line_idx, -1, -1):
+        match = re.search(r"\[(\d+)\]<[^>]*role=button", lines[j])
+        if match:
+            return int(match.group(1))
     return None
 
 
