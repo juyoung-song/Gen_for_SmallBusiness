@@ -3,15 +3,16 @@
 - 비동기 엔진, 비동기 로컬 세션 팩토리 제공.
 """
 
-import os
 from collections.abc import AsyncGenerator
+from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-# SQLite 데이터베이스 파일 경로 지정
-DB_DIR = "./data"
-os.makedirs(DB_DIR, exist_ok=True)
-DB_URL = f"sqlite+aiosqlite:///{DB_DIR}/history.db"
+# SQLite 데이터베이스 파일 경로 — 프로젝트 루트 기준 절대경로 (S-1)
+# 실행 디렉토리에 의존하지 않도록 __file__ 기준으로 잡는다.
+DB_DIR = Path(__file__).resolve().parent.parent / "data"
+DB_DIR.mkdir(parents=True, exist_ok=True)
+DB_URL = f"sqlite+aiosqlite:///{DB_DIR / 'history.db'}"
 
 # 비동기 엔진 생성
 engine = create_async_engine(DB_URL, echo=False)
@@ -30,8 +31,10 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """애플리케이션 시작 시 DB 테이블 동기화(초기화) 진행."""
+    # 모든 모델을 import 해서 metadata 에 등록
+    # (`from models import ...` 한 줄로 신규 3종 + legacy 모두 로드)
+    import models  # noqa: F401
     from models.base import Base
-    import models.history  # 모델 레지스트리 자동 등록을 위한 Import
 
     async with engine.begin() as conn:
         # DB 존재 안할 시 스키마 생성 (production에서는 alembic 권장)

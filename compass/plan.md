@@ -1,6 +1,7 @@
 # Plan
 
 > **작성일:** 2026-04-08
+> **마지막 갱신:** 2026-04-08 (Step 1.1 완료, Step 1.2 진행 중 — TDD 도입)
 > **베이스:** `docs/design.md`
 > **이전 버전 폐기:** IP-Adapter 코드 리뷰 작업 계획(2026-04-03)은 본 문서로 대체됨
 
@@ -13,6 +14,9 @@
 3. **공통 인터페이스 우선**: 백엔드는 베이스 프로토콜 구현, 서비스는 인터페이스만 호출
 4. **Phase 1 먼저**: 먼저 정리(refactor), 그 다음 추가(add)
 5. **외부 서비스/시크릿 추가 작업 전에는 사용자 확인**
+6. **TDD (2026-04-08 추가)**: Step 1.2 부터 신규 production 코드는 RED → GREEN → REFACTOR.
+   superpowers 의 test-driven-development 스킬 적용. Iron Law: NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST.
+   단, Step 1.1 (이동/이름 변경)은 사이클 도입 전 작성되어 회귀 검증으로 갈음.
 
 ## 1. Phase 구조 (큰 그림)
 
@@ -37,7 +41,7 @@ Phase 2 — MVP 완성 (기능 추가)
 
 ## Phase 1 — 리팩터링
 
-### Step 1.1: `backends/` 디렉토리 신설 및 백엔드 이동
+### Step 1.1: `backends/` 디렉토리 신설 및 백엔드 이동 ✅ (커밋 c69586a)
 
 **목표**: 이미지/텍스트 생성 백엔드를 ORM 모델과 분리.
 
@@ -64,28 +68,60 @@ Phase 2 — MVP 완성 (기능 추가)
 
 **커밋 메시지(안)**: `refactor: backends/ 디렉토리 신설 및 이미지/텍스트 백엔드 분리`
 
+**실제 진행 회고 (2026-04-08):**
+- 위 작업 + 다음 추가 작업이 한 커밋에 포함됨:
+  - `backends/hf_inference_api.py` 신규 — image_service `_api_response` 추출 (당초 plan 누락)
+  - 본래 Step 1.3 의 1.3.1, 1.3.2 (services 분기 제거 → registry 호출): **완료**
+  - 본래 Step 1.3 의 1.3.3 (`import re` 파일 상단): openai_gpt 작성하면서 자동 처리
+  - `image_service` 한국어→영문 번역을 서비스의 단일 책임으로 통합 (이전엔 `_api`/`_local` 양쪽 중복)
+- 백엔드 클래스명에 HF 접두사 추가 (`SD15Backend → HFSD15Backend` 등)
+- 모든 백엔드에 `name: str` 클래스 변수 추가 (로깅/디버깅)
+- TDD 도입 전 작성된 커밋이라 회귀 테스트는 수동 import 검증으로 갈음
+
 ---
 
-### Step 1.2: ORM 재설계 — `brand_image` / `product` / `generated_upload`
+### Step 1.2: ORM 재설계 — `brand_image` / `product` / `generated_upload` (TDD)
 
-**목표**: design.md §2 데이터 모델을 ORM으로 구현.
+**목표**: design.md §2 데이터 모델을 ORM으로 구현. **TDD 적용 (RED → GREEN → REFACTOR)**.
 
-**작업**:
-1. `models/brand_image.py` 신규
+**사전 인프라 (✅ 완료):**
+- `pyproject.toml` `[dependency-groups] dev` 에 `pytest`, `pytest-asyncio` 추가
+- `pyproject.toml` `[tool.pytest.ini_options]` — `asyncio_mode = "auto"`
+- `tests/test_models/`, `tests/test_services/` 디렉토리 생성
+- `tests/conftest.py` — 인메모리 SQLite + async 세션 fixture
+  - 매 테스트마다 새 engine + `Base.metadata.create_all` + 종료 시 dispose
+  - `PRAGMA foreign_keys=ON` 활성화 (cascade 동작 보장)
+  - 신규 모델 추가 시 conftest 내부 import 블록에 한 줄 추가
+
+**모델 작업 (TDD 사이클):**
+1. `models/brand_image.py` ✅
    - 필드: `id (UUID, PK)`, `user_id (str, default='default')`, `content (Text, system prompt)`, `source_freetext (Text)`, `source_reference_url (Text)`, `source_screenshots (JSON)`, `created_at`
-2. `models/product.py` 신규
+   - 테스트: `tests/test_models/test_brand_image.py` (3 passed)
+2. `models/product.py` ✅
    - 필드: `id (UUID, PK)`, `name (str, indexed)`, `description (Text)`, `raw_image_path (str)`, `created_at`
-3. `models/generated_upload.py` 신규
-   - 필드: `id (UUID, PK)`, `product_id (FK)`, `image_path (str)`, `caption (Text)`, `goal_category (str)`, `goal_freeform (Text)`, `instagram_post_id (str, nullable)`, `posted_at (datetime, nullable)`, `created_at`
-   - 관계: `product = relationship("Product", back_populates="uploads")`
+   - name unique 강제하지 않음 (소상공인 자유도)
+   - 테스트: `tests/test_models/test_product.py` (2 passed)
+3. `models/generated_upload.py` ✅
+   - 필드: `id (UUID, PK)`, `product_id (FK ON DELETE CASCADE)`, `image_path (str)`, `caption (Text)`, `goal_category (str)`, `goal_freeform (Text)`, `instagram_post_id (str, nullable)`, `posted_at (datetime, nullable)`, `created_at`
+   - 양방향 관계: `Product.uploads` ↔ `GeneratedUpload.product` (cascade="all, delete-orphan", passive_deletes=True)
+   - 테스트: `tests/test_models/test_generated_upload.py` (4 passed)
 4. `models/history.py` — **legacy 표시**, 신규 코드는 사용 금지 주석 추가. Phase 2 종료 시 제거.
 5. DB 마이그레이션
    - 신규 테이블 생성 (Alembic 도입은 Phase 2에서 검토. MVP는 `Base.metadata.create_all()` 로 충분)
    - 기존 `history` 테이블은 그대로 두되 새 코드는 사용 금지
 
+**서비스 작업 (TDD 사이클, 진행 예정):**
+6. `services/brand_image_service.py` — CRUD (단일 사용자 가정 → upsert)
+7. `services/product_service.py` — CRUD + 검색
+8. `services/upload_service.py` — CRUD + 게시 후 인스타 메타 갱신
+
 **검증**: SQLite DB에 새 테이블 3종 생성 확인 (`sqlite3 data/history.db ".schema brand_image"` 등)
 
-**커밋 메시지(안)**: `refactor: brand_image / product / generated_upload ORM 모델 추가`
+**알려진 제약 (TDD 과정에서 발견):**
+- SQLite 는 timezone-aware datetime 저장 시 tzinfo 를 떼버린다 → 시각만 비교하는 방식으로 테스트 작성
+- SQLite FK cascade 는 PRAGMA 로 명시 활성화 필요 → conftest 에서 처리
+
+**커밋 메시지(안)**: `refactor(Step 1.2): ORM 모델 3종 + CRUD 서비스 + pytest 인프라`
 
 ---
 
@@ -93,24 +129,28 @@ Phase 2 — MVP 완성 (기능 추가)
 
 **목표**: 서비스가 백엔드를 직접 알지 않고 인터페이스만 사용하도록 정리.
 
-**작업**:
-1. `services/image_service.py` 정리
-   - 분기 로직 제거 (`USE_MOCK`, `USE_LOCAL_MODEL`, `IMAGE_BACKEND` 분기) → `backends/registry.py` 호출로 대체
-   - `generate_ad_image(request)` 단순화: 백엔드 선택 → 호출 → 응답
-2. `services/text_service.py` 정리
-   - 동일한 패턴으로 정리
+**상태**: 1.3.1 ~ 1.3.3 은 **Step 1.1 안에서 처리됨** (커밋 c69586a). Step 1.3 잔여 작업은 코드 리뷰 지적사항 마무리 + caption/history 정리.
+
+**작업** (잔여):
+1. ~~`services/image_service.py` 정리~~ ✅ (Step 1.1)
+2. ~~`services/text_service.py` 정리~~ ✅ (Step 1.1)
 3. `services/instagram_service.py`
-   - 본래 잘 정돈되어 있으므로 시그니처 변경 없음
-   - 단, 게시 성공 시 `generated_upload` 레코드 저장 콜백 추가 (Phase 2 Step 2.4와 연동)
+   - 시그니처 변경 없음
+   - 게시 성공 시 `generated_upload` 레코드 저장 콜백 추가 → **Phase 2 Step 2.4 로 이동**
+   - C-1 (FreeImage API 키 .env로 이동)
+   - C-3 (requests → httpx 통일)
 4. `services/caption_service.py`
-   - Mock 모드 분기 추가 (이전 리뷰의 I-2 항목)
+   - Mock 모드 분기 추가 (I-2)
 5. `services/history_service.py`
-   - **legacy 표시** + 신규 서비스로 분리 (`services/product_service.py`, `services/upload_service.py`, `services/brand_image_service.py`)
-   - 새 서비스들은 Step 1.2의 ORM 모델 CRUD
+   - **legacy 표시** + Step 1.2 의 신규 서비스 3종으로 사용처 마이그레이션
+6. `config/settings.py`
+   - I-1 `TEXT_MODEL` 기본값 유효 모델명으로 수정
+   - I-4 (image_service `compose_story_image()` bare except, 폰트 경로) → image_service 가 리팩터링 대상이라 여기서 처리
+   - I-5 `@lru_cache` Settings 캐싱 검토 (선택)
 
-**검증**: `streamlit run app.py` 시 정상 동작 (기능 변경 없이 내부 구조만 정리됨)
+**검증**: `streamlit run app.py` 시 정상 동작 + Step 1.2 에서 추가된 pytest 가 모두 GREEN 유지
 
-**커밋 메시지(안)**: `refactor: 서비스 레이어를 백엔드 레지스트리 기반으로 단순화`
+**커밋 메시지(안)**: `refactor(Step 1.3): 코드 리뷰 잔존 이슈 처리 + caption/history 정리`
 
 ---
 

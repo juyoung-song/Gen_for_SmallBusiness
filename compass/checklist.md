@@ -1,59 +1,87 @@
 # Checklist
 
 > **작성일:** 2026-04-08
+> **마지막 갱신:** 2026-04-08 (Step 1.2 진행 중)
 > **베이스:** [`plan.md`](plan.md)
 > 작업 단위 = 한 줄. 끝내는 즉시 체크. 대부분 1커밋 = 1체크.
+>
+> **TDD 정책 (2026-04-08 추가):** Step 1.2 부터 모든 신규 production 코드는
+> RED → GREEN → REFACTOR 사이클로 작성한다. 단, Step 1.1 (이동/이름 변경 위주)은
+> 사이클 도입 전 작성되어 회귀 검증만 수행.
 
 ---
 
 ## Phase 1 — 리팩터링
 
-### Step 1.1 — `backends/` 신설
+### Step 1.1 — `backends/` 신설 ✅ (2026-04-08, 커밋 c69586a)
 
-- [ ] **1.1.1** `backends/__init__.py` 생성
-- [ ] **1.1.2** `backends/image_base.py` — `ImageBackend` 프로토콜 작성
-- [ ] **1.1.3** `backends/text_base.py` — `TextBackend` 프로토콜 작성
-- [ ] **1.1.4** `models/sd15.py` → `backends/hf_sd15.py` 이동 + 인터페이스 준수 확인
-- [ ] **1.1.5** `models/ip_adapter.py` → `backends/hf_ip_adapter.py` 이동
-- [ ] **1.1.6** `models/img2img.py` → `backends/hf_img2img.py` 이동
-- [ ] **1.1.7** `models/hybrid.py` → `backends/hf_hybrid.py` 이동
-- [ ] **1.1.8** `models/local_backend.py` 삭제 (역할이 image_base로 흡수됨)
-- [ ] **1.1.9** `backends/openai_gpt.py` 신규 (text_service의 GPT 호출 로직 이동)
-- [ ] **1.1.10** `backends/remote_worker.py` 신규 (image_service의 remote 분기 이동)
-- [ ] **1.1.11** `backends/mock_image.py` / `backends/mock_text.py` 신규
-- [ ] **1.1.12** `backends/registry.py` — 환경 변수 기반 백엔드 선택 팩토리
-- [ ] **1.1.13** import 경로 일괄 수정 (services, app.py, worker_api.py)
-- [ ] **1.1.14** Streamlit 앱 정상 기동 검증
-- [ ] **1.1.15** 커밋: `refactor: backends/ 디렉토리 신설 및 백엔드 분리`
+- [x] **1.1.1** `backends/__init__.py` 생성
+- [x] **1.1.2** `backends/image_base.py` — `ImageBackend` 프로토콜 작성
+- [x] **1.1.3** `backends/text_base.py` — `TextBackend` 프로토콜 작성
+- [x] **1.1.4** `models/sd15.py` → `backends/hf_sd15.py` 이동 (HFSD15Backend, name="hf_sd15")
+- [x] **1.1.5** `models/ip_adapter.py` → `backends/hf_ip_adapter.py` 이동
+- [x] **1.1.6** `models/img2img.py` → `backends/hf_img2img.py` 이동
+- [x] **1.1.7** `models/hybrid.py` → `backends/hf_hybrid.py` 이동
+- [x] **1.1.8** `models/local_backend.py` 삭제 (역할이 image_base로 흡수됨)
+- [x] **1.1.9** `backends/openai_gpt.py` + `backends/hf_inference_api.py` 신규 (text_service / image_service 의 API 호출 로직 추출)
+- [x] **1.1.10** `backends/remote_worker.py` 신규
+- [x] **1.1.11** `backends/mock_image.py` / `backends/mock_text.py` 신규
+- [x] **1.1.12** `backends/registry.py` — 환경 변수 기반 백엔드 선택 팩토리
+- [x] **1.1.13** import 경로 일괄 수정 (services, app.py, worker_api.py, README.md)
+- [x] **1.1.14** Streamlit 앱 정상 기동 검증 (`python -c "import app"`)
+- [x] **1.1.15** 커밋: `refactor(Step 1.1): backends/ 디렉토리 신설 및 백엔드 분리`
 
-### Step 1.2 — ORM 재설계
+**Step 1.1 회고:**
+- TDD 도입 전이라 회귀 검증만 수행 (import 검증). Phase 1 종료 시 backends 회귀 테스트 보강 필요.
+- 본래 Step 1.3 으로 분리되어 있던 작업 일부가 Step 1.1 안으로 들어옴:
+  - 1.3.1 (image_service.py 분기 제거 → registry 호출): **완료**
+  - 1.3.2 (text_service.py 동일 패턴): **완료**
+  - 1.3.3 (text_service `import re` 파일 상단 이동): openai_gpt.py 작성하면서 자연스럽게 처리됨
+  - 추가로 image_service 의 한국어→영문 번역을 서비스의 단일 책임으로 통합
+- 이로 인해 Step 1.3 의 잔여 작업은 코드 리뷰 지적사항(C-1, I-1, I-2, I-4, I-5)에 한정됨
 
-- [ ] **1.2.1** `models/brand_image.py` — BrandImage 모델 작성
-- [ ] **1.2.2** `models/product.py` — Product 모델 작성
-- [ ] **1.2.3** `models/generated_upload.py` — GeneratedUpload 모델 작성 + Product 관계
-- [ ] **1.2.4** `models/__init__.py` 에 신규 모델 export
-- [ ] **1.2.5** `models/history.py` 상단에 legacy 주석 추가
-- [ ] **1.2.6** DB 초기화 코드 (`config/database.py`) 가 새 테이블 생성하는지 확인
-- [ ] **1.2.7** SQLite 스키마 검증 (`sqlite3 data/history.db ".schema brand_image product generated_upload"`)
-- [ ] **1.2.8** `services/brand_image_service.py` 신규 (CRUD)
-- [ ] **1.2.9** `services/product_service.py` 신규 (CRUD)
-- [ ] **1.2.10** `services/upload_service.py` 신규 (CRUD)
-- [ ] **1.2.11** `S-1` `DB_DIR` 절대경로화 (`config/database.py`)
-- [ ] **1.2.12** 커밋: `refactor: ORM 모델 3종 추가 (brand_image, product, generated_upload)`
+### Step 1.2 — ORM 재설계 (TDD)
 
-### Step 1.3 — 서비스 레이어 정합
+**사전 인프라:**
+- [x] **1.2.0a** pytest + pytest-asyncio 의존성 추가 (dev group)
+- [x] **1.2.0b** `tests/`, `tests/test_models/`, `tests/test_services/` 디렉토리 생성
+- [x] **1.2.0c** `tests/conftest.py` — 인메모리 SQLite + async 세션 fixture, SQLite FK PRAGMA 활성화
+- [x] **1.2.0d** `pyproject.toml` `[tool.pytest.ini_options]` 추가 (asyncio mode=auto)
 
-- [ ] **1.3.1** `services/image_service.py` 분기 제거 → `backends/registry.py` 호출
-- [ ] **1.3.2** `services/text_service.py` 동일 패턴 정리
-- [ ] **1.3.3** `I-3` text_service 내부 `import re` 파일 상단으로 이동
+**ORM 모델 (RED → GREEN):**
+- [x] **1.2.1** `tests/test_models/test_brand_image.py` 작성 → RED 확인 → `models/brand_image.py` → GREEN (3 passed)
+- [x] **1.2.2** `tests/test_models/test_product.py` → RED → `models/product.py` → GREEN (2 passed)
+- [x] **1.2.3** `tests/test_models/test_generated_upload.py` → RED → `models/generated_upload.py` + Product.uploads relationship + cascade → GREEN (4 passed)
+- [x] **1.2.4** `models/__init__.py` 에 신규 모델 export (`from models import BrandImage, Product, GeneratedUpload, ...`)
+- [x] **1.2.5** `models/history.py` 상단에 legacy 주석 추가
+- [x] **1.2.6** `config/database.py init_db()` 를 `import models` 로 단순화 (모든 모델 자동 등록)
+- [x] **1.2.7** SQLite 스키마 검증 — 임시 DB 에 brand_images / products / generated_uploads 모두 정상 생성됨 (FK + 인덱스 포함)
+
+**서비스 (RED → GREEN):**
+- [x] **1.2.8** `tests/test_services/test_brand_image_service.py` → RED → `services/brand_image_service.py` → GREEN (6 passed)
+- [x] **1.2.9** `tests/test_services/test_product_service.py` → RED → `services/product_service.py` → GREEN (6 passed)
+- [x] **1.2.10** `tests/test_services/test_upload_service.py` → RED → `services/upload_service.py` → GREEN (5 passed)
+
+**기타:**
+- [x] **1.2.11** `S-1` `DB_DIR` 절대경로화 — `Path(__file__).resolve().parent.parent / "data"`
+- [x] **종료 검증** 전체 회귀 26 passed + `python -c "import app"` 정상
+- [ ] **1.2.12** 커밋: `refactor(Step 1.2): ORM 모델 3종 + CRUD 서비스 + pytest 인프라`
+
+### Step 1.3 — 서비스 레이어 정합 (잔여 작업)
+
+> 1.3.1 ~ 1.3.3 은 Step 1.1 안에서 처리됨 (커밋 c69586a). 잔여 작업만 남김.
+
+- [x] **1.3.1** ~~`services/image_service.py` 분기 제거 → `backends/registry.py` 호출~~ (Step 1.1 처리)
+- [x] **1.3.2** ~~`services/text_service.py` 동일 패턴 정리~~ (Step 1.1 처리)
+- [x] **1.3.3** ~~`I-3` text_service 내부 `import re` 파일 상단으로 이동~~ (openai_gpt 작성하면서 자동 처리)
 - [ ] **1.3.4** `I-1` `TEXT_MODEL` 기본값을 유효 모델명으로 수정
 - [ ] **1.3.5** `I-2` `services/caption_service.py` Mock 모드 분기 추가
 - [ ] **1.3.6** `I-4` `services/image_service.py` `compose_story_image()` bare except → `Exception`, 폰트 경로 Settings 분리
 - [ ] **1.3.7** `C-1` `services/instagram_service.py` FreeImage API 키 → `.env` + Settings
 - [ ] **1.3.8** `C-3` `services/instagram_service.py` requests → httpx 통일 (또는 의존성 추가)
 - [ ] **1.3.9** `services/history_service.py` 상단에 legacy 주석
-- [ ] **1.3.10** Streamlit 앱 정상 기동 + 1회 이미지 생성 시도 (성공/실패 무관, 분기 동작 확인)
-- [ ] **1.3.11** 커밋: `refactor: 서비스 레이어를 백엔드 레지스트리 기반으로 정리 + 코드 리뷰 잔존 이슈 처리`
+- [ ] **1.3.10** Streamlit 앱 정상 기동 + 기존 pytest GREEN 유지
+- [ ] **1.3.11** 커밋: `refactor(Step 1.3): 코드 리뷰 잔존 이슈 처리 + caption/history 정리`
 
 ### Step 1.4 — UI 구조 정렬 (입력 폼 1차)
 

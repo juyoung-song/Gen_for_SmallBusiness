@@ -1,6 +1,7 @@
 # Context
 
 > **작성일:** 2026-04-08
+> **마지막 갱신:** 2026-04-08 (Step 1.1 완료, Step 1.2 진행 중 — TDD 도입)
 > **브랜치:** `refactor/won/main` (분기점: `2c808e0`, 2026-04-06)
 > **이전 버전 폐기:** IP-Adapter 리뷰 컨텍스트(2026-04-03)는 본 문서로 대체됨
 
@@ -38,26 +39,38 @@
 - ORM 모델은 기존 `models/` 디렉토리에 유지 (백엔드와 분리)
 
 ```
-backends/                  # (신설) 이미지/텍스트 생성 백엔드
+backends/                  # 이미지/텍스트 생성 백엔드 (Step 1.1 ✅)
   __init__.py
-  image_base.py            # ImageBackend 프로토콜
-  text_base.py             # TextBackend 프로토콜
-  hf_sd15.py               # SD 1.5 (Hugging Face)
-  hf_flux.py               # FLUX (Hugging Face)
+  image_base.py            # ImageBackend Protocol
+  text_base.py             # TextBackend Protocol
+  registry.py              # 환경 변수 기반 백엔드 선택 팩토리
+  hf_sd15.py               # SD 1.5 txt2img (HFSD15Backend)
   hf_ip_adapter.py         # SD 1.5 + IP-Adapter
-  nano_banana.py           # nano banana (외부 VM 호출)
-  remote_worker.py         # 원격 워커 클라이언트 (worker_api.py 호출)
+  hf_img2img.py            # SD 1.5 img2img
+  hf_hybrid.py             # IP-Adapter + img2img 하이브리드
+  hf_inference_api.py      # Hugging Face Serverless Inference API
   openai_gpt.py            # OpenAI GPT (텍스트)
+  remote_worker.py         # 자체 원격 워커 클라이언트 (worker_api.py 호출)
   mock_image.py
   mock_text.py
+  # 추후 추가 예정 (Phase 2 이후): hf_flux.py, nano_banana.py 등
 
-models/                    # (기존) ORM (재구성됨)
+models/                    # ORM (Step 1.2 진행 중)
   __init__.py
-  base.py                  # TimestampMixin
-  brand_image.py           # (신규) 브랜드 정체성 (불변)
-  product.py               # (신규) 상품 + raw 이미지
-  generated_upload.py      # (신규) 생성 결과 + 인스타 메타
-  history.py               # (legacy, 마이그레이션 후 제거 예정)
+  base.py                  # Base + TimestampMixin
+  brand_image.py           # (신규 ✅) 브랜드 정체성 (불변)
+  product.py               # (신규 ✅) 상품 + raw 이미지
+  generated_upload.py      # (신규 ✅) 생성 결과 + 인스타 메타
+  history.py               # (legacy, Phase 2 종료 후 제거)
+
+tests/                     # pytest 인프라 (Step 1.2 ✅)
+  __init__.py
+  conftest.py              # 인메모리 SQLite + async 세션 fixture
+  test_models/
+    test_brand_image.py    # 3 passed
+    test_product.py        # 2 passed
+    test_generated_upload.py  # 4 passed
+  test_services/           # (TDD 진행 예정)
 ```
 
 ## 5. 현재 코드베이스 분석 요약
@@ -97,6 +110,9 @@ models/                    # (기존) ORM (재구성됨)
 - **응답 속도**: 광고 생성 버튼 → 결과 표시까지 가능한 한 단축. DB I/O는 백그라운드로
 - **유지보수성**: 모델 추가/교체가 잦으므로 1파일 1모듈 + 공통 인터페이스 엄수
 - **단일 사용자 가정**: 단, brand_image 등은 향후 멀티테넌트 확장을 막지 않는 스키마로 (`user_id` 컬럼 둠)
+- **TDD (Step 1.2 부터)**: 신규 production 코드는 RED → GREEN → REFACTOR.
+  superpowers `test-driven-development` 스킬을 따른다. Iron Law: NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST.
+  단, 단순 이동/이름 변경은 회귀 검증으로 갈음 (Step 1.1 처럼).
 
 ## 7. 비범위 (Out of Scope)
 
