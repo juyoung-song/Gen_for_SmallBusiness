@@ -12,11 +12,19 @@ GPT Vision 분석 단계의 입력으로 쓰인다.
 
 browser-use CLI 호출 시퀀스:
   1. browser-use open <url>
-  2. browser-use state                         ← 닫기 버튼 인덱스 탐색
-  3. browser-use click <idx>                   ← 로그인 모달 닫기
-  4. browser-use screenshot <path> --full      ← N번 반복 (count)
-  5. browser-use scroll down                   ← 다음 캡처를 위해 스크롤
-  6. browser-use close
+  2. browser-use state                                  ← 닫기 버튼 인덱스 탐색
+  3. browser-use click <idx>                            ← 로그인 모달 닫기
+  4. browser-use screenshot <path>                      ← viewport 캡처 (1905x1080)
+  5. browser-use scroll down --amount <SCROLL_AMOUNT>   ← 다음 캡처를 위해 스크롤
+  6. (4-5 반복 count 회)
+  7. browser-use close
+
+설계 메모:
+- `--full` 플래그를 일부러 쓰지 않는다. --full 은 페이지 전체를 한 번에 찍기
+  때문에 "스크롤 후 다른 영역" 캡처가 무의미해진다 (모든 캡처가 같은 풀페이지가 됨).
+- 대신 viewport 단위로 찍고 viewport 만큼 스크롤 → 매 캡처가 실제로 다른 영역.
+- SCROLL_AMOUNT 는 viewport 높이(1080) 보다 약간 작게 잡아 약간 겹침을 허용
+  (그리드 행 경계 잘림 방지).
 """
 
 import logging
@@ -28,6 +36,9 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 _DEFAULT_CLI_COMMAND: tuple[str, ...] = ("uv", "run", "browser-use")
+
+# 캡처 간 스크롤 양 (px). viewport 1080 보다 약간 작게 → 그리드 행 경계 약간 겹침.
+_SCROLL_AMOUNT_PX = 900
 
 
 def parse_close_button_index(state_output: str) -> int | None:
@@ -111,10 +122,13 @@ class InstaCaptureBackend:
             for i in range(1, count + 1):
                 path = out_dir / f"ref_{i}.png"
                 logger.info("인스타 캡처 %d/%d → %s", i, count, path)
-                self._run(["screenshot", str(path), "--full"])
+                # viewport 캡처 (--full 미사용 — 매 캡처가 다른 영역이 되도록)
+                self._run(["screenshot", str(path)])
                 saved.append(path)
                 if i < count:
-                    self._run(["scroll", "down"])
+                    self._run(
+                        ["scroll", "down", "--amount", str(_SCROLL_AMOUNT_PX)]
+                    )
                     time.sleep(2)
             return saved
         except subprocess.CalledProcessError as e:
