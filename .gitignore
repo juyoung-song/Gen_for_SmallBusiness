@@ -162,12 +162,6 @@ mock_instagram_upload.json
 *.jpeg
 *.db
 
-# crawl_and_analyze 분석 결과·이미지는 추적 허용
-!crawl_and_analyze/image_crawled/**/*.png
-!crawl_and_analyze/image_crawled/**/*.jpg
-!crawl_and_analyze/image_crawled/**/*.jpeg
-!crawl_and_analyze/image_crawled/**/brand_analysis.json
-!crawl_and_analyze/image_crawled/**/brand_analysis.md
 # Local model cache (HuggingFace weights, large binary files)
 models/cache/
 

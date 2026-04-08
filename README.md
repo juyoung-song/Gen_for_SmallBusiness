@@ -85,14 +85,9 @@ python image_analyzer.py --dir image_crawled/torriden_official --limit 9
 ├── worker_api.py            # GCP VM에서 실행하는 이미지 생성 워커 API
 ├── config/
 │   ├── __init__.py
-│   ├── database.py          # SQLAlchemy 비동기 세션 팩토리 및 DB 초기화
+│   ├── database.py          # SQLAlchemy 비동기 세션 팩토리 및 DB 초기화 (절대경로)
 │   └── settings.py          # 환경변수(.env) 로드 및 앱 런타임 설정 관리
-├── crawl_and_analyze/
-│   ├── image_crawler.py     # 인스타 공개 계정 이미지 수집기 (실험적)
-│   ├── image_analyzer.py    # 브랜드 무드/톤앤매너 분석기 (실험적)
-│   └── image_crawled/       # 계정별 수집 이미지 및 분석 산출물
 ├── backends/                # 이미지/텍스트 생성 백엔드 (1파일 1모듈)
-│   ├── __init__.py
 │   ├── image_base.py        # ImageBackend 프로토콜
 │   ├── text_base.py         # TextBackend 프로토콜
 │   ├── registry.py          # 환경 변수 기반 백엔드 선택 팩토리
@@ -103,32 +98,55 @@ python image_analyzer.py --dir image_crawled/torriden_official --limit 9
 │   ├── hf_inference_api.py  # Hugging Face Serverless Inference API
 │   ├── openai_gpt.py        # OpenAI GPT 텍스트 생성
 │   ├── remote_worker.py     # 자체 원격 워커 호출 (worker_api.py)
+│   ├── insta_capture.py     # browser-use CLI 기반 인스타 프로필 헤드리스 캡처 (온보딩)
 │   ├── mock_image.py        # Mock 이미지 (Pillow 그라데이션)
 │   └── mock_text.py         # Mock 텍스트 (스타일별 하드코딩)
 ├── models/                  # ORM (SQLAlchemy)
-│   ├── __init__.py
-│   ├── base.py              # TimestampMixin을 포함한 ORM 베이스
-│   └── history.py           # 생성 내역 저장을 위한 History 테이블 모델
+│   ├── __init__.py          # 신규 모델 re-export
+│   ├── base.py              # Base + TimestampMixin
+│   ├── brand_image.py       # 브랜드 정체성 (불변, system prompt 역할)
+│   ├── product.py           # 상품 + raw 이미지 (화장 전)
+│   └── generated_upload.py  # 생성 결과 + 인스타 메타 (화장 후, 참조 이미지 풀)
 ├── schemas/
-│   ├── __init__.py
-│   ├── history_schema.py    # DB 입출력을 위한 히스토리 검증 Pydantic 모델
-│   ├── image_schema.py      # 이미지 생성 입출력 페이로드 Pydantic 검증
-│   └── text_schema.py       # 문구 생성 입출력 페이로드 Pydantic 검증
+│   ├── instagram_schema.py  # 인스타 캡션/해시태그 Pydantic 모델
+│   ├── image_schema.py      # 이미지 생성 입출력 (참조 경로 리스트 포함)
+│   └── text_schema.py       # 문구 생성 입출력
 ├── services/
-│   ├── __init__.py
-│   ├── instagram_service.py # Meta API 및 FreeImage 연동 업로드 로직
-│   ├── history_service.py   # 비동기 DB 삽입 및 전체 과거 내역 조회 로직
-│   ├── image_service.py     # Hugging Face / 로컬 diffusers / 원격 워커 분기 포함 이미지 생성 로직
-│   └── text_service.py      # 텍스트 모델(GPT) 통신 로직
+│   ├── brand_image_service.py  # CRUD + 불변 정책 (두 번째 create → 에러)
+│   ├── product_service.py      # CRUD + 이름 검색
+│   ├── upload_service.py       # CRUD + list_published (참조 풀)
+│   ├── onboarding_service.py   # 캡처 → Vision 분석 → BrandImageDraft → 저장
+│   ├── instagram_service.py    # Meta Graph + FreeImage 업로드 + post id 기록
+│   ├── image_service.py        # 백엔드 오케스트레이션 + 프롬프트 번역 + 참조 해석
+│   ├── text_service.py         # 백엔드 오케스트레이션
+│   └── caption_service.py      # 인스타 캡션 생성 (Mock 분기 포함)
 ├── ui/
-│   └── sidebar.py           # 로컬 모델 실험용 사이드바 설정 UI
+│   ├── sidebar.py           # 로컬 모델 실험용 사이드바 설정 UI
+│   ├── onboarding.py        # 2단계 온보딩 화면 (입력 → 검수)
+│   └── reference_gallery.py # 참조 이미지 갤러리 (3-컬럼 썸네일 + 체크박스)
 ├── utils/
-│   ├── __init__.py
-│   └── prompt_builder.py    # 사용자의 입력을 AI가 이해하기 쉬운 System/User 프롬프트로 변환
-├── docs/                    # PRD, Architecture 등 기획 문서
+│   ├── prompt_builder.py    # 사용자의 입력을 AI System/User 프롬프트로 변환
+│   ├── goal_categories.py   # 광고 목적 칩 6종 단일 소스
+│   ├── async_runner.py      # Streamlit 환경 안전 async 실행 (중첩 루프 대응)
+│   └── staging_storage.py   # 업로드 파일 즉시 staging 저장 유틸
+├── tests/                   # pytest (인메모리 SQLite + async)
+│   ├── conftest.py
+│   ├── test_backends/       # insta_capture 등
+│   ├── test_models/         # ORM 3종
+│   ├── test_schemas/        # image_schema reference_image_paths
+│   ├── test_services/       # brand_image / product / upload / caption / onboarding / instagram / image_service_reference
+│   └── test_utils/          # async_runner / goal_categories / staging_storage
+├── compass/                 # 리팩터링 베이스 문서
+│   ├── context.md           # 현 상태, 디렉토리 구조, 비기능 요구사항
+│   ├── plan.md              # Phase 1/2 step별 계획 + 회고
+│   └── checklist.md         # 체크박스 기반 세부 진행
+├── docs/                    # 설계 문서
+│   ├── design.md            # (최신) 시스템 설계 — 본 문서가 PRD/architecture 보다 우선
+│   ├── PRD.md               # (구) 초기 기획
+│   └── architecture.md      # (구) 초기 아키텍처
 ├── .env                     # [Local] 환경 변수 및 보안 키 (Git 제외 대상)
 ├── requirements.txt         # 패키지 의존성 명세
-├── pyproject.toml           # uv 기반 의존성 정의
+├── pyproject.toml           # uv 기반 의존성 정의 (+ [dependency-groups] dev)
 ├── uv.lock                  # uv lockfile
 └── README.md                # 프로젝트 가이드
 ```

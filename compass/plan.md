@@ -1,7 +1,7 @@
 # Plan
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-08 (Phase 2 Step 2.1 완료)
+> **마지막 갱신:** 2026-04-08 (Phase 2 완료)
 > **베이스:** `docs/design.md`
 > **이전 버전 폐기:** IP-Adapter 코드 리뷰 작업 계획(2026-04-03)은 본 문서로 대체됨
 
@@ -297,37 +297,81 @@ Phase 2 — MVP 완성 (기능 추가)
 
 ---
 
-### Step 2.5: 사용자 대기 시간 최소화 (백그라운드 DB 쓰기)
+### Step 2.5: legacy 제거 (범위 축소됨) ✅
 
-**목표**: design.md §4.4 의 하이브리드 정책 구현.
+**원 목표**: design.md §4.4 의 하이브리드 정책 구현 (DB I/O 를 백그라운드 스레드로 분리).
 
-**작업**:
-1. 업로드 파일은 받자마자 `data/staging/{uuid}.jpg` 에 저장 (동기, ~50ms)
-2. 백엔드 호출 시작 (메인 스레드, 사용자 대기)
-3. 결과 표시 후 → 백그라운드 태스크로:
-   - DB row 생성 (product / generated_upload)
-   - staging → permanent 파일 이동
-   - 신상품이면 product 테이블 INSERT
-   - 인스타 업로드 성공 시 generated_upload INSERT
-4. 백그라운드 태스크는 `asyncio.create_task` 또는 `concurrent.futures` 활용
-5. 실패 시 사용자에게 작은 알림 ("저장 중 오류 — 재시도 중")
+**범위 축소 배경**:
+실측 기반 병목이 아닌 상태에서 복잡도만 올라감을 인지. Streamlit 환경에서 백그라운드
+태스크는 rerun 때 소실 위험이 있고, DB INSERT 는 SQLite 에서 수 ms 로 체감 불가.
+→ 실측 없는 최적화는 후순위. 대신 실질 개선이 되는 **legacy 정리** 로 범위 재조정.
+백그라운드화는 배포 후 실측 기반으로 별도 작업.
 
-**검증**: 광고 생성 → 결과 표시까지 소요 시간 측정. DB I/O가 메인 경로에서 빠진 것 확인.
+**실제 작업**:
+1. `_run_*_generation` 3곳에서 legacy `HistoryService().save_history()` 호출 제거
+2. 아카이브 탭을 `UploadService.list_published()` + `ProductService.list_all()` 기반으로 재작성
+   - 인스타 게시 완료된 generated_upload 만 표시
+   - 재업로드 기능 제거 (이미 올린 것이라 중복 의미 없음)
+3. legacy 파일 git rm: `services/history_service.py`, `schemas/history_schema.py`, `models/history.py`
+4. `models/__init__.py`, `tests/conftest.py`, `app.py` 의 legacy import 정리
 
-**커밋 메시지(안)**: `feat: 사용자 대기 시간 최소화 — 백그라운드 DB 쓰기 분리`
+**검증**: pytest 60 passed 유지 (legacy 테스트 없었음), `python -c "import app"` 정상
+
+**커밋 메시지(안)**: `refactor(Step 2.5): legacy HistoryService 제거 + 아카이브 탭 재작성`
+
+---
+
+## Phase 2 회고 (2026-04-08)
+
+**Phase 2 종료 상태**: Step 2.1 ~ 2.5 모두 완료 + Phase 2 종료 검증 (P2-3 ~ P2-5) 완료.
+
+**총 커밋 (Phase 2):**
+- `84f5b6e` feat(Step 2.1): 온보딩 화면 + GPT Vision 기반 brand_image 자동 생성
+- `9513fbc` feat(Step 2.2): 참조 이미지 갤러리 + 다중 선택 + TEXT_MODEL 롤백
+- `bfe9470` feat(Step 2.3): 신상품 토글 + 기존 상품 드롭다운
+- `6985325` feat(Step 2.4): 인스타 게시 성공 시 generated_upload 자동 저장
+- `971c2e5` refactor(Step 2.5): legacy HistoryService 제거 + 아카이브 탭 재작성
+- `(이번 커밋)` chore(Phase 2 종료): 의존성/디렉토리 정리 + README 갱신
+
+**테스트 통계 (Phase 1 → Phase 2):**
+- 35 → 60 (+25)
+- 신규 테스트 파일: test_backends/test_insta_capture (4), test_schemas/test_image_schema (3),
+  test_services/test_onboarding_service (6), test_services/test_image_service_reference (4),
+  test_services/test_instagram_service (4), test_utils/test_staging_storage (4)
+- TDD 사이클 6회 (Phase 2)
+
+**의도와 결과의 차이:**
+1. **Step 2.5 범위 축소**: 원래 백그라운드 DB 쓰기였으나 legacy 제거로 변경. 사용자 확인 받음.
+2. **TEXT_MODEL 롤백**: Step 1.3 에서 `gpt-5-mini → gpt-4o-mini` 로 "정정" 했던 것을 사용자가
+   `gpt-5-mini` 가 실존 모델임을 확인하며 되돌림. 모델 존재 여부 검증 실패 사례 — 추후
+   "실존" 주장이 나오면 ctx7/web 확인이 가능하다면 확인, 안 되면 사용자 말을 그대로 받음.
+3. **아카이브 탭 기능 축소**: 재업로드 기능은 generated_upload 데이터 모델과 맞지 않아 제거.
+4. **`nano banana` 인터페이스 여전히 미정**: MVP 는 mock_image + hf_* 로 동작. 실제 호출은
+   배포 직전 별도 작업 필요 (리스크 테이블 그대로 유지).
+
+**Phase 2 미완 항목:**
+- **P2-1/P2-2 엔드투엔드 수동 검증**: 실제 Streamlit 기동 + 브라우저 테스트. 사용자 책임.
+- **nano banana 실 호출**: 인터페이스 확정 후 별도 PR.
+
+**P2-6 완료 선언**: 본 회고 기록으로 Phase 2 완료.
 
 ---
 
 ## 3. Phase 외 작업 (병렬 가능)
 
-### legacy 정리
-- Phase 2 종료 시 `models/history.py`, `services/history_service.py` 제거
-- `crawl_and_analyze/image_crawler.py` 제거 (이미 `feature/won/insta-snapshot` 에서 처리됨, 본 브랜치에 cherry-pick)
+### legacy 정리 ✅ (Phase 2 종료 시 완료)
+- ✅ `models/history.py` 제거 (Step 2.5)
+- ✅ `services/history_service.py` 제거 (Step 2.5)
+- ✅ `schemas/history_schema.py` 제거 (Step 2.5)
+- ✅ `crawl_and_analyze/image_crawler.py` 제거 (Phase 2 종료)
+- ✅ `crawl_and_analyze/image_analyzer.py` 제거 (Phase 2 종료 — 로직은 onboarding_service 에 흡수됨)
+- ✅ `crawl_and_analyze/` 디렉토리 전체 삭제
+- ✅ `.gitignore` 의 image_crawled 예외 규칙 제거
 
-### 의존성 정리
-- `browser-use[cli]` 추가 (Step 2.1)
-- `instaloader` 제거 (legacy 정리 시)
-- `requirements.txt` ↔ `pyproject.toml` 동기화
+### 의존성 정리 ✅
+- ✅ `browser-use[cli]>=0.12.6` 추가 (Step 2.1)
+- ✅ `instaloader` 제거 (Phase 2 종료)
+- ✅ `pyproject.toml` / `uv.lock` / `requirements.txt` 동기화
 
 ### 과거 이슈 처리 (compass 이전 버전 잔존)
 이전 코드 리뷰의 미해결 이슈들 중 본 리팩터링과 무관하거나 작은 것들. Step 1~2 진행 중 발견되면 그 자리에서 처리하거나, 끝난 후 별도 PR.

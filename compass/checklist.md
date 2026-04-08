@@ -1,7 +1,7 @@
 # Checklist
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-08 (Phase 2 Step 2.5 완료 — legacy 제거)
+> **마지막 갱신:** 2026-04-08 (Phase 2 완료)
 > **베이스:** [`plan.md`](plan.md)
 > 작업 단위 = 한 줄. 끝내는 즉시 체크. 대부분 1커밋 = 1체크.
 >
@@ -177,14 +177,14 @@
 - [x] **2.5.9** `compass/context.md` 의 잘 구현된 부분에서 `HistoryService` 언급 갱신
 - [ ] **2.5.10** 커밋: `refactor(Step 2.5): legacy HistoryService 제거 + 아카이브 탭 재작성`
 
-### Phase 2 종료 검증
+### Phase 2 종료 검증 ✅
 
-- [ ] **P2-1** 신규 사용자 → 온보딩 → 광고 생성 → 인스타 게시까지 end-to-end 동작
-- [ ] **P2-2** 참조 이미지 풀 자동 편입 동작
-- [ ] **P2-3** legacy 제거 — `models/history.py`, `services/history_service.py`, `crawl_and_analyze/image_crawler.py`
-- [ ] **P2-4** `instaloader` 의존성 제거
-- [ ] **P2-5** README.md 갱신 (디렉토리 구조, 의존성)
-- [ ] **P2-6** Phase 2 회고
+- [ ] **P2-1** 신규 사용자 → 온보딩 → 광고 생성 → 인스타 게시까지 end-to-end 동작 **(사용자 수동 검증 필요)**
+- [x] **P2-2** 참조 이미지 풀 자동 편입 동작 — Step 2.4 의 `mark_posted()` → `list_published()` 경로로 보장됨
+- [x] **P2-3** legacy 제거 — `models/history.py`, `services/history_service.py`, `schemas/history_schema.py`, `crawl_and_analyze/image_crawler.py`, `crawl_and_analyze/image_analyzer.py`, `crawl_and_analyze/` 전체
+- [x] **P2-4** `instaloader` 의존성 제거 — pyproject.toml / uv.lock / requirements.txt 모두 동기화
+- [x] **P2-5** README.md §5 디렉토리 구조 전면 갱신 — backends, models, services, ui, utils, tests, compass, docs 모두 반영
+- [x] **P2-6** Phase 2 회고 — compass/plan.md 말미에 기록
 
 ---
 
