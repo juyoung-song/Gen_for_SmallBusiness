@@ -191,9 +191,33 @@ class ImageService:
     # ──────────────────────────────────────────
     # 스토리 이미지 합성 (백엔드 무관 후처리)
     # ──────────────────────────────────────────
+    def _load_story_font(self):
+        """스토리 이미지 텍스트용 폰트 로드 (I-4 — Settings 기반).
+
+        settings.STORY_FONT_PATHS 의 콜론 구분 목록을 왼쪽부터 시도한다.
+        모두 실패하면 Pillow 기본 폰트로 폴백.
+        """
+        from PIL import ImageFont
+
+        font_paths = [
+            p.strip()
+            for p in self.settings.STORY_FONT_PATHS.split(":")
+            if p.strip()
+        ]
+        for path in font_paths:
+            try:
+                return ImageFont.truetype(path, self.settings.STORY_FONT_SIZE)
+            except (OSError, IOError):
+                continue
+        logger.warning(
+            "사용 가능한 한글 폰트를 찾지 못해 Pillow 기본 폰트로 폴백합니다. "
+            "STORY_FONT_PATHS 를 환경에 맞게 설정해주세요."
+        )
+        return ImageFont.load_default()
+
     def compose_story_image(self, image_bytes: bytes, text: str) -> bytes:
         """1:1 광고 이미지를 9:16 스토리 포맷으로 합성한다."""
-        from PIL import ImageFilter, ImageFont
+        from PIL import ImageFilter
 
         img_1x1 = Image.open(io.BytesIO(image_bytes))
 
@@ -228,13 +252,7 @@ class ImageService:
 
         # 텍스트
         draw = ImageDraw.Draw(story_canvas)
-        try:
-            font_size = 60
-            font = ImageFont.truetype(
-                "/System/Library/Fonts/Supplemental/AppleGothic.ttf", font_size
-            )
-        except Exception:
-            font = ImageFont.load_default()
+        font = self._load_story_font()
 
         lines = text.split("\n")
         y_text = 1550

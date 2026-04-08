@@ -1,4 +1,15 @@
-"""DB의 History 테이블과 통신하는 서비스 레이어."""
+"""DB의 History 테이블과 통신하는 서비스 레이어 (LEGACY).
+
+⚠️ LEGACY — Phase 2 종료 시 제거 예정.
+
+본 서비스는 Step 1.2 에서 다음 3종으로 대체되었다:
+- services.brand_image_service.BrandImageService
+- services.product_service.ProductService
+- services.upload_service.UploadService
+
+기존 사용처(app.py 의 아카이브 탭 등)는 Phase 2 진행 중 점진적으로 마이그레이션된다.
+신규 코드는 본 서비스를 사용해서는 안 된다.
+"""
 
 import os
 import uuid

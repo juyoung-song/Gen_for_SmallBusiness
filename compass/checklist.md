@@ -67,20 +67,20 @@
 - [x] **종료 검증** 전체 회귀 26 passed + `python -c "import app"` 정상
 - [ ] **1.2.12** 커밋: `refactor(Step 1.2): ORM 모델 3종 + CRUD 서비스 + pytest 인프라`
 
-### Step 1.3 — 서비스 레이어 정합 (잔여 작업)
+### Step 1.3 — 서비스 레이어 정합 ✅ (잔여 작업)
 
-> 1.3.1 ~ 1.3.3 은 Step 1.1 안에서 처리됨 (커밋 c69586a). 잔여 작업만 남김.
+> 1.3.1 ~ 1.3.3 은 Step 1.1 안에서 처리됨 (커밋 c69586a).
 
 - [x] **1.3.1** ~~`services/image_service.py` 분기 제거 → `backends/registry.py` 호출~~ (Step 1.1 처리)
 - [x] **1.3.2** ~~`services/text_service.py` 동일 패턴 정리~~ (Step 1.1 처리)
 - [x] **1.3.3** ~~`I-3` text_service 내부 `import re` 파일 상단으로 이동~~ (openai_gpt 작성하면서 자동 처리)
-- [ ] **1.3.4** `I-1` `TEXT_MODEL` 기본값을 유효 모델명으로 수정
-- [ ] **1.3.5** `I-2` `services/caption_service.py` Mock 모드 분기 추가
-- [ ] **1.3.6** `I-4` `services/image_service.py` `compose_story_image()` bare except → `Exception`, 폰트 경로 Settings 분리
-- [ ] **1.3.7** `C-1` `services/instagram_service.py` FreeImage API 키 → `.env` + Settings
-- [ ] **1.3.8** `C-3` `services/instagram_service.py` requests → httpx 통일 (또는 의존성 추가)
-- [ ] **1.3.9** `services/history_service.py` 상단에 legacy 주석
-- [ ] **1.3.10** Streamlit 앱 정상 기동 + 기존 pytest GREEN 유지
+- [x] **1.3.4** `I-1` `TEXT_MODEL` 기본값 `gpt-5-mini` → `gpt-4o-mini` (chat completions 동작 보장)
+- [x] **1.3.5** `I-2` `services/caption_service.py` Mock 모드 분기 추가 **(TDD: RED 확인 → GREEN 2 passed)**
+- [x] **1.3.6** `I-4` `services/image_service.py` bare except 는 Step 1.1 에서 처리됨. 폰트 경로를 `Settings.STORY_FONT_PATHS` (콜론 구분) 로 분리 + Linux 폰트 fallback 체인 + `_load_story_font()` 메서드 추출
+- [x] **1.3.7** `C-1` `services/instagram_service.py` FreeImage API 키 하드코딩 → `Settings.FREEIMAGE_API_KEY` (공용 키는 기본값으로 폴백)
+- [x] **1.3.8** `C-3` `services/instagram_service.py` requests → httpx 통일. 추가로 예외 경로의 `target_str` unbound 버그 수정
+- [x] **1.3.9** `services/history_service.py` 상단에 LEGACY 주석 추가 (Phase 2 종료 시 제거 예정)
+- [x] **1.3.10** 전체 회귀 — pytest 28 passed + `python -c "import app"` 정상
 - [ ] **1.3.11** 커밋: `refactor(Step 1.3): 코드 리뷰 잔존 이슈 처리 + caption/history 정리`
 
 ### Step 1.4 — UI 구조 정렬 (입력 폼 1차)

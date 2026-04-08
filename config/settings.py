@@ -29,6 +29,9 @@ class Settings(BaseSettings):
 
     # ── Instagram Upload Settings ──
     IMGBB_API_KEY: str = ""
+    # C-1: FreeImage.host API 키 (기존 소스코드 하드코딩 제거).
+    # .env 에 FREEIMAGE_API_KEY 를 설정하면 그 값을 사용. 미설정 시 공용 키로 폴백.
+    FREEIMAGE_API_KEY: str = "6d207e02198a847aa98d0a2a901485a5"
     META_ACCESS_TOKEN: str = ""
     INSTAGRAM_ACCOUNT_ID: str = ""
 
@@ -38,7 +41,9 @@ class Settings(BaseSettings):
     USE_MOCK: bool = True
 
     # ── Model Settings ──
-    TEXT_MODEL: str = "gpt-5-mini"
+    # TEXT_MODEL: chat completions API 에서 동작하는 모델이어야 함.
+    # 과거 "gpt-5-mini" 는 reasoning 모델이라 chat completions 미지원이었음 (I-1).
+    TEXT_MODEL: str = "gpt-4o-mini"
     IMAGE_MODEL: str = "stabilityai/stable-diffusion-xl-base-1.0"
     IMAGE_SIZE: Literal["1024x1024", "1024x1792", "1792x1024"] = "1024x1024"
     IMAGE_QUALITY: Literal["standard", "hd"] = "standard"
@@ -58,6 +63,15 @@ class Settings(BaseSettings):
     # ── 입력 제한 ──
     MAX_PRODUCT_NAME_LENGTH: int = 50
     MAX_DESCRIPTION_LENGTH: int = 200
+
+    # ── 스토리 이미지 합성 (compose_story_image) ──
+    # I-4: 폰트 경로를 macOS 하드코딩에서 분리. 콜론 구분 목록, 왼쪽부터 시도.
+    STORY_FONT_PATHS: str = (
+        "/System/Library/Fonts/Supplemental/AppleGothic.ttf:"
+        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf:"
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+    )
+    STORY_FONT_SIZE: int = 60
 
     # ── Local Model Settings ──
     USE_LOCAL_MODEL: bool = False

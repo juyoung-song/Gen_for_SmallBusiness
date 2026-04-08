@@ -1,35 +1,44 @@
 """인스타그램 연동 서비스 (API / Mock).
-백업본의 검증된 로직(FreeImage + v19.0) 기반으로 복구 및 스토리 기능 추가.
+
+검증된 로직(FreeImage + Meta Graph v19.0) 기반. 스토리 기능 확장 포함.
+
+Step 1.3 수정:
+- C-1: FreeImage API 키 하드코딩 → Settings.FREEIMAGE_API_KEY 로 분리
+- C-3: `requests` → `httpx` 로 통일 (requests 는 본 프로젝트 의존성 아님)
+- bare RuntimeError 의 target_str unbound 버그 수정
 """
-import time
-import logging
-import requests
+
 import base64
 import io
+import logging
+import time
+
+import httpx
 from PIL import Image
 
 logger = logging.getLogger(__name__)
+
 
 class InstagramService:
     def __init__(self, settings=None):
         self.settings = settings
 
     def upload_story(self, image_bytes: bytes, caption_text: str = ""):
-        """[REAL] 검증된 로직 기반 스토리 업로드"""
+        """[REAL] 검증된 로직 기반 스토리 업로드."""
         if self.settings and not self.settings.USE_MOCK:
             return self._upload_impl(image_bytes, caption_text, is_story=True)
-        else:
-            return self.upload_mock(image_bytes, caption_text, is_story=True)
+        return self.upload_mock(image_bytes, caption_text, is_story=True)
 
     def upload_real(self, image_bytes: bytes, caption_text: str):
-        """[REAL] 검증된 로직 기반 피드 업로드"""
+        """[REAL] 검증된 로직 기반 피드 업로드."""
         if self.settings and not self.settings.USE_MOCK:
             return self._upload_impl(image_bytes, caption_text, is_story=False)
-        else:
-            return self.upload_mock(image_bytes, caption_text, is_story=False)
+        return self.upload_mock(image_bytes, caption_text, is_story=False)
 
-    def upload_mock(self, image_bytes: bytes, caption_text: str, is_story: bool = False):
-        """[MOCK] 업로드 시뮬레이션"""
+    def upload_mock(
+        self, image_bytes: bytes, caption_text: str, is_story: bool = False
+    ):
+        """[MOCK] 업로드 시뮬레이션."""
         target = "스토리" if is_story else "피드"
         yield f"📡 이미지 호스팅 서버({target}) 핑 테스트 중..."
         time.sleep(1.0)
@@ -39,15 +48,18 @@ class InstagramService:
         time.sleep(1.0)
         yield "DONE"
 
-    def _upload_impl(self, image_bytes: bytes, caption_text: str, is_story: bool = False):
-        """백업본의 정답 로직을 그대로 구현하되 스토리 기능만 확장"""
+    def _upload_impl(
+        self, image_bytes: bytes, caption_text: str, is_story: bool = False
+    ):
+        """FreeImage 호스팅 + Meta Graph API 업로드."""
+        target_str = "스토리" if is_story else "피드"
+
         if not self.settings or not self.settings.is_instagram_ready:
             raise ValueError("실제 배포를 위해서는 인스타그램 설정(.env)이 필요합니다.")
 
         try:
-            target_str = "스토리" if is_story else "피드"
             yield f"📡 사진을 인스타 전용 포맷(JPEG)으로 최적화하여 서버에 올리는 중..."
-            
+
             # 1. JPEG 변환
             img = Image.open(io.BytesIO(image_bytes))
             if img.mode != "RGB":
@@ -56,70 +68,68 @@ class InstagramService:
             img.save(buffer, format="JPEG")
             jpeg_bytes = buffer.getvalue()
 
-            # 2. 이미지 호스팅 (백업본에서 검증된 FreeImage.host 공용 키 사용)
+            # 2. 이미지 호스팅 (C-1: API 키를 Settings 로 분리)
             freeimage_url = "https://freeimage.host/api/1/upload"
             payload = {
-                "key": "6d207e02198a847aa98d0a2a901485a5", # 백업본의 정답 키
+                "key": self.settings.FREEIMAGE_API_KEY,
                 "action": "upload",
-                "source": base64.b64encode(jpeg_bytes).decode('utf-8'),
-                "format": "json"
+                "source": base64.b64encode(jpeg_bytes).decode("utf-8"),
+                "format": "json",
             }
-            res_img = requests.post(freeimage_url, data=payload)
+            res_img = httpx.post(freeimage_url, data=payload, timeout=30.0)
             res_img.raise_for_status()
-            
+
             public_image_url = res_img.json().get("image", {}).get("url")
             if not public_image_url:
-                raise ValueError("이미지 호스팅 서버(FreeImage)가 주소를 반환하지 않았습니다.")
-            
-            logger.info(f"Public URL 발급 성공: {public_image_url}")
+                raise ValueError(
+                    "이미지 호스팅 서버(FreeImage)가 주소를 반환하지 않았습니다."
+                )
 
-            # 3. Meta Graph API (v19.0 - 백업본과 동일 설정)
+            logger.info("Public URL 발급 성공: %s", public_image_url)
+
+            # 3. Meta Graph API v19.0
             yield f"🔗 Meta 서버와 연결하여 {target_str}를 준비 중입니다..."
             ig_id = self.settings.INSTAGRAM_ACCOUNT_ID
             access_token = self.settings.META_ACCESS_TOKEN
-            
+
             media_url = f"https://graph.facebook.com/v19.0/{ig_id}/media"
-            
-            # 스토리와 피드의 파라미터를 완전히 분리하여 전송
+
+            # 스토리와 피드의 파라미터를 완전히 분리
             media_payload = {
                 "image_url": public_image_url,
-                "access_token": access_token
+                "access_token": access_token,
             }
-            
             if is_story:
-                # 스토리는 오직 이 필드만 있어야 합니다 (caption 절대 금지)
+                # 스토리는 오직 이 필드만 (caption 절대 금지)
                 media_payload["media_type"] = "STORIES"
             else:
-                # 피드는 캡션이 필수/권장입니다
+                # 피드는 캡션 + 타입 명시
                 media_payload["caption"] = caption_text
-                media_payload["media_type"] = "IMAGE" # 명시적으로 지정
-            
-            # data= 방식을 유지 (백업본 성공 방식)
-            res_media = requests.post(media_url, data=media_payload)
-            
+                media_payload["media_type"] = "IMAGE"
+
+            res_media = httpx.post(media_url, data=media_payload, timeout=60.0)
             if res_media.status_code != 200:
                 err_text = res_media.text
-                logger.error(f"Meta 미디어 생성 실패: {err_text}")
+                logger.error("Meta 미디어 생성 실패: %s", err_text)
                 raise ValueError(f"Meta 서버 거부: {err_text}")
-                
+
             creation_id = res_media.json().get("id")
-            
-            # 4. 최종 게시 (Publish)
+
+            # 4. 최종 게시
             yield f"🚀 거의 다 되었습니다! {target_str}를 최종 발행합니다!"
             publish_url = f"https://graph.facebook.com/v19.0/{ig_id}/media_publish"
             publish_payload = {
                 "creation_id": creation_id,
-                "access_token": access_token
+                "access_token": access_token,
             }
-            res_pub = requests.post(publish_url, data=publish_payload)
-            
+            res_pub = httpx.post(publish_url, data=publish_payload, timeout=60.0)
             if res_pub.status_code != 200:
                 err_text_pub = res_pub.text
-                logger.error(f"Meta 게시 실패: {err_text_pub}")
+                logger.error("Meta 게시 실패: %s", err_text_pub)
                 raise ValueError(f"최종 게시 거부: {err_text_pub}")
-                
+
             yield "DONE"
 
         except Exception as e:
             logger.exception("인스타그램 업로드 치명적 오류")
-            raise RuntimeError(f"{target_str} 업로드 실패: {str(e)}")
+            raise RuntimeError(f"{target_str} 업로드 실패: {e}")
