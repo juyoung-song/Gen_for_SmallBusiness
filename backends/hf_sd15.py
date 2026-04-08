@@ -1,7 +1,9 @@
-"""SD 1.5 txt2img 로컬 백엔드.
+"""SD 1.5 txt2img 로컬 백엔드 (Hugging Face diffusers).
 
 참조 이미지가 없을 때 사용하는 순수 텍스트→이미지 생성 백엔드.
 diffusers StableDiffusionPipeline + MPS(Apple Silicon) 지원.
+
+backends.image_base.ImageBackend 프로토콜 구현.
 """
 
 import io
@@ -39,12 +41,14 @@ def _load_sd15_pipeline(model_id: str, cache_dir: str, device: str, dtype_name: 
     return pipe
 
 
-class SD15Backend:
-    """SD 1.5 txt2img 로컬 백엔드.
+class HFSD15Backend:
+    """SD 1.5 txt2img 로컬 백엔드 (Hugging Face diffusers).
 
     첫 호출 시 모델을 lazy 로드하고 이후 재사용합니다.
     Apple Silicon(MPS), CUDA, CPU 순으로 디바이스를 자동 선택합니다.
     """
+
+    name = "hf_sd15"
 
     def __init__(self, settings) -> None:
         self.settings = settings

@@ -1,8 +1,10 @@
-"""IP-Adapter + SD 1.5 로컬 백엔드.
+"""IP-Adapter + SD 1.5 로컬 백엔드 (Hugging Face diffusers).
 
 참조 이미지가 있을 때 사용. 사용자 업로드 사진의 색감·구도·분위기를
 IP-Adapter cross-attention을 통해 이미지 생성에 직접 반영합니다.
 diffusers 0.24+ load_ip_adapter() 사용.
+
+backends.image_base.ImageBackend 프로토콜 구현.
 """
 
 import io
@@ -54,12 +56,14 @@ def _load_ip_adapter_pipeline(
     return pipe
 
 
-class IPAdapterBackend:
-    """IP-Adapter + SD 1.5 로컬 백엔드.
+class HFIPAdapterBackend:
+    """IP-Adapter + SD 1.5 로컬 백엔드 (Hugging Face diffusers).
 
     참조 이미지(request.image_data)가 있으면 IP-Adapter로 스타일을 반영하고,
     없으면 일반 txt2img로 fallback합니다.
     """
+
+    name = "hf_ip_adapter"
 
     def __init__(self, settings) -> None:
         self.settings = settings

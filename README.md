@@ -91,14 +91,24 @@ python image_analyzer.py --dir image_crawled/torriden_official --limit 9
 │   ├── image_crawler.py     # 인스타 공개 계정 이미지 수집기 (실험적)
 │   ├── image_analyzer.py    # 브랜드 무드/톤앤매너 분석기 (실험적)
 │   └── image_crawled/       # 계정별 수집 이미지 및 분석 산출물
-├── models/
+├── backends/                # 이미지/텍스트 생성 백엔드 (1파일 1모듈)
+│   ├── __init__.py
+│   ├── image_base.py        # ImageBackend 프로토콜
+│   ├── text_base.py         # TextBackend 프로토콜
+│   ├── registry.py          # 환경 변수 기반 백엔드 선택 팩토리
+│   ├── hf_sd15.py           # SD 1.5 txt2img (Hugging Face diffusers)
+│   ├── hf_ip_adapter.py     # SD 1.5 + IP-Adapter
+│   ├── hf_img2img.py        # SD 1.5 img2img
+│   ├── hf_hybrid.py         # IP-Adapter + img2img 하이브리드
+│   ├── hf_inference_api.py  # Hugging Face Serverless Inference API
+│   ├── openai_gpt.py        # OpenAI GPT 텍스트 생성
+│   ├── remote_worker.py     # 자체 원격 워커 호출 (worker_api.py)
+│   ├── mock_image.py        # Mock 이미지 (Pillow 그라데이션)
+│   └── mock_text.py         # Mock 텍스트 (스타일별 하드코딩)
+├── models/                  # ORM (SQLAlchemy)
 │   ├── __init__.py
 │   ├── base.py              # TimestampMixin을 포함한 ORM 베이스
-│   ├── history.py           # 생성 내역 저장을 위한 History 테이블 모델
-│   ├── sd15.py              # SD 1.5 txt2img 로컬 백엔드
-│   ├── ip_adapter.py        # 참조 이미지 기반 IP-Adapter 백엔드
-│   ├── img2img.py           # 참조 이미지 기반 img2img 백엔드
-│   └── hybrid.py            # IP-Adapter + img2img 하이브리드 백엔드
+│   └── history.py           # 생성 내역 저장을 위한 History 테이블 모델
 ├── schemas/
 │   ├── __init__.py
 │   ├── history_schema.py    # DB 입출력을 위한 히스토리 검증 Pydantic 모델

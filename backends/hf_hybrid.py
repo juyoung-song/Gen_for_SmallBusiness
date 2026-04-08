@@ -1,4 +1,4 @@
-"""IP-Adapter + img2img 하이브리드 로컬 백엔드.
+"""IP-Adapter + img2img 하이브리드 로컬 백엔드 (Hugging Face diffusers).
 
 두 접근을 결합합니다:
 1. IP-Adapter: 참조 이미지의 스타일·색감을 cross-attention으로 주입
@@ -16,6 +16,8 @@ strength (0.0~1.0):
   - 높을수록 텍스트/IP-Adapter 영향 증가
 IP-Adapter scale (0.0~1.0):
   - 높을수록 참조 이미지 스타일 강하게 반영
+
+backends.image_base.ImageBackend 프로토콜 구현.
 """
 
 import io
@@ -67,12 +69,14 @@ def _load_hybrid_pipeline(
     return pipe
 
 
-class HybridBackend:
-    """IP-Adapter + img2img 하이브리드 로컬 백엔드.
+class HFHybridBackend:
+    """IP-Adapter + img2img 하이브리드 로컬 백엔드 (Hugging Face diffusers).
 
     StableDiffusionImg2ImgPipeline에 IP-Adapter를 로드하여
     구조 보존(img2img)과 스타일 반영(IP-Adapter)을 동시에 수행합니다.
     """
+
+    name = "hf_hybrid"
 
     def __init__(self, settings) -> None:
         self.settings = settings
