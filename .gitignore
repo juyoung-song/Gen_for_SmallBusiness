@@ -179,3 +179,4 @@ models/cache/
 
 # Excalidraw
 *.excalidraw
+.claude/skills/gstack/
