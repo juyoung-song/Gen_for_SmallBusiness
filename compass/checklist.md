@@ -1,7 +1,7 @@
 # Checklist
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-08 (Phase 1 완료)
+> **마지막 갱신:** 2026-04-08 (Phase 2 Step 2.1 완료)
 > **베이스:** [`plan.md`](plan.md)
 > 작업 단위 = 한 줄. 끝내는 즉시 체크. 대부분 1커밋 = 1체크.
 >
@@ -112,17 +112,17 @@
 
 ## Phase 2 — MVP 완성
 
-### Step 2.1 — 온보딩 화면 + 자동 파이프라인
+### Step 2.1 — 온보딩 화면 + 자동 파이프라인 ✅
 
-- [ ] **2.1.1** `browser-use[cli]>=0.12.6` 의존성 추가 (사용자 확인 후)
-- [ ] **2.1.2** `backends/insta_capture.py` 신규 — `scripts/insta_screenshot.py` 로직을 모듈화
-- [ ] **2.1.3** `services/onboarding_service.py` 신규
-- [ ] **2.1.4** GPT Vision 분석 함수 작성 (사용자 자유 텍스트 + 캡처 이미지 → system prompt 정제 텍스트)
-- [ ] **2.1.5** `ui/onboarding.py` 신규 — 자유 텍스트 + 인스타 URL 입력 화면
-- [ ] **2.1.6** 검수 화면 (타협 모드 — "그대로 OK" 큰 버튼 + 작은 "수정하기")
-- [ ] **2.1.7** `app.py` 라우팅 — 진입 시 brand_image 존재 확인 → 온보딩 또는 광고 화면
-- [ ] **2.1.8** 신규 사용자 시뮬레이션 검증 (DB 비우고 처음부터)
-- [ ] **2.1.9** 커밋: `feat: 온보딩 화면 + GPT Vision 기반 brand_image 자동 생성`
+- [x] **2.1.1** `browser-use[cli]>=0.12.6` 의존성 추가
+- [x] **2.1.2** `backends/insta_capture.py` 신규 — browser-use CLI subprocess 래퍼 + `parse_close_button_index()` 순수 함수 **(TDD: 4 passed)**
+- [x] **2.1.3** `services/onboarding_service.py` 신규 — `OnboardingService`, `BrandImageDraft`, `GPTVisionAnalyzer`, `build_vision_analysis_prompt()` **(TDD: 6 passed, 외부 의존성은 주입형 Protocol 로 테스트 가능)**
+- [x] **2.1.4** GPT Vision 분석 — `GPTVisionAnalyzer.analyze()` 가 base64 인코딩된 이미지 + system prompt 로 호출
+- [x] **2.1.5** `ui/onboarding.py` 신규 — 2단계 화면 (입력 → 검수)
+- [x] **2.1.6** 검수 화면 타협 모드 — "이대로 확정" 큰 버튼 (col 3) + "수정하기" 작은 버튼 (col 1) + "처음부터 다시"
+- [x] **2.1.7** `app.py` 라우팅 — 진입 시 `BrandImageService.exists_for_user` 로 존재 확인, 없으면 `render_onboarding_screen` + `st.stop()`
+- [ ] **2.1.8** 신규 사용자 시뮬레이션 검증 — 실제 Streamlit 기동 + 엔드투엔드는 수동 검증 필요
+- [ ] **2.1.9** 커밋: `feat(Step 2.1): 온보딩 화면 + GPT Vision 기반 brand_image 자동 생성`
 
 ### Step 2.2 — 참조 이미지 갤러리
 

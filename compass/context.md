@@ -1,7 +1,7 @@
 # Context
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-08 (Phase 1 완료)
+> **마지막 갱신:** 2026-04-08 (Phase 2 Step 2.1 완료)
 > **브랜치:** `refactor/won/main` (분기점: `2c808e0`, 2026-04-06)
 > **이전 버전 폐기:** IP-Adapter 리뷰 컨텍스트(2026-04-03)는 본 문서로 대체됨
 
@@ -51,26 +51,56 @@ backends/                  # 이미지/텍스트 생성 백엔드 (Step 1.1 ✅)
   hf_inference_api.py      # Hugging Face Serverless Inference API
   openai_gpt.py            # OpenAI GPT (텍스트)
   remote_worker.py         # 자체 원격 워커 클라이언트 (worker_api.py 호출)
+  insta_capture.py         # (Step 2.1 ✅) browser-use CLI 기반 인스타 캡처
   mock_image.py
   mock_text.py
-  # 추후 추가 예정 (Phase 2 이후): hf_flux.py, nano_banana.py 등
+  # 추후 추가 예정: hf_flux.py, nano_banana.py 등
 
-models/                    # ORM (Step 1.2 진행 중)
+models/                    # ORM (Step 1.2 ✅)
   __init__.py
   base.py                  # Base + TimestampMixin
-  brand_image.py           # (신규 ✅) 브랜드 정체성 (불변)
-  product.py               # (신규 ✅) 상품 + raw 이미지
-  generated_upload.py      # (신규 ✅) 생성 결과 + 인스타 메타
+  brand_image.py           # 브랜드 정체성 (불변)
+  product.py               # 상품 + raw 이미지
+  generated_upload.py      # 생성 결과 + 인스타 메타
   history.py               # (legacy, Phase 2 종료 후 제거)
 
-tests/                     # pytest 인프라 (Step 1.2 ✅)
-  __init__.py
-  conftest.py              # 인메모리 SQLite + async 세션 fixture
+services/                  # 비즈니스 로직
+  brand_image_service.py   # (Step 1.2 ✅) CRUD + 불변 정책
+  product_service.py       # (Step 1.2 ✅) CRUD + 검색
+  upload_service.py        # (Step 1.2 ✅) CRUD + 게시 후 메타 갱신
+  onboarding_service.py    # (Step 2.1 ✅) 캡처→Vision→BrandImageDraft→저장
+  image_service.py         # 백엔드 오케스트레이션 + 프롬프트 번역
+  text_service.py          # 백엔드 오케스트레이션
+  caption_service.py       # 인스타 캡션 + Mock 분기
+  instagram_service.py     # FreeImage + Meta Graph API
+  history_service.py       # (legacy, Phase 2 종료 후 제거)
+
+ui/
+  sidebar.py               # 로컬 모델 설정 사이드바
+  onboarding.py            # (Step 2.1 ✅) 2단계 온보딩 화면
+
+utils/
+  prompt_builder.py
+  async_runner.py          # (Step 1.4 ✅) Streamlit 안전 async 실행
+  goal_categories.py       # (Step 1.4 ✅) 광고 목적 6종 단일 소스
+
+tests/                     # pytest (Step 1.2 ✅, 총 45 passed)
+  conftest.py              # 인메모리 SQLite + FK PRAGMA
+  test_backends/
+    test_insta_capture.py       # 4
   test_models/
-    test_brand_image.py    # 3 passed
-    test_product.py        # 2 passed
-    test_generated_upload.py  # 4 passed
-  test_services/           # (TDD 진행 예정)
+    test_brand_image.py          # 3
+    test_product.py              # 2
+    test_generated_upload.py     # 4
+  test_services/
+    test_brand_image_service.py  # 6
+    test_product_service.py      # 6
+    test_upload_service.py       # 5
+    test_caption_service.py      # 2
+    test_onboarding_service.py   # 6
+  test_utils/
+    test_async_runner.py         # 2
+    test_goal_categories.py      # 5
 ```
 
 ## 5. 현재 코드베이스 분석 요약

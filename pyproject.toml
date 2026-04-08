@@ -24,6 +24,9 @@ dependencies = [
     "transformers>=4.44.0,<5.0.0",
     "accelerate>=0.24.0",
     "torchvision>=0.26.0",
+    # ── Onboarding (Phase 2 Step 2.1) ──
+    # 인스타 프로필 헤드리스 캡처에 사용. subprocess 로 browser-use CLI 호출.
+    "browser-use[cli]>=0.12.6",
 ]
 
 [dependency-groups]

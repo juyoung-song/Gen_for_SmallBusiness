@@ -12,13 +12,15 @@ import os
 
 import streamlit as st
 
-from config.database import init_db
+from config.database import AsyncSessionLocal, init_db
 from config.settings import get_settings, setup_logging
+from ui.onboarding import render_onboarding_screen
 from ui.sidebar import render_sidebar_settings
 from models.history import GenerationType
 from schemas.history_schema import HistoryCreate
 from schemas.image_schema import ImageGenerationRequest
 from schemas.text_schema import TextGenerationRequest
+from services.brand_image_service import BrandImageService
 from services.history_service import HistoryService
 from services.image_service import ImageService, ImageServiceError
 from services.text_service import TextService, TextServiceError
@@ -161,6 +163,23 @@ _DEFAULT_STATE: dict = {
 for key, default in _DEFAULT_STATE.items():
     if key not in st.session_state:
         st.session_state[key] = default
+
+
+# ══════════════════════════════════════════════
+# 온보딩 라우팅 (Phase 2 Step 2.1)
+# ══════════════════════════════════════════════
+# brand_image 가 DB 에 없으면 온보딩 화면만 렌더하고 조기 return 한다.
+# 존재하면 기존 광고 생성 화면으로 진입.
+async def _check_brand_image_exists() -> bool:
+    async with AsyncSessionLocal() as session:
+        service = BrandImageService(session)
+        return await service.exists_for_user("default")
+
+
+if not run_async(_check_brand_image_exists()):
+    render_onboarding_screen(settings)
+    st.stop()
+
 
 # ══════════════════════════════════════════════
 # UI 매핑용 딕셔너리
