@@ -20,8 +20,8 @@ Pillow>=10.0
 # === HTTP 클라이언트 (이미지 다운로드용) ===
 httpx>=0.25
 
-# === 브랜드 이미지 수집 / 분석 실험 ===
-instaloader>=4.15.1
+# === 인스타 프로필 헤드리스 스크린샷 (scripts/insta_screenshot.py) ===
+browser-use[cli]>=0.12.6
 
 # === Remote Worker API ===
 fastapi>=0.115.0

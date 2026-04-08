@@ -179,3 +179,6 @@ models/cache/
 
 # Excalidraw
 *.excalidraw
+
+# 인스타 스크린샷 산출물
+shots/

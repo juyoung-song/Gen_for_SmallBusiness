@@ -24,9 +24,9 @@
 
 ### [feature/won/img-analysis] 브랜드 이미지 분석 파이프라인 (실험적)
 - `crawl_and_analyze/` 디렉토리 신설 — 크롤링·분석 독립 실행 스크립트 모음
-- `crawl_and_analyze/image_crawler.py`: Instaloader 기반 공개 인스타그램 계정 이미지 수집기
-  - 현재 인스타그램 403 차단으로 로그인 없이는 미동작 (로그인 연동 예정)
-  - 수동으로 이미지를 `image_crawled/{계정명}/` 폴더에 넣어 분석기와 연동 가능
+- `scripts/insta_screenshot.py`: `browser-use` CLI 기반 인스타 프로필 헤드리스 스크린샷 도구
+  - 로그인 모달 자동 닫기 + 스크롤하며 N장 캡처
+  - 사용: `python scripts/insta_screenshot.py <인스타 URL> [--out shots] [--count 3]`
 - `crawl_and_analyze/image_analyzer.py`: GPT-5-mini Vision 기반 브랜드 이미지 분석기
   - 로컬 이미지 폴더를 입력으로 받아 개별 이미지 분석 (색감·구도·분위기) 수행
   - 분석 결과를 종합하여 브랜드 톤앤매너 가이드라인 도출
@@ -75,7 +75,7 @@ python image_analyzer.py --dir image_crawled/torriden_official --limit 9
 - **Database / ORM**: `SQLAlchemy 2.0+`, `aiosqlite` (SQLite 기반 비동기 처리)
 - **AI / External API**: `openai>=1.40`, `httpx`
 - **Image Processing**: `Pillow` (JPEG 변환 및 Mock 모드)
-- **브랜드 분석 / 크롤링 실험**: `instaloader`, GPT-5-mini Vision (`responses` API)
+- **브랜드 분석 / 크롤링 실험**: `browser-use[cli]` (헤드리스 인스타 스크린샷), GPT-5-mini Vision (`responses` API)
 - **Instagram 연동**: `requests` (Meta Graph API · FreeImage.host API)
 
 ## 5. 디렉토리 구조
@@ -88,9 +88,10 @@ python image_analyzer.py --dir image_crawled/torriden_official --limit 9
 │   ├── database.py          # SQLAlchemy 비동기 세션 팩토리 및 DB 초기화
 │   └── settings.py          # 환경변수(.env) 로드 및 앱 런타임 설정 관리
 ├── crawl_and_analyze/
-│   ├── image_crawler.py     # 인스타 공개 계정 이미지 수집기 (실험적)
 │   ├── image_analyzer.py    # 브랜드 무드/톤앤매너 분석기 (실험적)
 │   └── image_crawled/       # 계정별 수집 이미지 및 분석 산출물
+├── scripts/
+│   └── insta_screenshot.py  # browser-use CLI 기반 인스타 프로필 헤드리스 스크린샷
 ├── models/
 │   ├── __init__.py
 │   ├── base.py              # TimestampMixin을 포함한 ORM 베이스
