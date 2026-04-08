@@ -73,6 +73,9 @@ class ImageService:
         Raises:
             ImageServiceError: 백엔드/번역 실패 시 사용자 친화적 메시지
         """
+        # 참조 이미지 해석: raw image 가 없으면 reference_image_paths 의 첫 장을 주입
+        request = self._resolve_reference_image_data(request)
+
         backend = select_image_backend(
             self.settings,
             has_reference=request.image_data is not None,
@@ -90,6 +93,34 @@ class ImageService:
         # 그 외 모든 백엔드는 영문 프롬프트 입력 가정 → 번역 수행
         translated_request = self._translate_to_english(request)
         return self._call_backend(backend, translated_request)
+
+    @staticmethod
+    def _resolve_reference_image_data(
+        request: ImageGenerationRequest,
+    ) -> ImageGenerationRequest:
+        """참조 이미지 경로를 읽어 image_data 에 주입.
+
+        우선순위:
+        1) 이미 image_data 가 있으면 그대로 유지 (raw 이미지가 최우선)
+        2) reference_image_paths 의 첫 장이 존재하면 읽어서 image_data 로 주입
+        3) 그 외 → image_data=None 유지
+
+        MVP 에서는 백엔드가 다중 참조를 지원하지 않으므로 첫 1장만 사용.
+        """
+        from pathlib import Path
+
+        if request.image_data is not None:
+            return request
+        if not request.reference_image_paths:
+            return request
+
+        first = Path(request.reference_image_paths[0])
+        if not first.exists():
+            logger.warning("참조 이미지 파일 누락: %s", first)
+            return request
+
+        logger.info("참조 이미지 %s 를 image_data 로 로드", first)
+        return request.model_copy(update={"image_data": first.read_bytes()})
 
     # ──────────────────────────────────────────
     # 프롬프트 한국어 → 영문 번역 (서비스 책임)

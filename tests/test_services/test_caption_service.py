@@ -16,7 +16,7 @@ class _FakeSettings:
     def __init__(self, use_mock: bool):
         self.USE_MOCK = use_mock
         self.OPENAI_API_KEY = ""
-        self.TEXT_MODEL = "gpt-4o-mini"
+        self.TEXT_MODEL = "gpt-5-mini"
         self.TEXT_TIMEOUT = 30.0
 
 

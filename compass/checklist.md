@@ -1,7 +1,7 @@
 # Checklist
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-08 (Phase 2 Step 2.1 완료)
+> **마지막 갱신:** 2026-04-08 (Phase 2 Step 2.2 완료)
 > **베이스:** [`plan.md`](plan.md)
 > 작업 단위 = 한 줄. 끝내는 즉시 체크. 대부분 1커밋 = 1체크.
 >
@@ -124,15 +124,15 @@
 - [ ] **2.1.8** 신규 사용자 시뮬레이션 검증 — 실제 Streamlit 기동 + 엔드투엔드는 수동 검증 필요
 - [ ] **2.1.9** 커밋: `feat(Step 2.1): 온보딩 화면 + GPT Vision 기반 brand_image 자동 생성`
 
-### Step 2.2 — 참조 이미지 갤러리
+### Step 2.2 — 참조 이미지 갤러리 ✅
 
-- [ ] **2.2.1** `ui/reference_gallery.py` 신규 — 썸네일 그리드 + 다중 선택
-- [ ] **2.2.2** `services/upload_service.py` 에 갤러리용 조회 메서드 추가 (게시 완료된 항목만)
-- [ ] **2.2.3** `app.py` 광고 생성 폼에 갤러리 통합
-- [ ] **2.2.4** `schemas/image_schema.py` 의 `ImageGenerationRequest` 에 `reference_image_paths: list[str]` 추가
-- [ ] **2.2.5** 백엔드들이 다중 참조 이미지를 처리하도록 확장 (지원 안 하면 첫 1장만)
-- [ ] **2.2.6** 시각 검증: 갤러리 2장 선택 → 광고 생성 → 결과 확인
-- [ ] **2.2.7** 커밋: `feat: 참조 이미지 갤러리 + 다중 선택`
+- [x] **2.2.1** `schemas/image_schema.py` `ImageGenerationRequest.reference_image_paths: list[str]` 추가 **(TDD: 3 passed)**
+- [x] **2.2.2** `services/upload_service.py list_published()` 는 Step 1.2 에서 이미 구현됨 (인스타 게시 완료만 조회)
+- [x] **2.2.3** `ui/reference_gallery.py` 신규 — 썸네일 3-컬럼 그리드 + 체크박스 다중 선택, 최근 24장 제한
+- [x] **2.2.4** `app.py` — 광고 목적 섹션 아래 expander 로 갤러리 통합, 선택 경로를 `_run_*_generation` 에 전달
+- [x] **2.2.5** 백엔드 확장 — `ImageService._resolve_reference_image_data()` 순수 메서드 추가. raw 이미지 있으면 그대로, 없으면 참조 첫 장을 `image_data` 로 주입. 백엔드 개별 수정 없음 **(TDD: 4 passed)**
+- [x] **2.2.6** 전체 회귀 52 passed + `python -c "import app"` 정상. 실제 UI 동작은 수동 검증 필요
+- [ ] **2.2.7** 커밋: `feat(Step 2.2): 참조 이미지 갤러리 + 다중 선택`
 
 ### Step 2.3 — 신상품 토글 + 상품 드롭다운
 

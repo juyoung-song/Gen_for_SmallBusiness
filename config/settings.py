@@ -41,9 +41,8 @@ class Settings(BaseSettings):
     USE_MOCK: bool = True
 
     # ── Model Settings ──
-    # TEXT_MODEL: chat completions API 에서 동작하는 모델이어야 함.
-    # 과거 "gpt-5-mini" 는 reasoning 모델이라 chat completions 미지원이었음 (I-1).
-    TEXT_MODEL: str = "gpt-4o-mini"
+    # TEXT_MODEL: 텍스트 및 Vision 호출에 모두 사용.
+    TEXT_MODEL: str = "gpt-5-mini"
     IMAGE_MODEL: str = "stabilityai/stable-diffusion-xl-base-1.0"
     IMAGE_SIZE: Literal["1024x1024", "1024x1792", "1792x1024"] = "1024x1024"
     IMAGE_QUALITY: Literal["standard", "hd"] = "standard"

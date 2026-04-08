@@ -35,7 +35,15 @@ class ImageGenerationRequest(BaseModel):
     )
     image_data: bytes | None = Field(
         default=None,
-        description="참조용 업로드 이미지",
+        description="상품 raw 이미지 (화장 전). 신상품 업로드 또는 기존 상품의 DB raw 이미지.",
+    )
+    reference_image_paths: list[str] = Field(
+        default_factory=list,
+        description=(
+            "참조 이미지 풀(화장 후)에서 사용자가 선택한 파일 경로 리스트. "
+            "각 경로는 generated_upload.image_path 에서 온 것이며, "
+            "백엔드가 지원하면 다중 참조, 지원 안 하면 첫 장만 사용."
+        ),
     )
 
     @field_validator("style")
