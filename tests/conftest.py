@@ -31,7 +31,6 @@ async def db_session() -> AsyncSession:
 
     # 모든 모델을 import 해서 metadata 에 등록
     # (신규 모델 추가 시 이 블록에 import 추가)
-    import models.history  # noqa: F401
     import models.brand_image  # noqa: F401
     import models.product  # noqa: F401
     import models.generated_upload  # noqa: F401

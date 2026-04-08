@@ -18,12 +18,9 @@ from config.settings import get_settings, setup_logging
 from ui.onboarding import render_onboarding_screen
 from ui.reference_gallery import render_reference_gallery
 from ui.sidebar import render_sidebar_settings
-from models.history import GenerationType
-from schemas.history_schema import HistoryCreate
 from schemas.image_schema import ImageGenerationRequest
 from schemas.text_schema import TextGenerationRequest
 from services.brand_image_service import BrandImageService
-from services.history_service import HistoryService
 from services.image_service import ImageService, ImageServiceError
 from services.product_service import ProductService
 from services.text_service import TextService, TextServiceError
@@ -440,18 +437,15 @@ def _persist_generated_upload(
 def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone_name: str, image_data: bytes = None) -> None:
     st.session_state.error_message = None
     st.session_state.last_request = {
-        "product_name": name, "description": desc, "goal": goal, "text_tone": tone_val, "ui_text_tone": ui_tone_name, 
+        "product_name": name, "description": desc, "goal": goal, "text_tone": tone_val, "ui_text_tone": ui_tone_name,
         "image_data": image_data, "type": "홍보 글"
     }
     try:
         with st.spinner("💬 사장님을 대신해 멋진 홍보 글을 작성하고 있어요. 잠시만 기다려주세요..."):
             request = TextGenerationRequest(product_name=name, description=desc, style=tone_val, goal=goal, image_data=image_data)
             response = text_service.generate_ad_copy(request)
-            
-            async def _save():
-                create_data = HistoryCreate(generation_type=GenerationType.TEXT, product_name=name, description=desc, style=tone_val, result_data=response.model_dump())
-                await HistoryService().save_history(create_data)
-            run_async(_save())
+        # Step 2.5: legacy HistoryService 호출 제거.
+        # 텍스트 전용 생성은 DB 에 기록되지 않는다. 이미지+인스타 게시 후 generated_upload 에만 저장.
         st.session_state.text_result = response.model_dump()
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
@@ -473,11 +467,6 @@ def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_st
                 reference_image_paths=reference_image_paths or [],
             )
             response = image_service.generate_ad_image(request)
-
-            async def _save():
-                create_data = HistoryCreate(generation_type=GenerationType.IMAGE, product_name=name, description=desc, style=style_val, result_data=response.model_dump())
-                await HistoryService().save_history(create_data)
-            run_async(_save())
 
         # Step 2.4 — 생성 결과를 staging 에 저장해 인스타 게시 후 generated_upload 에 경로 기록
         _stash_generated_image(response.image_data)
@@ -515,12 +504,7 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
             # Step 2.4 — 생성 결과를 staging 에 저장
             _stash_generated_image(res_i.image_data)
             st.session_state.image_result = res_i.model_dump()
-            
-        async def _save_combined():
-            combined_dict = {**res_t.model_dump(), **res_i.model_dump()}
-            create_data = HistoryCreate(generation_type=GenerationType.COMBINED, product_name=name, description=desc, style=f"글:{tone_val}/사진:{style_val}", result_data=combined_dict)
-            await HistoryService().save_history(create_data)
-        run_async(_save_combined())
+        # Step 2.5: legacy HistoryService 호출 제거. 기록은 인스타 게시 후 generated_upload 에만.
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
 
@@ -868,68 +852,51 @@ with tab_archive:
     st.markdown("### 🗂️ 예전에 만든 홍보물 보관함")
     st.caption("지금까지 사장님이 만드셨던 모든 홍보 글과 사진들이 날아가지 않고 이곳에 안전하게 보관되어 있습니다.")
 
-    async def _fetch_histories():
-        return await HistoryService().get_all_histories()
+    # Step 2.5 — legacy HistoryService 제거. 아카이브는 이제 generated_upload 기반.
+    # 인스타에 실제로 게시된 항목만 표시 (list_published).
 
-    histories = run_async(_fetch_histories())
+    async def _fetch_uploads_and_products():
+        """게시된 업로드와 관련 상품을 한 번에 조회."""
+        async with AsyncSessionLocal() as session:
+            uploads = await UploadService(session).list_published()
+            products = await ProductService(session).list_all()
+        products_by_id = {p.id: p for p in products}
+        return uploads, products_by_id
 
-    if not histories:
-        st.info("아직 보관된 홍보물이 없습니다. '✨ 새로 만들기' 탭에서 우리 가게의 첫 번째 홍보물을 멋지게 만들어보세요!")
+    uploads, products_by_id = run_async(_fetch_uploads_and_products())
+
+    if not uploads:
+        st.info(
+            "아직 인스타그램에 올린 홍보물이 없습니다. "
+            "'✨ 새로 만들기' 탭에서 우리 가게의 첫 번째 게시물을 만들어보세요!"
+        )
     else:
-        for history in histories:
-            icon = "📝(글만)" if history.generation_type == GenerationType.TEXT else "🖼️(사진만)" if history.generation_type == GenerationType.IMAGE else "💎(글+사진 세트)"
-            
-            title = f"[{icon}] {history.product_name} ─ {history.style} ─ {history.created_at.strftime('%Y년 %m월 %d일 %H:%M')}"
+        for upload in uploads:
+            product = products_by_id.get(upload.product_id)
+            product_name = product.name if product else "알 수 없는 상품"
+
+            posted_str = ""
+            if upload.posted_at is not None:
+                posted_str = upload.posted_at.strftime("%Y년 %m월 %d일 %H:%M")
+
+            title = (
+                f"📸 {product_name} — {upload.goal_category}"
+                + (f" · {posted_str}" if posted_str else "")
+            )
 
             with st.expander(title):
-                res_data = history.result_data
-
-                if history.generation_type == GenerationType.TEXT:
-                    st.markdown("**👉 추천하는 짧은 홍보 문장**")
-                    for copy in res_data.get("ad_copies", []):
-                        st.code(copy, language="plaintext")
-                    if res_data.get("promo_sentences"):
-                        st.markdown("**📣 길게 쓸 수 있는 상세 설명**")
-                        for sentence in res_data.get("promo_sentences", []):
-                            st.code(sentence, language="plaintext")
-                elif history.generation_type == GenerationType.IMAGE:
-                    img_path = res_data.get("image_path")
-                    if img_path and os.path.exists(img_path): st.image(img_path)
-                elif history.generation_type == GenerationType.COMBINED:
-                    col_t, col_i = st.columns([1.5, 1])
-                    with col_t:
-                        st.markdown("**👉 추천하는 짧은 홍보 문장**")
-                        for copy in res_data.get("ad_copies", []):
-                            st.code(copy, language="plaintext")
-                        if res_data.get("promo_sentences"):
-                            st.markdown("**📣 길게 쓸 수 있는 상세 설명**")
-                            for sentence in res_data.get("promo_sentences", []):
-                                st.code(sentence, language="plaintext")
-                    with col_i:
-                        img_path = res_data.get("image_path")
-                        if img_path and os.path.exists(img_path):
-                            st.image(img_path, width="stretch")
-                        
-                    st.divider()
-                    
-                    if st.button(f"🪄 이 결과물을 사용해서 다시 인스타그램에 올리기", key=f"gen_cap_{history.id}", width="stretch"):
-                        from schemas.instagram_schema import CaptionGenerationRequest
-                        from services.caption_service import CaptionService
-                        with st.spinner("선택하신 홍보물을 싹 모아서 인스타그램용 글 스타일로 새롭게 정리하고 있어요..."):
-                            cap_svc = CaptionService(settings)
-                            # 히스토리에 있는 건 원본 style (tone/style 복합 문자열일수도 있지만)
-                            # caption_service는 style 파라미터를 그대로 사용하므로 전달
-                            req = CaptionGenerationRequest(product_name=history.product_name, ad_copies=res_data.get("ad_copies", []), style="기본")
-                            st.session_state.history_captions[str(history.id)] = cap_svc.generate_caption(req)
-                    
-                    cap_result = st.session_state.history_captions.get(str(history.id))
-                    if cap_result:
-                        with open(img_path, "rb") as f:
-                            img_bytes = f.read()
-                        
-                        render_instagram_preview_and_upload(
-                            product_name=history.product_name,
-                            image_bytes=img_bytes,
-                            caption_data=cap_result,
-                            key_suffix=f"archive_{history.id}"
-                        )
+                col_img, col_text = st.columns([1, 1.5])
+                with col_img:
+                    if Path(upload.image_path).exists():
+                        st.image(upload.image_path, width="stretch")
+                    else:
+                        st.warning(f"❓ 이미지 파일 누락: {upload.image_path}")
+                with col_text:
+                    st.markdown(f"**상품:** {product_name}")
+                    st.markdown(f"**광고 목적:** {upload.goal_category}")
+                    if upload.goal_freeform:
+                        st.markdown(f"**자유 텍스트:** {upload.goal_freeform}")
+                    st.markdown("**올라간 캡션**")
+                    st.code(upload.caption, language="plaintext")
+                    if upload.instagram_post_id:
+                        st.caption(f"인스타 게시 ID: `{upload.instagram_post_id}`")

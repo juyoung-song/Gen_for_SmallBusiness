@@ -1,7 +1,7 @@
 # Checklist
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-08 (Phase 2 Step 2.4 완료)
+> **마지막 갱신:** 2026-04-08 (Phase 2 Step 2.5 완료 — legacy 제거)
 > **베이스:** [`plan.md`](plan.md)
 > 작업 단위 = 한 줄. 끝내는 즉시 체크. 대부분 1커밋 = 1체크.
 >
@@ -160,14 +160,22 @@
 - [x] **2.4.6** 전체 회귀 60 passed + `python -c "import app"` 정상
 - [ ] **2.4.7** 커밋: `feat(Step 2.4): 인스타 게시 성공 시 generated_upload 자동 저장`
 
-### Step 2.5 — 사용자 대기 시간 최소화
+### Step 2.5 — legacy 제거 (범위 축소됨) ✅
 
-- [ ] **2.5.1** `data/staging/` 디렉토리 + .gitignore 추가
-- [ ] **2.5.2** 업로드 파일 즉시 staging 저장 로직
-- [ ] **2.5.3** 백그라운드 태스크 — 결과 표시 후 DB row 생성 + staging → permanent 이동
-- [ ] **2.5.4** 신상품 INSERT, generated_upload INSERT 백그라운드화
-- [ ] **2.5.5** 광고 생성 클릭 → 결과 표시까지 시간 측정 (이전 대비 단축 확인)
-- [ ] **2.5.6** 커밋: `feat: 백그라운드 DB 쓰기로 사용자 대기 시간 최소화`
+> **범위 축소 근거:** 원래 계획은 "DB I/O 백그라운드화" 였으나, 실측 기반 병목이
+> 아닌 상태에서 복잡도만 올라감. 실질 개선이 되는 **legacy 정리** 로 범위를 축소.
+> 백그라운드화는 배포 후 실측 기반으로 별도 진행.
+
+- [x] **2.5.1** 사용처 전수 분석 — `HistoryService` / `HistoryCreate` / `GenerationType` / `History`
+- [x] **2.5.2** `_run_text_generation` / `_run_image_generation` / `_run_combined_generation` 에서 `HistoryService().save_history()` 호출 제거
+- [x] **2.5.3** 아카이브 탭을 `UploadService.list_published()` + `ProductService.list_all()` 기반으로 재작성 (인스타 게시 완료 항목만 표시)
+- [x] **2.5.4** legacy 파일 git rm — `services/history_service.py`, `schemas/history_schema.py`, `models/history.py`
+- [x] **2.5.5** `models/__init__.py` 에서 `History` / `GenerationType` re-export 제거
+- [x] **2.5.6** `tests/conftest.py` 의 `import models.history` 제거
+- [x] **2.5.7** `app.py` 의 legacy import 3개 제거 (`GenerationType`, `HistoryCreate`, `HistoryService`)
+- [x] **2.5.8** 전체 회귀 60 passed + `python -c "import app"` 정상 (숫자 변동 없음 — legacy 테스트가 없었음)
+- [x] **2.5.9** `compass/context.md` 의 잘 구현된 부분에서 `HistoryService` 언급 갱신
+- [ ] **2.5.10** 커밋: `refactor(Step 2.5): legacy HistoryService 제거 + 아카이브 탭 재작성`
 
 ### Phase 2 종료 검증
 

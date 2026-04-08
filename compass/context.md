@@ -106,7 +106,7 @@ tests/                     # pytest (Step 1.2 ✅, 총 45 passed)
 ## 5. 현재 코드베이스 분석 요약
 
 ### 잘 구현된 부분 (그대로 유지)
-- **서비스 레이어**: `TextService`, `ImageService`, `CaptionService`, `InstagramService`, `HistoryService` 단일 책임 분리 양호
+- **서비스 레이어**: `TextService`, `ImageService`, `CaptionService`, `InstagramService` 단일 책임 분리 양호 (legacy `HistoryService` 는 Step 2.5 에서 제거)
 - **Mock/API 이중 모드**: `USE_MOCK` 플래그로 환경 전환
 - **Pydantic 2.0 검증**: `field_validator` 활용
 - **로컬 모델 백엔드**: `models/sd15.py`, `models/ip_adapter.py`, `models/img2img.py`, `models/hybrid.py` 이미 프로토콜 기반

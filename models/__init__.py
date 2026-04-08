@@ -5,14 +5,11 @@
 2. 본 파일에 import + __all__ 등재
 3. `tests/conftest.py` 의 import 블록에도 한 줄 추가 (Base.metadata 등록을 위해)
 4. `config/database.py` `init_db()` 에도 동일하게 import 추가
-
-`history` 는 legacy. Phase 2 종료 시 제거 예정.
 """
 
 from models.base import Base, TimestampMixin
 from models.brand_image import BrandImage
 from models.generated_upload import GeneratedUpload
-from models.history import GenerationType, History  # legacy
 from models.product import Product
 
 __all__ = [
@@ -21,7 +18,4 @@ __all__ = [
     "BrandImage",
     "Product",
     "GeneratedUpload",
-    # legacy
-    "History",
-    "GenerationType",
 ]
