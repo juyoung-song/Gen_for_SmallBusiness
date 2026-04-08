@@ -32,9 +32,10 @@ _ONBOARDING_DIR = Path(__file__).resolve().parent.parent / "data" / "onboarding"
 def render_onboarding_screen(settings) -> None:
     """온보딩 화면 전체를 렌더링한다."""
     st.title("🎨 브랜드 첫 세팅")
-    st.markdown(
+    st.info(
+        "🍞 이 서비스는 **카페·베이커리·디저트 가게 사장님**을 위한 도구입니다.\n\n"
         "앞으로 모든 광고가 **같은 브랜드 톤**으로 만들어지도록, "
-        "딱 한 번만 브랜드 정체성을 알려주세요."
+        "딱 한 번만 우리 가게의 정체성을 알려주세요."
     )
 
     # 세션 상태 초기화
@@ -52,18 +53,25 @@ def render_onboarding_screen(settings) -> None:
 def _render_input_stage(settings) -> None:
     """1단계: 자유 텍스트 + 인스타 URL 입력."""
     with st.container(border=True):
-        st.markdown("### 1️⃣ 브랜드 소개")
+        st.markdown("### 1️⃣ 우리 가게 소개")
         freetext = st.text_area(
-            "어떤 브랜드인가요? 자유롭게 써주세요.",
-            placeholder="예: 조용한 동네에서 운영하는 작은 베이커리예요. 따뜻하고 단순한 분위기를 좋아합니다. 원색보다는 베이지/브라운 톤이 어울려요.",
-            height=150,
+            "어떤 가게인가요? 자유롭게 써주세요.",
+            placeholder=(
+                "예: 동네에서 작은 베이커리를 운영하고 있어요. 매일 아침 막 구운 "
+                "유럽식 캄파뉴와 크루아상을 팝니다. 따뜻하고 단정한 분위기를 좋아하고, "
+                "원색보다 베이지/브라운/우드 톤이 잘 어울려요. 손님은 주로 동네 직장인과 "
+                "20-30대 주부예요."
+            ),
+            height=180,
             key="onboarding_freetext",
         )
 
         st.markdown("### 2️⃣ 추구미 인스타 프로필")
         st.caption(
             "벤치마크하고 싶은 인스타 계정의 프로필 URL 을 넣어주세요. "
-            "AI 가 자동으로 피드를 살펴보고 브랜드 톤을 분석합니다."
+            "AI 가 자동으로 피드를 살펴보고 톤·색감·사진 스타일을 분석합니다. "
+            "💡 꼭 카페/베이커리 계정이 아니어도 됩니다. 다른 업종이면 카테고리는 "
+            "그대로 카페/베이커리/디저트로 두고 톤만 참고해요."
         )
         instagram_url = st.text_input(
             "인스타 프로필 URL",

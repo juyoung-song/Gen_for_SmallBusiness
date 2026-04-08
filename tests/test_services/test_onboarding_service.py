@@ -71,21 +71,24 @@ class TestBuildVisionAnalysisPrompt:
         prompt = build_vision_analysis_prompt("...")
         assert "이미지" in prompt or "image" in prompt.lower()
 
-    def test_prompt_instructs_image_takes_precedence_over_freetext(self):
-        """이미지와 자유 텍스트가 충돌할 경우 이미지를 우선해야 함을 명시.
+    def test_prompt_handles_off_topic_reference_image(self):
+        """이미지가 다른 업종이면 카테고리 무시하고 톤만 참고하라는 지시 포함.
 
-        이전 버그: '베이커리' 라는 자유 텍스트와 K-뷰티 인스타 이미지가 들어왔는데
-        GPT 가 자유 텍스트만 따라 베이커리 톤 brand_image 를 작성. 이미지 시각
-        정보가 무시됨.
+        이전 버그 시퀀스:
+        - '베이커리' 자유 텍스트 + K-뷰티(Torriden) 인스타 이미지 → 베이커리 톤 결과
+          (자유 텍스트만 따라 지어냄)
+        - 그 다음 수정: 이미지 우선 → Torriden 스킨케어 brand_image 로 출력
+          (사용자는 베이커리인데 K-뷰티 광고가 나오는 꼴)
+        - 최종 정책: 카테고리는 항상 카페/베이커리/디저트로 고정. 무관한 이미지는
+          톤/색감/사진 스타일만 추출. (design.md §1.1)
+
+        프롬프트에 이 정책의 핵심 키워드 ("톤만" 또는 "톤 + 추출") 가 포함되어야 함.
         """
         prompt = build_vision_analysis_prompt("아무 텍스트")
-        # "우선" / "충돌" / "이미지가 사실" 같은 명시 단서 중 하나는 있어야 함
-        assert (
-            "우선" in prompt
-            or "충돌" in prompt
-            or "이미지가 사실" in prompt
-            or "이미지를 사실" in prompt
-        )
+        # 정책: 무관 이미지는 톤만 추출
+        assert "톤" in prompt
+        # 카테고리 고정 정책
+        assert "고정" in prompt or "반드시" in prompt
 
     def test_prompt_requires_objective_visual_description_step(self):
         """LLM 이 이미지에서 본 객관적 사실(브랜드명/제품/색)을 먼저 말하도록 강제."""
@@ -97,6 +100,23 @@ class TestBuildVisionAnalysisPrompt:
             or "보이는" in prompt
             or "묘사" in prompt
         )
+
+    def test_prompt_pins_category_to_cafe_bakery_dessert(self):
+        """본 MVP 는 카페·베이커리·디저트 가게로 업종이 고정되어 있음 (design.md §1.1).
+
+        프롬프트는 LLM 에게 이 카테고리를 명시적으로 알려야 한다. 사용자가
+        무관한 레퍼런스(예: K-뷰티)를 넣어도 카테고리는 카페/베이커리로 유지.
+        """
+        prompt = build_vision_analysis_prompt("아무 텍스트")
+        assert "카페" in prompt
+        assert "베이커리" in prompt
+        assert "디저트" in prompt
+
+    def test_prompt_instructs_extract_only_tone_when_image_is_off_topic(self):
+        """이미지가 다른 업종(뷰티/패션 등)이면 카테고리는 무시하고 톤만 추출."""
+        prompt = build_vision_analysis_prompt("...")
+        # "톤만" / "참고" / "추출" 같은 지침 단서
+        assert "톤만" in prompt or ("톤" in prompt and ("참고" in prompt or "추출" in prompt))
 
 
 class TestOnboardingServicePipeline:
