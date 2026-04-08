@@ -3,7 +3,9 @@
 > **프로젝트:** 생성형 AI 기반 광고 콘텐츠 제작 서비스 (MVP)
 > **최종 수정일:** 2026-04-08
 > **상태:** 설계 확정, 구현 시작 전
-> **선행 문서:** [`PRD.md`](PRD.md), [`architecture.md`](architecture.md)
+> **이 문서의 위치:** 본 프로젝트 설계 문서 중 **가장 최신**이며,
+> 기존 [`PRD.md`](PRD.md) · [`architecture.md`](architecture.md)와 충돌하는 내용이 있을 경우
+> **본 문서를 우선**한다. PRD/architecture는 향후 본 문서 기준으로 정합성을 맞춘다.
 
 ---
 

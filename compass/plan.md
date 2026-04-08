@@ -1,400 +1,308 @@
 # Plan
 
-코드 리뷰에서 도출된 이슈들을 우선순위별로 정리한 수정 계획.
+> **작성일:** 2026-04-08
+> **베이스:** `docs/design.md`
+> **이전 버전 폐기:** IP-Adapter 코드 리뷰 작업 계획(2026-04-03)은 본 문서로 대체됨
 
 ---
 
-## Critical
+## 0. 작업 원칙
 
-### C-1. FreeImage.host API 키 하드코딩 제거
-- **파일**: `services/instagram_service.py` (62번째 줄)
-- **문제**: `"key": "6d207e02198a847aa98d0a2a901485a5"` 가 소스코드에 직접 노출됨
-- **해결**: `.env`에 `FREEIMAGE_API_KEY=...` 추가, `config/settings.py`의 `Settings` 클래스에 필드 추가, 서비스에서 `settings.FREEIMAGE_API_KEY`로 참조
+1. **design.md 우선**: 모든 설계 결정의 단일 진실 공급원
+2. **1 모듈 = 1 파일**: 새 백엔드/모델은 항상 별도 파일로
+3. **공통 인터페이스 우선**: 백엔드는 베이스 프로토콜 구현, 서비스는 인터페이스만 호출
+4. **Phase 1 먼저**: 먼저 정리(refactor), 그 다음 추가(add)
+5. **외부 서비스/시크릿 추가 작업 전에는 사용자 확인**
 
-### C-2. `run_async()` else 분기 버그
-- **파일**: `app.py` (134~140번째 줄)
-- **문제**: `try/except` 두 분기 모두 `asyncio.run(coro)` 호출 → 실행 중인 이벤트 루프에서 충돌
-- **해결**: `else` 분기에서 `loop.run_until_complete(coro)` 사용, 또는 `nest_asyncio` 패키지 도입
+## 1. Phase 구조 (큰 그림)
 
-### C-3. `requests` 라이브러리 미선언
-- **파일**: `services/instagram_service.py` (6번째 줄)
-- **문제**: `import requests` 사용 중이나 `pyproject.toml`, `requirements.txt` 어디에도 미선언
-- **해결**: `instagram_service.py`를 `httpx`로 통일하거나, `requests`를 의존성에 명시
+```
+Phase 1 — 리팩터링 (구조 정렬)
+  └─ Step 1.1: 백엔드 디렉토리 분리
+  └─ Step 1.2: ORM 모델 재설계 (brand_image / product / generated_upload)
+  └─ Step 1.3: 서비스 레이어 인터페이스 정합
+  └─ Step 1.4: 광고 목적/입력 폼 UI 구조 정렬
+
+Phase 2 — MVP 완성 (기능 추가)
+  └─ Step 2.1: 온보딩 화면 + 자동 파이프라인
+  └─ Step 2.2: 참조 이미지 갤러리
+  └─ Step 2.3: 신상품 토글 + 상품 드롭다운
+  └─ Step 2.4: 자동 게시 후 generated_upload 저장 흐름
+  └─ Step 2.5: 사용자 대기 시간 최소화 (백그라운드 DB 쓰기)
+```
+
+각 Step은 **독립 커밋 단위**로 진행한다. Step 종료 시점마다 빌드/실행 검증.
 
 ---
 
-## Important
+## Phase 1 — 리팩터링
 
-### I-1. `TEXT_MODEL` 기본값 오탈자
-- **파일**: `config/settings.py` (41번째 줄)
-- **문제**: `TEXT_MODEL: str = "gpt-5-mini"` — 존재하지 않는 모델명
-- **해결**: `"gpt-4o-mini"` 또는 `"gpt-4.1-mini"` 등 유효한 모델명으로 수정
+### Step 1.1: `backends/` 디렉토리 신설 및 백엔드 이동
 
-### I-2. `CaptionService` Mock 모드 분기 누락
-- **파일**: `services/caption_service.py`
-- **문제**: `USE_MOCK=true` 상태에서 인스타 캡션 버튼 클릭 시 실제 OpenAI API 호출 시도 → 인증 오류
-- **해결**: `TextService`, `ImageService`와 동일하게 `_mock_response()` / `_api_response()` 분기 추가
+**목표**: 이미지/텍스트 생성 백엔드를 ORM 모델과 분리.
 
-### I-3. `_parse_response()` 내부 반복 import
-- **파일**: `services/text_service.py` (271~272번째 줄)
-- **문제**: 함수 호출마다 `import re`, `import logging` 실행 (logging은 파일 상단에 이미 있어 중복)
-- **해결**: 파일 상단으로 import 이동
+**작업**:
+1. 신규 디렉토리 `backends/` 생성
+2. 베이스 인터페이스 작성
+   - `backends/image_base.py` — `ImageBackend` 프로토콜 (`generate(request)`, `is_available()`)
+   - `backends/text_base.py` — `TextBackend` 프로토콜 (`generate_copy(request)`, `is_available()`)
+3. 기존 `models/` 의 백엔드 파일 이동 + 이름 변경
+   - `models/sd15.py` → `backends/hf_sd15.py`
+   - `models/ip_adapter.py` → `backends/hf_ip_adapter.py`
+   - `models/img2img.py` → `backends/hf_img2img.py`
+   - `models/hybrid.py` → `backends/hf_hybrid.py`
+   - `models/local_backend.py` → 삭제 (역할이 `backends/image_base.py` 로 흡수됨)
+4. 새 백엔드 파일 신설
+   - `backends/openai_gpt.py` — TextBackend 구현 (기존 `services/text_service.py` 의 GPT 호출 로직 이동)
+   - `backends/remote_worker.py` — 원격 워커 호출 (기존 `services/image_service.py` 의 remote 분기 이동)
+   - `backends/mock_image.py` / `backends/mock_text.py` — Mock 응답 (기존 `_mock_response()` 이동)
+5. import 경로 일괄 수정 (`models.sd15` → `backends.hf_sd15` 등)
+6. `services/` 는 백엔드를 직접 import하지 않고 **팩토리/레지스트리** 통해 선택
+   - `backends/__init__.py` 또는 `backends/registry.py` 에서 환경 변수 기반 선택
 
-### I-4. `compose_story_image()` bare `except` 및 macOS 전용 폰트 경로
-- **파일**: `services/image_service.py` (252번째 줄)
-- **문제**: bare `except:` 가 `SystemExit`, `KeyboardInterrupt`까지 삼킴. 폰트 경로가 macOS `/System/Library/Fonts/...` 하드코딩
-- **해결**: `except Exception:` 으로 변경. 폰트 경로를 `Settings` 또는 환경변수로 분리
+**검증**: `python -c "import backends; from backends.hf_sd15 import HFSD15Backend; ..."` 성공, 기존 Streamlit 앱 정상 기동
 
-### I-5. `@lru_cache` Settings `.env` 변경 미반영
-- **파일**: `config/settings.py` (84번째 줄)
-- **문제**: `@lru_cache`로 캐싱된 `get_settings()` → 테스트/재시작 없이 `.env` 변경 미반영
-- **해결**: `@st.cache_resource` 사용 고려 또는 `lru_cache` 사용 시 주의사항 문서화
-
----
-
-## Suggestions
-
-### S-1. `DB_DIR` 상대경로 → 절대경로
-- **파일**: `config/database.py` (12번째 줄), `services/history_service.py`
-- **문제**: `"./data"` 상대경로는 실행 디렉토리에 따라 달라질 수 있음
-- **해결**: `pathlib.Path(__file__).parent.parent / "data"` 형태로 변경
-
-### S-2. 인스타 업로드 진행률 범위 초과 방지
-- **파일**: `app.py` (252~269번째 줄)
-- **문제**: `idx += 0.2` 방식에서 generator가 5단계 초과 시 `st.progress()` 범위(`[0, 1]`) 초과
-- **해결**: `st.progress(min(idx, 1.0))`으로 클램핑
-
-### S-3. `TONE_DISPLAY_MAP` / `STYLE_DISPLAY_MAP` 중복 제거
-- **파일**: `app.py` (172~185번째 줄)
-- **문제**: 두 딕셔너리가 동일한 키-값 쌍
-- **해결**: 하나로 통합하여 텍스트/이미지 양쪽에서 재사용
+**커밋 메시지(안)**: `refactor: backends/ 디렉토리 신설 및 이미지/텍스트 백엔드 분리`
 
 ---
 
-## Feature: 로컬 IP-Adapter + SD 1.5 이미지 생성
+### Step 1.2: ORM 재설계 — `brand_image` / `product` / `generated_upload`
 
-**목표**: 사용자 업로드 사진을 실제로 이미지 생성 AI에 반영. 현재는 `has_reference` 플래그만 존재하고 이미지 픽셀이 미전달됨.
+**목표**: design.md §2 데이터 모델을 ORM으로 구현.
 
-**아키텍처**: `models/` 디렉토리에 모델별 파일 분리. `ImageService`는 `LocalImageBackend` 프로토콜만 바라보며, 모델 파일은 교체·추가 가능.
+**작업**:
+1. `models/brand_image.py` 신규
+   - 필드: `id (UUID, PK)`, `user_id (str, default='default')`, `content (Text, system prompt)`, `source_freetext (Text)`, `source_reference_url (Text)`, `source_screenshots (JSON)`, `created_at`
+2. `models/product.py` 신규
+   - 필드: `id (UUID, PK)`, `name (str, indexed)`, `description (Text)`, `raw_image_path (str)`, `created_at`
+3. `models/generated_upload.py` 신규
+   - 필드: `id (UUID, PK)`, `product_id (FK)`, `image_path (str)`, `caption (Text)`, `goal_category (str)`, `goal_freeform (Text)`, `instagram_post_id (str, nullable)`, `posted_at (datetime, nullable)`, `created_at`
+   - 관계: `product = relationship("Product", back_populates="uploads")`
+4. `models/history.py` — **legacy 표시**, 신규 코드는 사용 금지 주석 추가. Phase 2 종료 시 제거.
+5. DB 마이그레이션
+   - 신규 테이블 생성 (Alembic 도입은 Phase 2에서 검토. MVP는 `Base.metadata.create_all()` 로 충분)
+   - 기존 `history` 테이블은 그대로 두되 새 코드는 사용 금지
 
-```
-models/
-  local_backend.py     # LocalImageBackend 프로토콜 (인터페이스 정의)
-  sd15.py              # SD 1.5 txt2img (참조 이미지 없을 때 fallback)
-  ip_adapter.py        # IP-Adapter + SD 1.5 (참조 이미지 있을 때 사용)
-services/
-  image_service.py     # _local_response() 분기 추가
-config/
-  settings.py          # LOCAL_MODEL_CACHE_DIR, USE_LOCAL_MODEL 설정 추가
-```
+**검증**: SQLite DB에 새 테이블 3종 생성 확인 (`sqlite3 data/history.db ".schema brand_image"` 등)
 
----
-
-### Task 1: `LocalImageBackend` 프로토콜 정의
-
-**파일**: `models/local_backend.py` (신규)
-
-```python
-# models/local_backend.py
-from typing import Protocol
-from schemas.image_schema import ImageGenerationRequest, ImageGenerationResponse
-
-class LocalImageBackend(Protocol):
-    def generate(self, request: ImageGenerationRequest) -> ImageGenerationResponse:
-        ...
-
-    def is_available(self) -> bool:
-        """모델/어댑터 파일이 로컬에 존재하는지 확인."""
-        ...
-```
+**커밋 메시지(안)**: `refactor: brand_image / product / generated_upload ORM 모델 추가`
 
 ---
 
-### Task 2: Settings에 로컬 모델 설정 추가
+### Step 1.3: 서비스 레이어 인터페이스 정합
 
-**파일**: `config/settings.py`
+**목표**: 서비스가 백엔드를 직접 알지 않고 인터페이스만 사용하도록 정리.
 
-`Settings` 클래스에 필드 추가:
+**작업**:
+1. `services/image_service.py` 정리
+   - 분기 로직 제거 (`USE_MOCK`, `USE_LOCAL_MODEL`, `IMAGE_BACKEND` 분기) → `backends/registry.py` 호출로 대체
+   - `generate_ad_image(request)` 단순화: 백엔드 선택 → 호출 → 응답
+2. `services/text_service.py` 정리
+   - 동일한 패턴으로 정리
+3. `services/instagram_service.py`
+   - 본래 잘 정돈되어 있으므로 시그니처 변경 없음
+   - 단, 게시 성공 시 `generated_upload` 레코드 저장 콜백 추가 (Phase 2 Step 2.4와 연동)
+4. `services/caption_service.py`
+   - Mock 모드 분기 추가 (이전 리뷰의 I-2 항목)
+5. `services/history_service.py`
+   - **legacy 표시** + 신규 서비스로 분리 (`services/product_service.py`, `services/upload_service.py`, `services/brand_image_service.py`)
+   - 새 서비스들은 Step 1.2의 ORM 모델 CRUD
 
-```python
-# ── Local Model Settings ──
-USE_LOCAL_MODEL: bool = False
-LOCAL_MODEL_CACHE_DIR: str = "./models/cache"
-LOCAL_SD15_MODEL_ID: str = "runwayml/stable-diffusion-v1-5"
-LOCAL_IP_ADAPTER_ID: str = "h94/IP-Adapter"
-LOCAL_IP_ADAPTER_SUBFOLDER: str = "models"
-LOCAL_IP_ADAPTER_WEIGHT_NAME: str = "ip-adapter_sd15.bin"
-LOCAL_INFERENCE_STEPS: int = 30
-LOCAL_GUIDANCE_SCALE: float = 7.5
-LOCAL_IP_ADAPTER_SCALE: float = 0.6  # 참조 이미지 반영 강도 (0~1)
-```
+**검증**: `streamlit run app.py` 시 정상 동작 (기능 변경 없이 내부 구조만 정리됨)
 
-`.env`에도 추가:
-```env
-USE_LOCAL_MODEL=false
-LOCAL_MODEL_CACHE_DIR=./models/cache
-```
+**커밋 메시지(안)**: `refactor: 서비스 레이어를 백엔드 레지스트리 기반으로 단순화`
 
 ---
 
-### Task 3: SD 1.5 백엔드 구현
+### Step 1.4: UI 구조 정렬 (입력 폼 1차)
 
-**파일**: `models/sd15.py` (신규)
+**목표**: 입력 폼의 구조를 design.md §4.1 에 맞게 정렬. 기능 추가는 Phase 2에서.
 
-- 참조 이미지 없을 때 사용하는 순수 txt2img
-- `StableDiffusionPipeline` (diffusers) + MPS 백엔드
-- 첫 호출 시 모델 lazy 로드, 이후 재사용
+**작업**:
+1. 광고 목적 UI: 단일 드롭다운 → **칩 6종 + 자유 텍스트**
+   - 카테고리 6종: 신메뉴 출시 / 주말·시즌 한정 / 할인·이벤트 / 일상·감성 / 영업 안내 / 감사·안부
+   - 칩 UI: `st.pills()` 또는 `st.radio(horizontal=True)` 활용
+2. 톤/스타일 라디오 정리
+   - 텍스트 톤 / 이미지 스타일 중복 제거 (이전 리뷰 S-3)
+3. **신상품 토글 placeholder**만 추가 (실제 동작은 Step 2.3에서)
+4. **참조 이미지 입력은 이전 그대로** (갤러리 변경은 Step 2.2에서)
+5. **상품명은 이전 그대로** (드롭다운 변경은 Step 2.3에서)
 
-```python
-# models/sd15.py
-import io
-import logging
-import torch
-from pathlib import Path
-from PIL import Image
-from diffusers import StableDiffusionPipeline
+**검증**: 폼 렌더링 정상, 값이 기존 서비스 호출에 그대로 전달됨
 
-from config.settings import Settings
-from models.local_backend import LocalImageBackend
-from schemas.image_schema import ImageGenerationRequest, ImageGenerationResponse
-
-logger = logging.getLogger(__name__)
-
-class SD15Backend:
-    """SD 1.5 txt2img 로컬 백엔드."""
-
-    def __init__(self, settings: Settings) -> None:
-        self.settings = settings
-        self._pipe: StableDiffusionPipeline | None = None
-
-    def is_available(self) -> bool:
-        try:
-            import diffusers  # noqa: F401
-            return True
-        except ImportError:
-            return False
-
-    @property
-    def pipe(self) -> StableDiffusionPipeline:
-        if self._pipe is None:
-            cache_dir = Path(self.settings.LOCAL_MODEL_CACHE_DIR)
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            device = "mps" if torch.backends.mps.is_available() else "cpu"
-            logger.info("SD 1.5 모델 로딩 (device=%s)...", device)
-            self._pipe = StableDiffusionPipeline.from_pretrained(
-                self.settings.LOCAL_SD15_MODEL_ID,
-                torch_dtype=torch.float16 if device == "mps" else torch.float32,
-                cache_dir=str(cache_dir),
-            ).to(device)
-            self._pipe.enable_attention_slicing()
-        return self._pipe
-
-    def generate(self, request: ImageGenerationRequest) -> ImageGenerationResponse:
-        result = self.pipe(
-            prompt=request.prompt,
-            num_inference_steps=self.settings.LOCAL_INFERENCE_STEPS,
-            guidance_scale=self.settings.LOCAL_GUIDANCE_SCALE,
-        )
-        image: Image.Image = result.images[0]
-        buf = io.BytesIO()
-        image.save(buf, format="PNG")
-        return ImageGenerationResponse(
-            image_data=buf.getvalue(),
-            revised_prompt=request.prompt,
-        )
-```
+**커밋 메시지(안)**: `refactor: 광고 목적을 칩 UI + 자유 텍스트로 변경`
 
 ---
 
-### Task 4: IP-Adapter 백엔드 구현
+## Phase 2 — MVP 완성
 
-**파일**: `models/ip_adapter.py` (신규)
+### Step 2.1: 온보딩 화면 + 자동 파이프라인
 
-- 참조 이미지가 있을 때 사용
-- `StableDiffusionPipeline` + `load_ip_adapter()` (diffusers 0.24+)
-- `request.image_data` (bytes) → PIL Image → IP-Adapter에 전달
+**목표**: design.md §3 온보딩 플로우 구현.
 
-```python
-# models/ip_adapter.py
-import io
-import logging
-import torch
-from pathlib import Path
-from PIL import Image
-from diffusers import StableDiffusionPipeline
+**작업**:
+1. UI 라우팅 도입
+   - `app.py` 진입 시 brand_image 존재 여부 확인
+   - 없으면 → 온보딩 화면, 있으면 → 광고 생성 화면
+2. 온보딩 화면 (`ui/onboarding.py` 신규)
+   - 입력: 자유 텍스트 + 인스타 프로필 URL 1개
+   - "분석 시작" 버튼 → `services/onboarding_service.py` 호출
+3. `services/onboarding_service.py` 신규
+   - **단계 1**: `scripts/insta_screenshot.py` 의 로직을 모듈로 추출 → `backends/insta_capture.py` (browser-use CLI subprocess 호출)
+     - 캡처 1~2장
+     - **(주의)** browser-use CLI 의존성 추가 필요 (`pyproject.toml`)
+   - **단계 2**: GPT Vision 분석 → 사용자 자유 텍스트 + 캡처 이미지 → system prompt 정제 텍스트
+     - `crawl_and_analyze/image_analyzer.py` 의 로직을 참고하되 `services/onboarding_service.py` 안에 통합
+   - **단계 3**: 검수 화면 (타협 모드 — "그대로 OK" 큰 버튼 + 작은 "수정하기")
+   - **단계 4**: 확정 시 `BrandImage` 레코드 저장 (이후 불변)
+4. 의존성 추가
+   - `browser-use[cli]>=0.12.6` (단, 사용자 확인 후)
 
-from config.settings import Settings
-from schemas.image_schema import ImageGenerationRequest, ImageGenerationResponse
+**검증**: 신규 사용자 시뮬레이션 (DB 비우고 `streamlit run app.py`) → 온보딩 화면 → brand_image.txt 생성 → 광고 화면으로 진입
 
-logger = logging.getLogger(__name__)
-
-class IPAdapterBackend:
-    """IP-Adapter + SD 1.5 로컬 백엔드. 참조 이미지의 스타일을 반영해 생성."""
-
-    def __init__(self, settings: Settings) -> None:
-        self.settings = settings
-        self._pipe: StableDiffusionPipeline | None = None
-
-    def is_available(self) -> bool:
-        try:
-            import diffusers  # noqa: F401
-            return True
-        except ImportError:
-            return False
-
-    @property
-    def pipe(self) -> StableDiffusionPipeline:
-        if self._pipe is None:
-            cache_dir = Path(self.settings.LOCAL_MODEL_CACHE_DIR)
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            device = "mps" if torch.backends.mps.is_available() else "cpu"
-            logger.info("IP-Adapter 모델 로딩 (device=%s)...", device)
-            pipe = StableDiffusionPipeline.from_pretrained(
-                self.settings.LOCAL_SD15_MODEL_ID,
-                torch_dtype=torch.float16 if device == "mps" else torch.float32,
-                cache_dir=str(cache_dir),
-            ).to(device)
-            pipe.load_ip_adapter(
-                self.settings.LOCAL_IP_ADAPTER_ID,
-                subfolder=self.settings.LOCAL_IP_ADAPTER_SUBFOLDER,
-                weight_name=self.settings.LOCAL_IP_ADAPTER_WEIGHT_NAME,
-                cache_dir=str(cache_dir),
-            )
-            pipe.set_ip_adapter_scale(self.settings.LOCAL_IP_ADAPTER_SCALE)
-            pipe.enable_attention_slicing()
-            self._pipe = pipe
-        return self._pipe
-
-    def generate(self, request: ImageGenerationRequest) -> ImageGenerationResponse:
-        ref_image: Image.Image | None = None
-        if request.image_data:
-            ref_image = Image.open(io.BytesIO(request.image_data)).convert("RGB")
-
-        result = self.pipe(
-            prompt=request.prompt,
-            ip_adapter_image=ref_image,
-            num_inference_steps=self.settings.LOCAL_INFERENCE_STEPS,
-            guidance_scale=self.settings.LOCAL_GUIDANCE_SCALE,
-        )
-        image: Image.Image = result.images[0]
-        buf = io.BytesIO()
-        image.save(buf, format="PNG")
-        return ImageGenerationResponse(
-            image_data=buf.getvalue(),
-            revised_prompt=request.prompt,
-        )
-```
+**커밋 메시지(안)**: `feat: 온보딩 화면 + GPT Vision 기반 brand_image 자동 생성`
 
 ---
 
-### Task 5: `ImageService`에 `_local_response()` 분기 추가
+### Step 2.2: 참조 이미지 갤러리
 
-**파일**: `services/image_service.py`
+**목표**: 매 광고 생성 시 기존 generated_upload 풀에서 다중 선택 가능.
 
-`generate_ad_image()` 분기 수정:
+**작업**:
+1. `ui/reference_gallery.py` 신규
+   - `generated_upload` 테이블에서 인스타 게시 완료 항목 모두 조회
+   - 썸네일 그리드로 렌더 (Streamlit `st.image` + columns)
+   - 다중 선택 (체크박스 또는 클릭 토글)
+   - 선택된 ID 리스트를 폼에 반영
+2. 광고 생성 폼에 갤러리 통합
+   - "참조 이미지 (옵션)" 섹션 → 갤러리 호출
+   - 선택된 이미지들이 컨텍스트 조립에 포함됨 (`request.reference_image_ids`)
+3. 백엔드 측 수정
+   - `ImageGenerationRequest` 에 `reference_image_paths: list[str]` 추가
+   - 백엔드는 다중 참조 이미지를 지원하는 경우 모두 활용 (지원 안 하면 첫 1장만)
 
-```python
-def generate_ad_image(self, request: ImageGenerationRequest) -> ImageGenerationResponse:
-    if self.settings.USE_MOCK:
-        return self._mock_response(request)
-    if self.settings.USE_LOCAL_MODEL:
-        return self._local_response(request)
-    return self._api_response(request)
-```
+**검증**: 갤러리에서 2장 선택 → 광고 생성 → 결과가 두 톤이 섞여있는 듯한지 시각 확인
 
-`_local_response()` 메서드 추가:
-
-```python
-def _local_response(self, request: ImageGenerationRequest) -> ImageGenerationResponse:
-    """로컬 diffusers 모델로 이미지 생성. 참조 이미지 유무에 따라 백엔드 자동 선택."""
-    from models.ip_adapter import IPAdapterBackend
-    from models.sd15 import SD15Backend
-
-    # GPT로 한글 프롬프트 → 영어 번역 (기존 로직 재사용)
-    raw_prompt = build_image_prompt(
-        product_name=request.product_name,
-        description=request.description,
-        style=request.style,
-        goal=request.goal,
-        ad_copy=request.prompt,
-        has_reference=(request.image_data is not None),
-    )
-    translation = self.client.chat.completions.create(
-        model=self.settings.TEXT_MODEL,
-        messages=[
-            {"role": "system", "content": "Translate and enhance the given Korean description into a highly detailed English prompt for Stable Diffusion. Output ONLY the English prompt, no extra text."},
-            {"role": "user", "content": raw_prompt},
-        ],
-        timeout=self.settings.TEXT_TIMEOUT,
-    )
-    english_prompt = translation.choices[0].message.content.strip()
-
-    # 참조 이미지 있으면 IP-Adapter, 없으면 SD 1.5
-    if request.image_data:
-        backend = IPAdapterBackend(self.settings)
-    else:
-        backend = SD15Backend(self.settings)
-
-    if not backend.is_available():
-        raise ImageServiceError(
-            "로컬 모델 실행에 필요한 'diffusers' 패키지가 설치되지 않았습니다. "
-            "`pip install diffusers transformers accelerate` 를 실행해주세요."
-        )
-
-    translated_request = request.model_copy(update={"prompt": english_prompt})
-    logger.info("로컬 추론 시작 (backend=%s, prompt=%s)", type(backend).__name__, english_prompt[:60])
-    return backend.generate(translated_request)
-```
+**커밋 메시지(안)**: `feat: 참조 이미지 갤러리 + 다중 선택 지원`
 
 ---
 
-### Task 6: 의존성 추가
+### Step 2.3: 신상품 토글 + 상품 드롭다운
 
-**파일**: `pyproject.toml`, `requirements.txt`
+**목표**: design.md §4.1 의 상품 입력 UX 완성.
 
-`pyproject.toml`에 추가:
-```toml
-"diffusers>=0.24.0",
-"transformers>=4.35.0",
-"accelerate>=0.24.0",
-"torch>=2.1.0",
-```
+**작업**:
+1. 상품명 드롭다운
+   - `product` 테이블에서 모든 상품 조회 → `st.selectbox` (또는 `st.combobox`)
+   - 검색 가능
+2. 신상품 토글
+   - `st.toggle("신상품 등록")` 추가
+   - **ON**: raw 이미지 업로드란 노출 + 필수화. 상품명/설명도 새로 입력
+   - **OFF**: 드롭다운에서 상품 선택 → DB에서 raw_image 자동 로드
+3. 폼 검증
+   - 토글 OFF + 드롭다운 미선택 → 에러
+   - 토글 ON + raw 이미지 미업로드 → 에러
+4. 신상품인 경우 광고 생성 후 백그라운드로 `product` 테이블에 INSERT
 
-설치 명령:
-```bash
-uv add diffusers transformers accelerate torch
-# 또는
-pip install diffusers>=0.24.0 transformers>=4.35.0 accelerate>=0.24.0 torch>=2.1.0
-```
+**검증**: 두 시나리오 모두 정상 동작 + 신상품 등록 후 다음 광고 생성 시 드롭다운에 노출됨
 
----
-
-### Task 7: `.env` 설정 및 첫 실행 검증
-
-`.env`에서 로컬 모드 활성화:
-```env
-USE_LOCAL_MODEL=true
-USE_MOCK=false
-LOCAL_MODEL_CACHE_DIR=./models/cache
-LOCAL_INFERENCE_STEPS=20        # 첫 테스트는 빠른 확인용으로 낮춤
-LOCAL_IP_ADAPTER_SCALE=0.6
-```
-
-첫 실행 시 모델 자동 다운로드 (~2.3GB). 이후 `./models/cache`에 캐시됨.
+**커밋 메시지(안)**: `feat: 신상품 토글 + 기존 상품 드롭다운`
 
 ---
 
-## 런타임 오류 해결 이력 (2026-04-03)
+### Step 2.4: 자동 게시 후 `generated_upload` 저장 흐름
 
-### 호환성 문제로 인한 버전 고정
-1. **torchvision 누락** → `CLIPImageProcessorPil` fallback이 tuple 반환 → `uv add torchvision>=0.26.0`으로 해결
-2. **transformers 5.x `@can_return_tuple`** → `CLIPVisionModelWithProjection.forward()`가 tuple 반환, diffusers 0.37.1 미대응 → `transformers>=4.44.0,<5.0.0`으로 고정
-3. **diffusers 0.37.1 + transformers 4.x 불일치** → `Dinov2WithRegistersConfig` import 실패 → `diffusers==0.31.0`으로 다운그레이드
-4. **`enable_attention_slicing()` + IP-Adapter 충돌** → IP-Adapter attention processor가 `SlicedAttnProcessor`로 교체되며 `encoder_hidden_states.shape` 오류 → `enable_attention_slicing()` 제거
+**목표**: 인스타 게시 성공 시 generated_upload 테이블에 INSERT → 다음 생성의 참조 이미지 풀로 자동 편입.
 
-### 남은 과제: 참조 이미지 반영 강도
-- IP-Adapter scale=0.6 설정이나 생성 결과가 참조 이미지를 충분히 반영하지 않음
-- 개선 옵션:
-  - `LOCAL_IP_ADAPTER_SCALE` 0.8~1.0으로 상향 테스트
-  - `ip-adapter-plus_sd15.bin` (더 강한 스타일 반영) 전환 검토
-  - 장기: SDXL + IP-Adapter SDXL 전환 (품질·반영도 모두 향상)
+**작업**:
+1. `services/instagram_service.py` 의 게시 성공 콜백
+   - 성공 시 `services/upload_service.py` 호출 → `GeneratedUpload` INSERT
+   - 게시 실패 시 INSERT 안 함 (참조 풀에 미등록)
+2. 광고 생성 결과에서 인스타 메타데이터 수집
+   - `instagram_post_id`, `posted_at`, `caption`, `image_path` 저장
+3. 게시 실패 시 백그라운드 재시도 정책 정의 (최대 3회, 지수 백오프)
+
+**검증**: 게시 1회 성공 → DB의 `generated_upload` 에 1행 추가 → 다음 광고 생성의 참조 갤러리에 노출됨
+
+**커밋 메시지(안)**: `feat: 인스타 게시 성공 시 generated_upload 자동 저장 + 참조 풀 편입`
+
+---
+
+### Step 2.5: 사용자 대기 시간 최소화 (백그라운드 DB 쓰기)
+
+**목표**: design.md §4.4 의 하이브리드 정책 구현.
+
+**작업**:
+1. 업로드 파일은 받자마자 `data/staging/{uuid}.jpg` 에 저장 (동기, ~50ms)
+2. 백엔드 호출 시작 (메인 스레드, 사용자 대기)
+3. 결과 표시 후 → 백그라운드 태스크로:
+   - DB row 생성 (product / generated_upload)
+   - staging → permanent 파일 이동
+   - 신상품이면 product 테이블 INSERT
+   - 인스타 업로드 성공 시 generated_upload INSERT
+4. 백그라운드 태스크는 `asyncio.create_task` 또는 `concurrent.futures` 활용
+5. 실패 시 사용자에게 작은 알림 ("저장 중 오류 — 재시도 중")
+
+**검증**: 광고 생성 → 결과 표시까지 소요 시간 측정. DB I/O가 메인 경로에서 빠진 것 확인.
+
+**커밋 메시지(안)**: `feat: 사용자 대기 시간 최소화 — 백그라운드 DB 쓰기 분리`
+
+---
+
+## 3. Phase 외 작업 (병렬 가능)
+
+### legacy 정리
+- Phase 2 종료 시 `models/history.py`, `services/history_service.py` 제거
+- `crawl_and_analyze/image_crawler.py` 제거 (이미 `feature/won/insta-snapshot` 에서 처리됨, 본 브랜치에 cherry-pick)
+
+### 의존성 정리
+- `browser-use[cli]` 추가 (Step 2.1)
+- `instaloader` 제거 (legacy 정리 시)
+- `requirements.txt` ↔ `pyproject.toml` 동기화
+
+### 과거 이슈 처리 (compass 이전 버전 잔존)
+이전 코드 리뷰의 미해결 이슈들 중 본 리팩터링과 무관하거나 작은 것들. Step 1~2 진행 중 발견되면 그 자리에서 처리하거나, 끝난 후 별도 PR.
+
+| 이슈 | 처리 시점 |
+|------|---------|
+| C-1 FreeImage API 키 .env로 이동 | Phase 1 Step 1.3 (instagram_service 손볼 때) |
+| C-2 `run_async()` else 분기 버그 | Phase 1 Step 1.4 (app.py 손볼 때) |
+| C-3 `requests` 의존성 | Phase 1 Step 1.3 (httpx 통일) |
+| I-1 `TEXT_MODEL` 기본값 | Phase 1 Step 1.3 |
+| I-2 CaptionService Mock 분기 | Phase 1 Step 1.3 |
+| I-3 `_parse_response` 내부 import | Phase 1 Step 1.3 |
+| I-4 bare except + 폰트 경로 | Phase 1 Step 1.3 |
+| I-5 `@lru_cache` Settings 캐싱 | 후순위 |
+| S-1 DB_DIR 절대경로화 | Phase 1 Step 1.2 |
+| S-2 진행률 클램핑 | Phase 1 Step 1.4 |
+| S-3 Display map 중복 | Phase 1 Step 1.4 |
+
+---
+
+## 4. 리스크 / 확인 필요한 것
+
+| 리스크 | 영향 | 대응 |
+|--------|------|------|
+| `nano banana` 실제 호출 인터페이스 미정 | Step 2.1 이후 광고 생성 실제 동작 검증 불가 | 우선 mock_image 백엔드로 진행, 인터페이스 확정 시 별도 PR |
+| GPT Vision 분석 결과 품질 (brand_image.txt) | 잘못 작성되면 모든 광고가 잘못된 톤 | 검수 단계 필수, 사용자 수정 가능 |
+| `browser-use` CLI 의존성 추가 | 패키지 무거움 (Playwright 포함) | 사용자 확인 후 진행 |
+| Alembic 미도입 | 스키마 변경 시 수동 마이그레이션 | MVP는 SQLite create_all() 로 충분, v2에서 도입 |
+| 다른 브랜치 작업물 머지 충돌 | 리팩터링 후 cherry-pick 시 충돌 가능 | 각 Step 종료 시 dev 변동 모니터링 |
+
+## 5. Phase 종료 기준
+
+**Phase 1 완료 조건**:
+- [ ] `backends/` 디렉토리 신설 + 모든 백엔드 이동 완료
+- [ ] ORM 3종 (brand_image, product, generated_upload) 추가
+- [ ] 서비스 레이어가 백엔드 직접 import 안 함 (인터페이스만 사용)
+- [ ] 기존 Streamlit 앱이 기능 변경 없이 정상 동작
+- [ ] 광고 목적 UI = 칩 + 자유 텍스트
+- [ ] 코드 리뷰 잔존 이슈 (C-1~C-3, I-1~I-4, S-1~S-3) 처리
+
+**Phase 2 완료 조건**:
+- [ ] 신규 사용자 시뮬레이션이 온보딩 → 광고 생성 → 인스타 게시까지 끊김 없이 동작
+- [ ] 참조 이미지 갤러리에서 다중 선택 가능
+- [ ] 신상품 토글 + 상품 드롭다운 정상 동작
+- [ ] 인스타 게시 성공 시 generated_upload 자동 저장
+- [ ] DB I/O가 메인 경로에서 빠짐 (백그라운드)
+- [ ] legacy 코드 (`history.py`, `crawl_and_analyze/image_crawler.py`) 제거
