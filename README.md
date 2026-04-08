@@ -22,24 +22,30 @@
 - `config/settings.py`: `IMAGE_WORKER_URL`, `IMAGE_WORKER_TOKEN`, `IMAGE_WORKER_TIMEOUT` 등 설정 추가
 - 팀원은 각자 로컬 브랜치에서 앱을 실행하고, 이미지 생성만 공용 VM 한 대를 공유하도록 설계
 
-### [feature/won/img-analysis] 브랜드 이미지 분석 파이프라인 (실험적)
-- `crawl_and_analyze/` 디렉토리 신설 — 크롤링·분석 독립 실행 스크립트 모음
+### [feature/won/insta-snapshot] 인스타 계정명 제공 시 스크린샷 3장 확보
 - `scripts/insta_screenshot.py`: `browser-use` CLI 기반 인스타 프로필 헤드리스 스크린샷 도구
   - 로그인 모달 자동 닫기 + 스크롤하며 N장 캡처
   - 사용: `python scripts/insta_screenshot.py <인스타 URL> [--out shots] [--count 3]`
-- `crawl_and_analyze/image_analyzer.py`: GPT-5-mini Vision 기반 브랜드 이미지 분석기
-  - 로컬 이미지 폴더를 입력으로 받아 개별 이미지 분석 (색감·구도·분위기) 수행
-  - 분석 결과를 종합하여 브랜드 톤앤매너 가이드라인 도출
-  - 결과를 `image_crawled/{계정명}/brand_analysis.json` 에 저장
-  - RGBA PNG → RGB JPEG 자동 변환 처리
-  - `responses` API 사용 (gpt-5-mini는 reasoning 모델로 chat completions 미지원)
-- **목적**: 신제품 출시 광고 제작 시 기존 브랜드 광고 무드·톤을 참고하기 위한 기반 구축
+
+### ~~[feature/won/img-analysis] 브랜드 이미지 분석 파이프라인 (실험적)~~
+- ~~`crawl_and_analyze/` 디렉토리 신설 — 크롤링·분석 독립 실행 스크립트 모음~~
+- ~~`scripts/insta_screenshot.py`: `browser-use` CLI 기반 인스타 프로필 헤드리스 스크린샷 도구~~
+  - ~~로그인 모달 자동 닫기 + 스크롤하며 N장 캡처~~
+  - ~~사용: `python scripts/insta_screenshot.py <인스타 URL> [--out shots] [--count 3]`~~
+- ~~`crawl_and_analyze/image_analyzer.py`: GPT-5-mini Vision 기반 브랜드 이미지 분석기~~
+  - ~~로컬 이미지 폴더를 입력으로 받아 개별 이미지 분석 (색감·구도·분위기) 수행~~
+  - ~~분석 결과를 종합하여 브랜드 톤앤매너 가이드라인 도출~~
+  - ~~결과를 `image_crawled/{계정명}/brand_analysis.json` 에 저장~~
+  - ~~RGBA PNG → RGB JPEG 자동 변환 처리~~
+  - ~~`responses` API 사용 (gpt-5-mini는 reasoning 모델로 chat completions 미지원)~~
+- ~~**목적**: 신제품 출시 광고 제작 시 기존 브랜드 광고 무드·톤을 참고하기 위한 기반 구축~~
 
 ```bash
 # 사용법 (image_crawled/{계정명}/ 폴더에 이미지 직접 배치 후 실행)
 cd crawl_and_analyze
 python image_analyzer.py --dir image_crawled/torriden_official --limit 9
 ```
+
 
 ## 1. 프로젝트 소개
 마케팅 전담 인력이 부족한 소상공인(1인 사업자, 초기 창업자)을 위해 자체적으로 광고 문구와 이미지를 손쉽게 생성하고, **인스타그램에 바로 자동 업로드까지** 할 수 있는 생성형 AI 서비스입니다. 
