@@ -132,12 +132,12 @@ render_sidebar_settings(settings)
 text_service = TextService(settings)
 image_service = ImageService(settings)
 
-@st.cache_resource
-def setup_database() -> bool:
-    asyncio.run(init_db())
-    return True
-
-setup_database()
+# DB 테이블은 매 rerun 마다 idempotent 하게 보장 (캐시하지 않음).
+# 이전에 @st.cache_resource 로 캐시했을 때, 모델 스키마가 바뀌어도 캐시
+# 때문에 새 테이블이 생성되지 않아 OperationalError 가 발생했다.
+# init_db() 의 Base.metadata.create_all 은 이미 있는 테이블은 skip 하므로
+# 매 호출이 빠르게 no-op 이 된다.
+asyncio.run(init_db())
 
 # ══════════════════════════════════════════════
 # Session State 초기화 (명확한 분리)
