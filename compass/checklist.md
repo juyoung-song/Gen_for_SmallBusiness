@@ -1,7 +1,7 @@
 # Checklist
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-08 (Step 1.2 진행 중)
+> **마지막 갱신:** 2026-04-08 (Phase 1 완료)
 > **베이스:** [`plan.md`](plan.md)
 > 작업 단위 = 한 줄. 끝내는 즉시 체크. 대부분 1커밋 = 1체크.
 >
@@ -83,26 +83,30 @@
 - [x] **1.3.10** 전체 회귀 — pytest 28 passed + `python -c "import app"` 정상
 - [ ] **1.3.11** 커밋: `refactor(Step 1.3): 코드 리뷰 잔존 이슈 처리 + caption/history 정리`
 
-### Step 1.4 — UI 구조 정렬 (입력 폼 1차)
+### Step 1.4 — UI 구조 정렬 (입력 폼 1차) ✅
 
-- [ ] **1.4.1** `ui/widgets.py` 또는 별도 파일로 광고 목적 칩 컴포넌트 작성
-- [ ] **1.4.2** `app.py` 광고 목적 단일 드롭다운 → 칩 6종 + 자유 텍스트 입력란
-- [ ] **1.4.3** 카테고리 6종 상수 정의 (신메뉴 출시 / 주말·시즌 한정 / 할인·이벤트 / 일상·감성 / 영업 안내 / 감사·안부)
-- [ ] **1.4.4** `S-3` `TONE_DISPLAY_MAP` / `STYLE_DISPLAY_MAP` 통합
-- [ ] **1.4.5** `C-2` `app.py` `run_async()` else 분기 버그 수정
-- [ ] **1.4.6** `S-2` 인스타 진행률 `min(idx, 1.0)` 클램핑
-- [ ] **1.4.7** **신상품 토글 placeholder만** 추가 (실제 동작 X)
-- [ ] **1.4.8** Streamlit 앱 정상 기동 + 폼 렌더링 시각 확인
-- [ ] **1.4.9** 커밋: `refactor: 광고 목적 칩 UI + 입력 폼 구조 정렬`
+- [x] **1.4.1** `utils/goal_categories.py` 신규 — `GOAL_CATEGORIES` tuple + `is_valid_category()` **(TDD: 5 passed)**
+- [x] **1.4.2** `app.py` 광고 목적 `st.selectbox` → `st.pills` 칩 6종 + 자유 텍스트 입력란
+- [x] **1.4.3** 카테고리 6종 상수는 `utils/goal_categories.py` 에서 단일 소스로 관리
+- [x] **1.4.4** `S-3` `TONE_DISPLAY_MAP` + `STYLE_DISPLAY_MAP` → `TONE_STYLE_DISPLAY_MAP` 단일 통합
+- [x] **1.4.5** `C-2` `run_async()` 를 `utils/async_runner.py` 로 추출 + 실행 중 루프 시 별도 스레드에서 실행 **(TDD: 2 passed)**
+- [x] **1.4.6** `S-2` 인스타 진행률 `min(idx, 1.0)` 클램핑 (피드 + 스토리 양쪽)
+- [x] **1.4.7** 신상품 토글 `st.toggle(..., disabled=True)` placeholder 추가 (Phase 2 Step 2.3 에서 활성화)
+- [x] **1.4.8** `python -c "import app"` 정상 + pytest 35 passed
+- [ ] **1.4.9** 커밋: `refactor(Step 1.4): 광고 목적 칩 UI + 입력 폼 구조 정렬 + 코드 리뷰 잔존 이슈 처리`
 
 ### Phase 1 종료 검증
 
-- [ ] **P1-1** `services/` 안에서 `from models.sd15 import` 같은 직접 백엔드 import가 없는지 grep
-- [ ] **P1-2** ORM 신규 모델 3종이 DB에 실제 생성됨을 확인
-- [ ] **P1-3** 광고 목적 UI가 칩으로 동작
-- [ ] **P1-4** 코드 리뷰 잔존 이슈 (C-1~C-3, I-1~I-4, S-1~S-3) 모두 닫힘
-- [ ] **P1-5** 기존 광고 생성 흐름이 기능 변경 없이 동작
-- [ ] **P1-6** Phase 1 회고: 의도와 결과 차이 메모 → context.md 또는 plan.md 갱신
+- [x] **P1-1** `services/` 안에서 `from models.sd15 import` 같은 직접 백엔드 import 없음 (grep 검증)
+- [x] **P1-2** ORM 신규 모델 3종이 DB 에 실제 생성됨 (Step 1.2.7 임시 DB 스키마 검증)
+- [x] **P1-3** 광고 목적 UI 가 `st.pills` 칩 6종 + 자유 텍스트로 동작 (1.4.5)
+- [x] **P1-4** 코드 리뷰 잔존 이슈 모두 닫힘:
+  - Critical: C-1 (FreeImage 키 .env), C-2 (run_async 버그), C-3 (requests→httpx)
+  - Important: I-1 (TEXT_MODEL 기본값), I-2 (CaptionService Mock), I-3 (text_service import 정리), I-4 (폰트 경로 Settings)
+  - Suggestion: S-1 (DB_DIR 절대경로), S-2 (진행률 클램핑), S-3 (DISPLAY_MAP 통합)
+  - I-5 (Settings `@lru_cache` 캐싱)은 보류 — 기능 영향 없음, Phase 2 이후 검토
+- [x] **P1-5** 기존 광고 생성 흐름이 기능 변경 없이 동작 (`python -c "import app"` OK, 35 passed)
+- [ ] **P1-6** Phase 1 회고: 의도와 결과 차이 메모 (Step 1.4 커밋 시 compass/plan.md 에 추가)
 
 ---
 

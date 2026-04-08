@@ -22,6 +22,8 @@ from schemas.text_schema import TextGenerationRequest
 from services.history_service import HistoryService
 from services.image_service import ImageService, ImageServiceError
 from services.text_service import TextService, TextServiceError
+from utils.async_runner import run_async
+from utils.goal_categories import GOAL_CATEGORIES
 
 # ══════════════════════════════════════════════
 # 페이지 설정 (반드시 최상단에서 1회만 호출)
@@ -133,14 +135,6 @@ def setup_database() -> bool:
 
 setup_database()
 
-def run_async(coro):
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    else:
-        return asyncio.run(coro)
-
 # ══════════════════════════════════════════════
 # Session State 초기화 (명확한 분리)
 # ══════════════════════════════════════════════
@@ -171,23 +165,19 @@ for key, default in _DEFAULT_STATE.items():
 # ══════════════════════════════════════════════
 # UI 매핑용 딕셔너리
 # ══════════════════════════════════════════════
-TONE_DISPLAY_MAP = {
+# S-3: TONE 과 STYLE 의 표시 맵이 완전히 동일하므로 단일 상수로 통합.
+# 톤(텍스트)과 스타일(이미지) 양쪽에서 재사용.
+TONE_STYLE_DISPLAY_MAP = {
     "기본 (가장 깔끔하게)": "기본",
     "감성 (따뜻하고 부드럽게)": "감성",
     "고급 (격식있고 우아하게)": "고급",
     "유머 (재밌고 센스있게)": "유머",
-    "심플 (핵심만 간단하게)": "심플"
+    "심플 (핵심만 간단하게)": "심플",
 }
-STYLE_DISPLAY_MAP = {
-    "기본 (가장 깔끔하게)": "기본",
-    "감성 (따뜻하고 부드럽게)": "감성",
-    "고급 (격식있고 우아하게)": "고급",
-    "유머 (재밌고 센스있게)": "유머",
-    "심플 (핵심만 간단하게)": "심플"
-}
-PURPOSE_OPTIONS = [
-    "신상품 홍보", "할인 행사", "매장 소개", "시즌 홍보", "기타 (직접 입력)"
-]
+
+# 광고 목적 카테고리 — utils.goal_categories 에서 단일 소스로 관리 (design.md §4.1.1)
+# PURPOSE_OPTIONS 는 legacy 드롭다운과의 호환을 위해 유지되었으나,
+# Step 1.4 에서 GOAL_CATEGORIES 칩 UI 로 교체됨.
 
 
 # ══════════════════════════════════════════════
@@ -268,7 +258,7 @@ def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, c
                         else:
                             idx += 0.2
                             progress_container.info(f"📡 {status_msg}")
-                            status_bar_container.progress(idx)
+                            status_bar_container.progress(min(idx, 1.0))  # S-2
                 except Exception as e:
                     st.error(f"❌ 업로드 중 문제가 발생했습니다: {e}")
 
@@ -348,7 +338,7 @@ def render_instagram_story_preview_and_upload(product_name: str, image_bytes: by
                     else:
                         idx += 0.25
                         progress_container.info(f"📡 {status_msg}")
-                        status_bar_container.progress(idx)
+                        status_bar_container.progress(min(idx, 1.0))  # S-2
             except Exception as e:
                 st.error(f"❌ 스토리 업로드 중 오류 발생: {e}")
 
@@ -459,24 +449,48 @@ with tab_create:
     # 3. 생성 옵션 섹션
     with st.container(border=True):
         st.markdown("#### <span class='step-badge'>3</span> 옵션 선택 🎨", unsafe_allow_html=True)
-        
-        ad_purpose_ui = st.selectbox("🎯 이번 홍보의 목적은 무엇인가요?", PURPOSE_OPTIONS)
-        ad_purpose_custom = ""
-        if ad_purpose_ui == "기타 (직접 입력)":
-            ad_purpose_custom = st.text_input("홍보 목적을 직접 적어주세요", placeholder="예: 배달의 민족 입점 기념")
-            
+
+        # 광고 목적: 칩 6종 + 자유 텍스트 (design.md §4.1.1)
+        st.markdown("🎯 이번 홍보의 목적은 무엇인가요?")
+        goal_category = st.pills(
+            label="광고 목적 카테고리",
+            options=list(GOAL_CATEGORIES),
+            default=GOAL_CATEGORIES[0],
+            label_visibility="collapsed",
+            key="goal_category_pills",
+        )
+        goal_freeform = st.text_input(
+            "💬 자유 텍스트 (선택) — 카테고리 외의 세부 사항",
+            placeholder="예: 여름 한정 · 배달의 민족 입점 기념",
+            key="goal_freeform_input",
+        )
+
         col_t, col_i = st.columns(2)
-        
+
         selected_tone_ui = "기본 (가장 깔끔하게)"
         selected_style_ui = "기본 (가장 깔끔하게)"
-        
+
         with col_t:
             if "글" in generation_type:
-                selected_tone_ui = st.selectbox("✍️ 글은 어떤 느낌으로 만들어드릴까요? (톤)", list(TONE_DISPLAY_MAP.keys()))
-                
+                selected_tone_ui = st.selectbox(
+                    "✍️ 글은 어떤 느낌으로 만들어드릴까요? (톤)",
+                    list(TONE_STYLE_DISPLAY_MAP.keys()),
+                )
+
         with col_i:
             if "이미지" in generation_type or "사진" in generation_type:
-                selected_style_ui = st.selectbox("🖼️ 이미지는 어떤 느낌으로 만들어드릴까요? (스타일)", list(STYLE_DISPLAY_MAP.keys()))
+                selected_style_ui = st.selectbox(
+                    "🖼️ 이미지는 어떤 느낌으로 만들어드릴까요? (스타일)",
+                    list(TONE_STYLE_DISPLAY_MAP.keys()),
+                )
+
+        # 신상품 토글 placeholder — Phase 2 Step 2.3 에서 실제 동작 연결
+        st.toggle(
+            "🆕 신상품으로 등록하기 (placeholder — Phase 2 에서 활성화)",
+            value=False,
+            disabled=True,
+            key="new_product_toggle_placeholder",
+        )
 
     st.write("")
     
@@ -499,11 +513,16 @@ with tab_create:
         st.session_state.product_description = product_description.strip()
         st.session_state.generation_type = generation_type
         
-        final_ad_purpose = ad_purpose_custom if ad_purpose_ui == "기타 (직접 입력)" else ad_purpose_ui
+        # 광고 목적 = 카테고리 + (선택) 자유 텍스트
+        # generation 요청의 goal 파라미터 포맷: "카테고리 · 자유 텍스트"
+        if goal_freeform.strip():
+            final_ad_purpose = f"{goal_category} · {goal_freeform.strip()}"
+        else:
+            final_ad_purpose = goal_category
         st.session_state.ad_purpose = final_ad_purpose
 
-        tone_val = TONE_DISPLAY_MAP.get(selected_tone_ui, "기본")
-        style_val = STYLE_DISPLAY_MAP.get(selected_style_ui, "기본")
+        tone_val = TONE_STYLE_DISPLAY_MAP.get(selected_tone_ui, "기본")
+        style_val = TONE_STYLE_DISPLAY_MAP.get(selected_style_ui, "기본")
         st.session_state.text_tone = tone_val
         st.session_state.image_style = style_val
 

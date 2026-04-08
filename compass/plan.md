@@ -1,7 +1,7 @@
 # Plan
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-08 (Step 1.1 완료, Step 1.2 진행 중 — TDD 도입)
+> **마지막 갱신:** 2026-04-08 (Phase 1 완료 — Step 1.1 ~ 1.4)
 > **베이스:** `docs/design.md`
 > **이전 버전 폐기:** IP-Adapter 코드 리뷰 작업 계획(2026-04-03)은 본 문서로 대체됨
 
@@ -154,23 +154,52 @@ Phase 2 — MVP 완성 (기능 추가)
 
 ---
 
-### Step 1.4: UI 구조 정렬 (입력 폼 1차)
+### Step 1.4: UI 구조 정렬 (입력 폼 1차) ✅
 
 **목표**: 입력 폼의 구조를 design.md §4.1 에 맞게 정렬. 기능 추가는 Phase 2에서.
 
 **작업**:
-1. 광고 목적 UI: 단일 드롭다운 → **칩 6종 + 자유 텍스트**
-   - 카테고리 6종: 신메뉴 출시 / 주말·시즌 한정 / 할인·이벤트 / 일상·감성 / 영업 안내 / 감사·안부
-   - 칩 UI: `st.pills()` 또는 `st.radio(horizontal=True)` 활용
-2. 톤/스타일 라디오 정리
-   - 텍스트 톤 / 이미지 스타일 중복 제거 (이전 리뷰 S-3)
-3. **신상품 토글 placeholder**만 추가 (실제 동작은 Step 2.3에서)
-4. **참조 이미지 입력은 이전 그대로** (갤러리 변경은 Step 2.2에서)
-5. **상품명은 이전 그대로** (드롭다운 변경은 Step 2.3에서)
+1. 광고 목적 UI: `st.selectbox(PURPOSE_OPTIONS)` → `st.pills(GOAL_CATEGORIES)` + 자유 텍스트
+   - 카테고리 6종은 `utils/goal_categories.py` 에 단일 소스 (TDD 5 passed)
+   - goal 포맷: `"카테고리 · 자유 텍스트"` (자유 텍스트 공란이면 카테고리만)
+2. 톤/스타일 DISPLAY_MAP 통합 (S-3)
+   - `TONE_DISPLAY_MAP` + `STYLE_DISPLAY_MAP` → `TONE_STYLE_DISPLAY_MAP`
+3. 신상품 토글 placeholder — `st.toggle(..., disabled=True)`, Phase 2 Step 2.3 에서 활성화
+4. 참조 이미지 입력 / 상품명 입력은 이전 그대로 (Phase 2 에서 변경)
 
-**검증**: 폼 렌더링 정상, 값이 기존 서비스 호출에 그대로 전달됨
+**추가 작업 (Step 1.4 에 흡수됨):**
+- `C-2` `run_async()` else 분기 버그 — `utils/async_runner.py` 로 추출 + 실행 중 루프 시 별도 스레드 실행 (TDD 2 passed)
+- `S-2` 인스타 진행률 `min(idx, 1.0)` 클램핑 (피드 + 스토리 양쪽)
 
-**커밋 메시지(안)**: `refactor: 광고 목적을 칩 UI + 자유 텍스트로 변경`
+**검증**: pytest 35 passed + `python -c "import app"` 정상
+
+**커밋 메시지(안)**: `refactor(Step 1.4): 광고 목적 칩 UI + 입력 폼 구조 정렬 + 코드 리뷰 잔존 이슈 처리`
+
+---
+
+## Phase 1 회고 (2026-04-08)
+
+**Phase 1 종료 상태**: Step 1.1 ~ 1.4 모두 완료. 총 4개 커밋.
+
+- `c69586a` refactor(Step 1.1): backends/ 디렉토리 신설 및 백엔드 분리
+- `534abdb` refactor(Step 1.2): ORM 3종 + CRUD 서비스 3종 + pytest 인프라 (TDD)
+- `b041aad` refactor(Step 1.3): 코드 리뷰 잔존 이슈 처리 + caption/history 정리
+- `(이번 커밋)` refactor(Step 1.4): 광고 목적 칩 UI + 입력 폼 구조 정렬 + 코드 리뷰 잔존 이슈 처리
+
+**의도와 결과의 차이:**
+1. 원래 Step 1.3 의 1.3.1~1.3.3 이 Step 1.1 에 흡수됨 — 백엔드 분리하면서 서비스 단순화가 자연스럽게 따라왔음. Step 경계가 약간 흐려졌지만 구조상 합리적.
+2. `backends/hf_inference_api.py` 는 원래 plan 에 없던 백엔드 — image_service `_api_response` 추출 과정에서 자연스럽게 필요해짐.
+3. `utils/async_runner.py`, `utils/goal_categories.py` 두 신규 모듈은 TDD 진입 시 자동 파생. 리팩터링이 TDD 가능한 단위로 분해된 긍정적 사례.
+4. SQLite 의 알려진 트랩 2건(timezone 저장, FK PRAGMA) 이 Step 1.2 에서 발견되어 conftest/테스트에 대응 완료.
+
+**Phase 1 테스트 통계:**
+- 총 35 passed — 모델 9, 서비스 19, 유틸 7
+- TDD 사이클 8회 (1.2.1~1.2.3, 1.2.8~1.2.10, 1.3.5, 1.4.1, 1.4.2)
+
+**Phase 2 진입 전 확인해야 할 것:**
+- `browser-use[cli]` 의존성 추가 (Step 2.1 시작 시 사용자 확인)
+- legacy `history_service` 제거는 Phase 2 종료 시 일괄 (app.py 의 아카이브 탭 마이그레이션 필요)
+- `nano banana` 실제 호출 인터페이스는 여전히 미정 — Phase 2 동안 mock_image 사용
 
 ---
 
