@@ -27,6 +27,7 @@ from services.history_service import HistoryService
 from services.image_service import ImageService, ImageServiceError
 from services.product_service import ProductService
 from services.text_service import TextService, TextServiceError
+from services.upload_service import UploadService
 from utils.async_runner import run_async
 from utils.goal_categories import GOAL_CATEGORIES
 from utils.staging_storage import save_to_staging
@@ -274,6 +275,12 @@ def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, c
                         if status_msg == "DONE":
                             progress_container.empty()
                             status_bar_container.empty()
+                            # Step 2.4 — 게시 성공 시 generated_upload 저장
+                            _persist_generated_upload(
+                                caption=f"{edited_caption}\n\n{edited_tags}",
+                                post_id=ig_svc.last_post_id,
+                                posted_at=ig_svc.last_posted_at,
+                            )
                             st.success(f"🎉 인스타그램 피드에 성공적으로 게시되었습니다!\n\n"
                                      f"- 올라간 계정: **@{product_name}_official**\n"
                                      f"- (안내: 현재는 연습용(MOCK) 모드입니다.)" if settings.USE_MOCK else "")
@@ -368,6 +375,68 @@ def render_instagram_story_preview_and_upload(product_name: str, image_bytes: by
 # ══════════════════════════════════════════════
 # 공통 헬퍼 — 업무 실행 함수
 # ══════════════════════════════════════════════
+def _stash_generated_image(image_bytes: bytes) -> None:
+    """생성된 이미지 바이트를 staging 에 저장하고 경로를 session_state 에 보존.
+
+    Step 2.4 — 이후 인스타 게시 성공 시 generated_upload.image_path 로 사용.
+    """
+    if not image_bytes:
+        return
+    path = save_to_staging(image_bytes, extension=".png")
+    st.session_state.current_generated_image_path = str(path)
+
+
+def _persist_generated_upload(
+    *,
+    caption: str,
+    post_id: str | None,
+    posted_at,
+) -> None:
+    """인스타 게시 성공 시 generated_upload 테이블에 레코드 추가.
+
+    Step 2.4 — 광고 생성/업로드 흐름을 통해 축적된 session_state 값(current_product_id,
+    current_generated_image_path, ad_purpose 의 카테고리) 을 꺼내서 저장.
+    """
+    from uuid import UUID
+
+    product_id_str = st.session_state.get("current_product_id")
+    image_path = st.session_state.get("current_generated_image_path")
+    if not product_id_str or not image_path:
+        logger_msg = "generated_upload 저장 스킵 — product_id 또는 image_path 누락"
+        import logging
+        logging.getLogger(__name__).warning(logger_msg)
+        return
+
+    goal_text = st.session_state.get("ad_purpose", "")
+    # "카테고리 · 자유텍스트" → 분리
+    if " · " in goal_text:
+        goal_category, goal_freeform = goal_text.split(" · ", 1)
+    else:
+        goal_category = goal_text
+        goal_freeform = ""
+
+    product_uuid = UUID(product_id_str)
+
+    async def _save():
+        async with AsyncSessionLocal() as session:
+            upload_service = UploadService(session)
+            upload = await upload_service.create(
+                product_id=product_uuid,
+                image_path=image_path,
+                caption=caption,
+                goal_category=goal_category,
+                goal_freeform=goal_freeform,
+            )
+            if post_id is not None and posted_at is not None:
+                await upload_service.mark_posted(
+                    upload_id=upload.id,
+                    instagram_post_id=post_id,
+                    posted_at=posted_at,
+                )
+
+    run_async(_save())
+
+
 def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone_name: str, image_data: bytes = None) -> None:
     st.session_state.error_message = None
     st.session_state.last_request = {
@@ -409,6 +478,9 @@ def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_st
                 create_data = HistoryCreate(generation_type=GenerationType.IMAGE, product_name=name, description=desc, style=style_val, result_data=response.model_dump())
                 await HistoryService().save_history(create_data)
             run_async(_save())
+
+        # Step 2.4 — 생성 결과를 staging 에 저장해 인스타 게시 후 generated_upload 에 경로 기록
+        _stash_generated_image(response.image_data)
         st.session_state.image_result = response.model_dump()
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
@@ -440,6 +512,8 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
                 reference_image_paths=reference_image_paths or [],
             )
             res_i = image_service.generate_ad_image(req_i)
+            # Step 2.4 — 생성 결과를 staging 에 저장
+            _stash_generated_image(res_i.image_data)
             st.session_state.image_result = res_i.model_dump()
             
         async def _save_combined():
@@ -651,11 +725,14 @@ with tab_create:
                         description=desc_payload,
                         raw_image_path=str(staged_path),
                     )
-            run_async(_register_product())
+            new_product = run_async(_register_product())
 
+            # Step 2.4 — 인스타 게시 시점에 쓸 수 있도록 session 에 product id 저장
+            st.session_state.current_product_id = str(new_product.id)
             image_data = uploaded_bytes
         else:
             # 기존 상품 — DB 의 raw_image_path 에서 바이트 로드
+            st.session_state.current_product_id = str(selected_product.id)
             if existing_raw_image_path and Path(existing_raw_image_path).exists():
                 image_data = Path(existing_raw_image_path).read_bytes()
             else:

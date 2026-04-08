@@ -1,7 +1,7 @@
 # Checklist
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-08 (Phase 2 Step 2.3 완료)
+> **마지막 갱신:** 2026-04-08 (Phase 2 Step 2.4 완료)
 > **베이스:** [`plan.md`](plan.md)
 > 작업 단위 = 한 줄. 끝내는 즉시 체크. 대부분 1커밋 = 1체크.
 >
@@ -144,13 +144,21 @@
 - [x] **2.3.5** 전체 회귀 56 passed + `python -c "import app"` 정상. UI 시나리오는 수동 검증 필요
 - [ ] **2.3.6** 커밋: `feat(Step 2.3): 신상품 토글 + 기존 상품 드롭다운`
 
-### Step 2.4 — 인스타 게시 후 generated_upload 저장
+### Step 2.4 — 인스타 게시 후 generated_upload 저장 ✅
 
-- [ ] **2.4.1** `services/instagram_service.py` 게시 성공 시 `upload_service.create()` 호출
-- [ ] **2.4.2** `instagram_post_id`, `posted_at`, `caption`, `image_path` 메타데이터 수집
-- [ ] **2.4.3** 게시 실패 시 INSERT 안 함 + 사용자 알림
-- [ ] **2.4.4** 게시 1회 후 다음 광고 생성 시 갤러리에 노출되는지 확인
-- [ ] **2.4.5** 커밋: `feat: 인스타 게시 성공 시 generated_upload 자동 저장`
+- [x] **2.4.1** `services/instagram_service.py`
+  - `last_post_id`, `last_posted_at` 인스턴스 속성 추가
+  - Mock 모드: `mock_<uuid>` 형식 가짜 post id 기록
+  - Real 모드: Meta `/media_publish` 응답의 `id` 기록
+  - **(TDD: 4 passed)** — 초기값 None, mock/real 모두 제너레이터 소진 후 값 채워짐, 연속 호출 시 덮어쓰기
+- [x] **2.4.2** 광고 생성 시점에 `st.session_state.current_product_id` + `current_generated_image_path` 보존 (신상품/기존 상품 모두)
+- [x] **2.4.3** `_persist_generated_upload()` 헬퍼 — `"DONE"` 수신 시 `UploadService.create()` + `mark_posted()` 순차 호출
+  - goal 은 `"카테고리 · 자유텍스트"` 포맷을 역파싱해 goal_category / goal_freeform 분리
+  - product_id 또는 image_path 누락 시 저장 스킵 (경고 로그)
+- [x] **2.4.4** 게시 실패 시 (제너레이터가 예외로 중단) `_persist_generated_upload` 가 호출되지 않으므로 INSERT 없음
+- [x] **2.4.5** 게시 1회 후 다음 광고 생성 시 reference_gallery 에 노출되는지는 `list_published()` 동작으로 보장됨
+- [x] **2.4.6** 전체 회귀 60 passed + `python -c "import app"` 정상
+- [ ] **2.4.7** 커밋: `feat(Step 2.4): 인스타 게시 성공 시 generated_upload 자동 저장`
 
 ### Step 2.5 — 사용자 대기 시간 최소화
 

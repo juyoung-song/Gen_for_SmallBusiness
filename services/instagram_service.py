@@ -6,12 +6,18 @@ Step 1.3 수정:
 - C-1: FreeImage API 키 하드코딩 → Settings.FREEIMAGE_API_KEY 로 분리
 - C-3: `requests` → `httpx` 로 통일 (requests 는 본 프로젝트 의존성 아님)
 - bare RuntimeError 의 target_str unbound 버그 수정
+
+Step 2.4 추가:
+- 게시 성공 시 Meta post id 를 self.last_post_id 에 저장 → 호출부가 DB 저장에 사용
+- Mock 모드도 가짜 post id 를 만들어 동일한 패턴으로 동작
 """
 
 import base64
 import io
 import logging
 import time
+import uuid
+from datetime import datetime, timezone
 
 import httpx
 from PIL import Image
@@ -22,6 +28,9 @@ logger = logging.getLogger(__name__)
 class InstagramService:
     def __init__(self, settings=None):
         self.settings = settings
+        # Step 2.4: 게시 성공 후 호출부가 읽을 수 있도록 마지막 post 정보 저장
+        self.last_post_id: str | None = None
+        self.last_posted_at: datetime | None = None
 
     def upload_story(self, image_bytes: bytes, caption_text: str = ""):
         """[REAL] 검증된 로직 기반 스토리 업로드."""
@@ -46,6 +55,9 @@ class InstagramService:
         time.sleep(1.5)
         yield f"🚀 {target} 최종 배포 완료 시뮬레이션..."
         time.sleep(1.0)
+        # Step 2.4: Mock 도 실제 흐름과 동일하게 post id/시각을 기록
+        self.last_post_id = f"mock_{uuid.uuid4().hex[:12]}"
+        self.last_posted_at = datetime.now(timezone.utc)
         yield "DONE"
 
     def _upload_impl(
@@ -127,6 +139,11 @@ class InstagramService:
                 err_text_pub = res_pub.text
                 logger.error("Meta 게시 실패: %s", err_text_pub)
                 raise ValueError(f"최종 게시 거부: {err_text_pub}")
+
+            # Step 2.4: Meta 가 반환한 media id 를 저장
+            published_id = res_pub.json().get("id")
+            self.last_post_id = str(published_id) if published_id else None
+            self.last_posted_at = datetime.now(timezone.utc)
 
             yield "DONE"
 
