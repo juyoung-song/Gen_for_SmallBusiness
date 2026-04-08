@@ -71,6 +71,33 @@ class TestBuildVisionAnalysisPrompt:
         prompt = build_vision_analysis_prompt("...")
         assert "이미지" in prompt or "image" in prompt.lower()
 
+    def test_prompt_instructs_image_takes_precedence_over_freetext(self):
+        """이미지와 자유 텍스트가 충돌할 경우 이미지를 우선해야 함을 명시.
+
+        이전 버그: '베이커리' 라는 자유 텍스트와 K-뷰티 인스타 이미지가 들어왔는데
+        GPT 가 자유 텍스트만 따라 베이커리 톤 brand_image 를 작성. 이미지 시각
+        정보가 무시됨.
+        """
+        prompt = build_vision_analysis_prompt("아무 텍스트")
+        # "우선" / "충돌" / "이미지가 사실" 같은 명시 단서 중 하나는 있어야 함
+        assert (
+            "우선" in prompt
+            or "충돌" in prompt
+            or "이미지가 사실" in prompt
+            or "이미지를 사실" in prompt
+        )
+
+    def test_prompt_requires_objective_visual_description_step(self):
+        """LLM 이 이미지에서 본 객관적 사실(브랜드명/제품/색)을 먼저 말하도록 강제."""
+        prompt = build_vision_analysis_prompt("...")
+        # "객관적" / "관찰" / "보이는" / "묘사" 중 하나는 있어야 함
+        assert (
+            "객관적" in prompt
+            or "관찰" in prompt
+            or "보이는" in prompt
+            or "묘사" in prompt
+        )
+
 
 class TestOnboardingServicePipeline:
     """capture → analyze → BrandImageDraft 생성 파이프라인."""
