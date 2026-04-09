@@ -44,11 +44,13 @@ class BrandImageService:
         source_screenshots: list[str] | None = None,
         brand_name: str | None = None,
         brand_color: str | None = None,
+        brand_atmosphere: str | None = None,
         brand_logo_path: str | None = None,
     ) -> BrandImage:
         """새 brand_image 생성. 이미 존재하면 BrandImageAlreadyExistsError.
 
-        brand_name / brand_color / brand_logo_path (Song 이식):
+        brand_name / brand_color / brand_atmosphere / brand_logo_path
+        (Song 이식 + M3 fix):
             온보딩 입력 섹션에서 수집된 구조화 필드. 모두 선택.
             기존 호출 (신규 필드 없음) 과 호환됨.
         """
@@ -66,6 +68,7 @@ class BrandImageService:
             source_screenshots=source_screenshots or [],
             brand_name=brand_name,
             brand_color=brand_color,
+            brand_atmosphere=brand_atmosphere,
             brand_logo_path=brand_logo_path,
         )
         self.session.add(brand)

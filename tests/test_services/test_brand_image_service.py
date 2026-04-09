@@ -113,7 +113,7 @@ class TestBrandImageService:
         assert loaded.brand_logo_path == "data/brand/abc123.png"
 
     async def test_create_optional_fields_default_to_none(self, db_session):
-        """brand_name/color/logo_path 미지정 시 None 으로 저장 (기존 호출 호환)."""
+        """brand_name/color/atmosphere/logo_path 미지정 시 None 으로 저장 (기존 호출 호환)."""
         service = BrandImageService(db_session)
         created = await service.create(
             user_id="default",
@@ -123,4 +123,26 @@ class TestBrandImageService:
         )
         assert created.brand_name is None
         assert created.brand_color is None
+        assert created.brand_atmosphere is None
         assert created.brand_logo_path is None
+
+    async def test_create_persists_brand_atmosphere(self, db_session):
+        """M3 fix: brand_atmosphere 도 DB 에 저장되고 재로드 시 살아있어야 한다.
+
+        이전엔 온보딩 입력 화면에서 수집한 brand_atmosphere 가 Vision 분석용
+        freetext 에 머지되기만 하고 BrandImage 컬럼으로는 저장되지 않아
+        재진입 시 조용히 사라지는 데이터 손실이 있었다.
+        """
+        service = BrandImageService(db_session)
+        created = await service.create(
+            user_id="default",
+            content="정제된 브랜드 설명",
+            source_freetext="자유 텍스트",
+            source_reference_url="https://example.com/",
+            brand_atmosphere="따뜻하고 단정한, 모던한 내추럴",
+        )
+        assert created.brand_atmosphere == "따뜻하고 단정한, 모던한 내추럴"
+
+        loaded = await service.get_for_user("default")
+        assert loaded is not None
+        assert loaded.brand_atmosphere == "따뜻하고 단정한, 모던한 내추럴"

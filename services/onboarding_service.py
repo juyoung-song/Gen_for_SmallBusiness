@@ -264,6 +264,7 @@ class OnboardingService:
             source_screenshots=draft.source_screenshots,
             brand_name=draft.brand_name,
             brand_color=draft.brand_color,
+            brand_atmosphere=draft.brand_atmosphere,
             brand_logo_path=draft.brand_logo_path,
         )
 

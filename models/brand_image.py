@@ -40,6 +40,11 @@ class BrandImage(Base, TimestampMixin):
     brand_color: Mapped[str | None] = mapped_column(
         String(20), nullable=True, default=None
     )
+    # M3 fix — 이전엔 온보딩 입력의 brand_atmosphere 가 Vision freetext 로만
+    # 머지되고 독립 컬럼으로는 저장되지 않아 재진입 시 사라졌다.
+    brand_atmosphere: Mapped[str | None] = mapped_column(
+        String(200), nullable=True, default=None
+    )
     brand_logo_path: Mapped[str | None] = mapped_column(
         String(512), nullable=True, default=None
     )

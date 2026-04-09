@@ -308,4 +308,6 @@ class TestOnboardingStructuredInputs:
         saved = await service.finalize(draft, user_id="default")
         assert saved.brand_name == "구름 베이커리"
         assert saved.brand_color == "#5562EA"
+        # M3 fix: atmosphere 도 finalize 경로로 persist 돼야 한다
+        assert saved.brand_atmosphere == "따뜻하고 단정한"
         assert saved.brand_logo_path == "data/brand/logo.png"
