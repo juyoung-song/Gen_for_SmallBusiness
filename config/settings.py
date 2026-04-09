@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     META_ACCESS_TOKEN: str = ""
     INSTAGRAM_ACCOUNT_ID: str = ""
 
+    # ── Instagram OAuth App Settings (신규) ──
+    META_APP_ID: str = ""
+    META_APP_SECRET: str = ""
+    META_REDIRECT_URI: str = "http://localhost:8501"
+    TOKEN_ENCRYPTION_KEY: str = ""
+
     # ── Application ──
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"

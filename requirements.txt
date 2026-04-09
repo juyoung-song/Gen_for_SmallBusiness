@@ -25,3 +25,6 @@ torch>=2.1.0
 diffusers>=0.24.0
 transformers>=4.35.0
 accelerate>=0.24.0
+
+# === 보안 (OAuth 토큰 암호화) ===
+cryptography>=42.0.0

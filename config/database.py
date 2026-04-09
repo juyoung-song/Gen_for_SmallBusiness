@@ -34,6 +34,7 @@ async def init_db() -> None:
     import models.history  # 모델 레지스트리 자동 등록을 위한 Import
     import models.brand
     import models.product
+    import models.instagram_connection  # OAuth 연결 테이블
 
     async with engine.begin() as conn:
         # DB 존재 안할 시 스키마 생성 (production에서는 alembic 권장)

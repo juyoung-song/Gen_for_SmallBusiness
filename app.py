@@ -207,7 +207,7 @@ PURPOSE_OPTIONS = [
 # ══════════════════════════════════════════════
 # 인스타그램 피드 미리보기/업로드 컴포넌트
 # ══════════════════════════════════════════════
-def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, caption_data, key_suffix: str):
+def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, caption_data, key_suffix: str, brand_config=None):
     st.markdown("---")
     st.markdown("### 📱 인스타그램 피드 미리보기")
     st.caption("실제로 인스타그램에 올라가면 폰에서 이렇게 보입니다.")
@@ -255,6 +255,12 @@ def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, c
             
             st.info("💡 글 내용이 모두 맘에 든다면, 아래 버튼을 눌러 우리 가게 인스타그램에 바로 올려보세요!")
             if st.button("🚀 내 인스타그램에 바로 올리기", type="primary", width="stretch", key=f"upload_btn_{key_suffix}"):
+                from services.instagram_auth_adapter import apply_user_token
+                # 사용자의 전용 토큰 주입 시도
+                if not apply_user_token(settings, brand_config):
+                    st.warning("⚠️ 인스타그램 계정이 연결되어 있지 않습니다. 왼쪽 사이드바에서 [인스타그램 연결하기]를 눌러 계정을 연결해주세요!")
+                    st.stop()
+                
                 from services.instagram_service import InstagramService
                 ig_svc = InstagramService(settings)
                 
@@ -286,7 +292,7 @@ def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, c
 # ══════════════════════════════════════════════
 # 인스타그램 스토리 미리보기/업로드 컴포넌트
 # ══════════════════════════════════════════════
-def render_instagram_story_preview_and_upload(product_name: str, image_bytes: bytes, story_copies: list[str], key_suffix: str):
+def render_instagram_story_preview_and_upload(product_name: str, image_bytes: bytes, story_copies: list[str], key_suffix: str, brand_config=None):
     st.markdown("---")
     st.markdown("### 📱 인스타그램 스토리 미리보기")
     st.caption("9:16 세로형 포맷으로, 블러 배경과 함께 세련되게 합성된 스토리 화면입니다.")
@@ -337,6 +343,12 @@ def render_instagram_story_preview_and_upload(product_name: str, image_bytes: by
     if st.session_state.story_result:
         st.write("")
         if st.button("🚀 위 스토리 바로 올리기", type="primary", width="stretch", key=f"story_upload_btn_{key_suffix}"):
+            from services.instagram_auth_adapter import apply_user_token
+            # 사용자의 전용 토큰 주입 시도
+            if not apply_user_token(settings, brand_config):
+                st.warning("⚠️ 인스타그램 계정이 연결되어 있지 않습니다. 왼쪽 사이드바에서 [인스타그램 연결하기]를 눌러 계정을 연결해주세요!")
+                st.stop()
+                
             from services.instagram_service import InstagramService
             ig_svc = InstagramService(settings)
             
@@ -499,6 +511,10 @@ if brand_config:
     st.session_state.onboarded = True
     st.session_state.brand_name = brand_config.brand_name
     st.session_state.global_style_prompt = brand_config.global_style_prompt
+
+    # ── 인스타그램 OAuth 계정 연결 (신규 사이드카 기능) ──
+    from ui.instagram_connect import render_instagram_connection
+    render_instagram_connection(settings, brand_config)
 
 if not st.session_state.onboarded:
     render_onboarding()
@@ -736,7 +752,8 @@ else:
                 product_name=req_info["product_name"],
                 image_bytes=img_res.get("image_data"),
                 caption_data=st.session_state.caption_result,
-                key_suffix="new_create"
+                key_suffix="new_create",
+                brand_config=brand_config
             )
 
         if st.session_state.get("show_story_ui"):
@@ -745,7 +762,8 @@ else:
                     product_name=req_info["product_name"],
                     image_bytes=img_res.get("image_data"),
                     story_copies=txt_res["story_copies"],
-                    key_suffix="new_create"
+                    key_suffix="new_create",
+                    brand_config=brand_config
                 )
             else:
                 st.warning("⚠️ 이번 생성 결과에는 스토리용 카피가 포함되어 있지 않습니다. 다시 생성을 시도해주세요.")
@@ -819,5 +837,6 @@ else:
                                 product_name=history.product_name,
                                 image_bytes=img_bytes,
                                 caption_data=cap_result,
-                                key_suffix=f"archive_{history.id}"
+                                key_suffix=f"archive_{history.id}",
+                                brand_config=brand_config
                             )
