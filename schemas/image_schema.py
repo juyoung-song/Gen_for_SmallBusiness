@@ -52,6 +52,14 @@ class ImageGenerationRequest(BaseModel):
             "모든 이미지 생성 호출에 system prompt 로 주입된다 (design.md §2.3)."
         ),
     )
+    is_new_product: bool = Field(
+        default=False,
+        description="신상품 여부 — 이미지 프롬프트에 런칭 에너지/신선함 반영",
+    )
+    reference_analysis: str = Field(
+        default="",
+        description="참조 이미지 분석 텍스트. 시각적 합성의 1차 참고 자료.",
+    )
 
     @field_validator("style")
     @classmethod

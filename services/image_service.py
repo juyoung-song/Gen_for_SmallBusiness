@@ -138,6 +138,8 @@ class ImageService:
             ad_copy=request.prompt,
             has_reference=(request.image_data is not None),
             brand_prompt=request.brand_prompt,
+            is_new_product=request.is_new_product,
+            reference_analysis=request.reference_analysis,
         )
 
         try:

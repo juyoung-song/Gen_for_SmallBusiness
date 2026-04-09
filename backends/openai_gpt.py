@@ -70,6 +70,8 @@ class OpenAIGPTBackend:
             goal=request.goal,
             image_hint=image_hint,
             brand_prompt=request.brand_prompt,
+            is_new_product=request.is_new_product,
+            reference_analysis=request.reference_analysis,
         )
 
         response = self.client.chat.completions.create(

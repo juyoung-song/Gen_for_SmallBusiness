@@ -455,6 +455,8 @@ def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone
                 goal=goal,
                 image_data=image_data,
                 brand_prompt=st.session_state.get("brand_prompt", ""),
+                is_new_product=st.session_state.get("is_new_product", False),
+                reference_analysis="",  # TODO: DB 에서 참조 이미지 분석 텍스트 가져오기
             )
             response = text_service.generate_ad_copy(request)
         # Step 2.5: legacy HistoryService 호출 제거.
@@ -479,6 +481,8 @@ def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_st
                 image_data=image_data,
                 reference_image_paths=reference_image_paths or [],
                 brand_prompt=st.session_state.get("brand_prompt", ""),
+                is_new_product=st.session_state.get("is_new_product", False),
+                reference_analysis="",  # TODO: DB 에서 참조 이미지 분석 텍스트 가져오기
             )
             response = image_service.generate_ad_image(request)
 
@@ -498,6 +502,7 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
 
     res_t, res_i = None, None
     brand = st.session_state.get("brand_prompt", "")
+    is_new = st.session_state.get("is_new_product", False)
     try:
         with st.spinner("💬 [1단계] 사장님을 대신해 멋진 홍보 글을 먼저 작성하고 있어요..."):
             req_t = TextGenerationRequest(
@@ -507,6 +512,8 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
                 goal=goal,
                 image_data=image_data,
                 brand_prompt=brand,
+                is_new_product=is_new,
+                reference_analysis="",  # TODO
             )
             res_t = text_service.generate_ad_copy(req_t)
             st.session_state.text_result = res_t.model_dump()
@@ -522,6 +529,8 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
                 image_data=image_data,
                 reference_image_paths=reference_image_paths or [],
                 brand_prompt=brand,
+                is_new_product=is_new,
+                reference_analysis="",  # TODO
             )
             res_i = image_service.generate_ad_image(req_i)
             # Step 2.4 — 생성 결과를 staging 에 저장
@@ -839,7 +848,15 @@ with tab_create:
                     with st.spinner("피드용 글과 태그를 정리하고 있어요..."):
                         try:
                             cap_svc = CaptionService(settings)
-                            req = CaptionGenerationRequest(product_name=req_info["product_name"], ad_copies=txt_res.get("ad_copies", []), style=req_info["text_tone"])
+                            req = CaptionGenerationRequest(
+                                product_name=req_info["product_name"],
+                                description=req_info.get("description", ""),
+                                ad_copies=txt_res.get("ad_copies", []),
+                                style=req_info.get("text_tone", "기본"),
+                                brand_prompt=st.session_state.get("brand_prompt", ""),
+                                is_new_product=st.session_state.get("is_new_product", False),
+                                reference_analysis="",  # TODO
+                            )
                             st.session_state.caption_result = cap_svc.generate_caption(req)
                             st.session_state.show_story_ui = False
                         except Exception as e:
