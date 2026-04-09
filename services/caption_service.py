@@ -117,7 +117,7 @@ class CaptionService:
             timeout=self.settings.TEXT_TIMEOUT,
         )
 
-        result_text = response.choices[0].message.content.strip()
+        result_text = (response.choices[0].message.content or "").strip()
 
         parts = result_text.split("[해시태그]")
         caption = parts[0].replace("[본문]", "").strip()

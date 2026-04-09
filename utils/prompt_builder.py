@@ -165,11 +165,15 @@ def build_image_prompt(
     style_desc = _IMAGE_STYLE_MAP.get(style, _IMAGE_STYLE_MAP["기본"])
     product_status = _product_status_label(is_new_product)
 
+    # H1 fix: GOAL_CATEGORIES 6종 라벨과 일치시킴. 이전엔 구 라벨(신상품 홍보 등)
+    # 로 남아 있어서 모든 입력이 fallback 으로만 선택되는 조용한 회귀 버그였음.
     goal_visual_map = {
-        "신상품 홍보": "Hero shot, dramatic spotlighting on the new product, fresh and modern vibes.",
-        "할인 행사": "Vibrant and energetic mood, promotional theme lighting, attractive presentation.",
-        "매장 소개": "Wide angle or cozy interior view, inviting atmosphere, professional lighting.",
-        "시즌 홍보": "Seasonal color palette, thematic props matching the season, atmospheric lighting."
+        "신메뉴 출시":     "Hero shot of a freshly launched bakery item, bright clean background, soft yet dramatic spotlight conveying first-reveal novelty and anticipation.",
+        "주말·시즌 한정": "Seasonal color palette, thematic props matching the time of year, atmospheric warm lighting, limited-edition cue.",
+        "할인·이벤트":     "Vibrant and energetic mood with appetizing composition, subtle promotional accent, inviting framing without on-image text.",
+        "일상·감성":      "Candid cafe or bakery ambience, natural window light, shallow depth of field, everyday warm scene evoking quiet comfort.",
+        "영업 안내":      "Clean storefront or interior framing, subdued neutral tone, generous legible negative space suitable for announcement overlays.",
+        "감사·안부":      "Warm close-up with soft golden lighting, gift-like composition, gentle grateful mood conveying appreciation.",
     }
     visual_strategy = goal_visual_map.get(goal, "Clean, commercial grade product photography.")
 

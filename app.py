@@ -813,12 +813,40 @@ with tab_create:
                 st.session_state.image_result = None
                 st.session_state.caption_result = None
                 
+                # H3 fix: 재생성 시에도 참조 이미지 갤러리 선택을 이어받는다.
+                # last_request 에 저장된 값을 꺼내 _run_*_generation 에 전달.
+                retry_refs = req.get("reference_image_paths") or []
                 if req["type"] == "글과 사진 세트":
-                    _run_combined_generation(req["product_name"], req["description"], req.get("goal", "일반 홍보"), req["text_tone"], req["image_style"], req["ui_text_tone"], req["ui_image_style"], req.get("image_data"))
+                    _run_combined_generation(
+                        req["product_name"],
+                        req["description"],
+                        req.get("goal", "일반 홍보"),
+                        req["text_tone"],
+                        req["image_style"],
+                        req["ui_text_tone"],
+                        req["ui_image_style"],
+                        req.get("image_data"),
+                        reference_image_paths=retry_refs,
+                    )
                 elif req["type"] == "홍보 글":
-                    _run_text_generation(req["product_name"], req["description"], req.get("goal", "일반 홍보"), req["text_tone"], req["ui_text_tone"], req.get("image_data"))
+                    _run_text_generation(
+                        req["product_name"],
+                        req["description"],
+                        req.get("goal", "일반 홍보"),
+                        req["text_tone"],
+                        req["ui_text_tone"],
+                        req.get("image_data"),
+                    )
                 else:
-                    _run_image_generation(req["product_name"], req["description"], req.get("goal", "일반 홍보"), req["image_style"], req["ui_image_style"], req.get("image_data"))
+                    _run_image_generation(
+                        req["product_name"],
+                        req["description"],
+                        req.get("goal", "일반 홍보"),
+                        req["image_style"],
+                        req["ui_image_style"],
+                        req.get("image_data"),
+                        reference_image_paths=retry_refs,
+                    )
                 st.rerun()
         
         st.write("")
