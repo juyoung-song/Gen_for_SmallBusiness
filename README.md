@@ -130,8 +130,8 @@ python image_analyzer.py --dir image_crawled/torriden_official --limit 9
 
 ## 7. 패키지 설치
 ```bash
-# 1. Python 3.12 가상환경 생성
-uv venv --python 3.12 venv
+# 1. Python 3.11 가상환경 생성
+uv venv --python 3.11 venv
 
 # 2. 활성화
 source venv/bin/activate
