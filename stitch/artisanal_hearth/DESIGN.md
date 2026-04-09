@@ -33,7 +33,7 @@ To add "soul" to our CTAs, use a subtle radial gradient on `primary` buttons, tr
 We lead with **Pretendard**, utilizing its soft terminals and balanced proportions to bridge the gap between "friendly" and "high-end."
 
 *   **Display (Display-LG/MD):** Used sparingly for hero marketing messages. High tracking (letter-spacing: -0.02em) to maintain a modern, editorial feel.
-*   **Headline (Headline-LG/MD):** **"따뜻한 순간"** (Warm Moments). Headlines must be bold and grounded. They are the "voice" of the bakery.
+*   **Headline (Headline-LG/MD):** **"Brewgram"**. Headlines must be bold and grounded. They are the "voice" of the bakery.
 *   **Title (Title-LG/MD):** Used for product names and section headers. These carry the weight of the brand.
 *   **Body (Body-LG/MD):** Optimized for readability. Use `on-surface-variant` (#655f4c) for body text to reduce the harshness of pure black, maintaining the "warm ink on paper" feel.
 *   **Labels (Label-MD/SM):** Strictly Korean. Use for micro-copy and tags.

@@ -3,6 +3,7 @@
 <html lang="ko"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Brewgram - 메인 생성 화면</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Be+Vietnam+Pro:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
@@ -99,7 +100,10 @@
 <header class="fixed top-0 w-full z-50 bg-[#fff8ef]/80 backdrop-blur-xl flex justify-between items-center px-6 py-4">
 <div class="flex items-center gap-4">
 <button class="material-symbols-outlined text-[#954a25] hover:bg-[#f1e7d2]/50 p-2 rounded-full transition-colors active:scale-95" data-icon="arrow_back">arrow_back</button>
-<h1 class="top-brand">따뜻한 순간</h1>
+<div class="brand-lockup">
+<img alt="Brewgram 로고" class="brand-mark" src="../../logo-app-icon-192.png"/>
+<span class="brand-wordmark">Brewgram</span>
+</div>
 </div>
 <div class="w-10"></div> <!-- Spacer for center alignment feel if needed -->
 </header>
@@ -108,19 +112,23 @@
 <section class="mb-10">
 <div class="bg-surface-container-low rounded-xl p-8 flex flex-col md:flex-row items-center gap-6 shadow-[0_12px_32px_rgba(55,50,34,0.06)] overflow-hidden relative paper-card">
 <div class="absolute -top-4 -right-4 w-24 h-24 bg-primary/10 rounded-full blur-3xl"></div>
-<div class="relative w-20 h-20 bg-surface-container-lowest rounded-lg shadow-sm flex items-center justify-center border border-outline-variant/15 overflow-hidden">
-<img alt="Bakery Brand Logo" class="w-full h-full object-cover" data-alt="minimalist organic bakery logo featuring a hand-drawn wheat stalk icon on soft cream textured paper background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDjEG7cyyoTC7a0e8QQLH0GxBS-7KNMT1zE_K3teLZAmapgu2OMu34-n6pCKx078VOJPqhhhn5SjkhSLH2bWc5gYjG3hZz8OBuIr89umaxYWKUdjv38HRaZHzkjfjMdA0zVYz3FeVRa1zOgcKqzA5E3gxG7Bl5-azlQeJ2i6UorGkjvuLlNbbATzYtzKTyCFZA4FwNrPqyX33RxQakwbIPtWqgvHuifsjFw9gJuGUaZG-fk8CR_CzhKvaseyAPdxSk7wJQQQlLCbOM"/>
+<div class="relative w-20 h-20 bg-[linear-gradient(135deg,rgba(255,116,72,0.16),rgba(255,179,71,0.18))] rounded-lg shadow-sm flex items-center justify-center border border-outline-variant/15 overflow-hidden">
+<span class="text-3xl font-black tracking-[-0.06em] text-[#b25d37]">마</span>
 </div>
 <div class="flex-1 text-center md:text-left">
+<p class="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/75">온보딩에서 저장한 브랜드</p>
 <div class="flex flex-wrap justify-center md:justify-start gap-2 mb-2">
-<span class="px-3 py-1 bg-tertiary-container text-on-tertiary-container text-[10px] font-bold rounded-full uppercase tracking-wider">Artisanal</span>
-<span class="px-3 py-1 bg-secondary-container text-on-secondary-container text-[10px] font-bold rounded-full uppercase tracking-wider">Organic</span>
+<span class="px-3 py-1 bg-[rgba(255,116,72,0.15)] text-[#d95c39] text-[10px] font-bold rounded-full tracking-wider">#친근한</span>
+<span class="px-3 py-1 bg-[rgba(255,179,71,0.14)] text-on-surface-variant text-[10px] font-bold rounded-full tracking-wider">포근한 필름 감성</span>
 </div>
-<h2 class="text-2xl font-extrabold text-on-surface mb-1">달콤한 오븐</h2>
-<p class="text-sm text-on-surface-variant flex items-center justify-center md:justify-start gap-2">
-<span class="w-3 h-3 rounded-full bg-primary"></span>
-                        브랜드 메인 컬러: 테라코타 오렌지
-                    </p>
+<h2 class="text-2xl font-extrabold text-on-surface mb-1">마음이 쉬어가는 베이커리</h2>
+<div class="flex flex-wrap items-center justify-center md:justify-start gap-x-4 gap-y-2 text-sm text-on-surface-variant">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-[#ff7448] shadow-[0_0_0_4px_rgba(255,116,72,0.12)]"></span>
+<span>대표 컬러: 썬셋 코랄</span>
+</div>
+<span class="text-on-surface-variant/70">로고 미등록</span>
+</div>
 </div>
 </div>
 </section>
@@ -130,7 +138,7 @@
 <h1 class="text-3xl font-bold text-on-surface leading-tight film-headline">
                 반가워요 사장님!<br/>첫 광고를 만들어볼까요?
             </h1>
-<p class="text-on-surface-variant warm-copy">상품 정보만 입력하면 인공지능이 따뜻한 광고를 완성해드려요.</p>
+<p class="text-on-surface-variant warm-copy">상품 정보만 입력하면 Brewgram AI가 인스타 감성의 광고를 완성해드려요.</p>
 </header>
 <!-- Form Content -->
 <div class="space-y-8">

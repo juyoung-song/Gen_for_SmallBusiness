@@ -55,6 +55,29 @@ body > header {
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.72rem;
+}
+
+.brand-mark {
+  width: 2.15rem;
+  height: 2.15rem;
+  object-fit: cover;
+  border-radius: 0.8rem;
+  box-shadow: 0 10px 24px rgba(255, 95, 109, 0.12);
+}
+
+.brand-wordmark {
+  font-family: "Plus Jakarta Sans", "Pretendard Variable", sans-serif !important;
+  font-size: 1.24rem !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  letter-spacing: -0.04em !important;
+  color: #3b281e !important;
+}
+
 .film-step {
   display: inline-flex;
   align-items: center;
