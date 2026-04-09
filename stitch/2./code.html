@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>따뜻한 순간 - 스타일 설정</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Be+Vietnam+Pro:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="../shared.css" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "on-tertiary-fixed": "#371800",
+                "primary-fixed": "#ffae8a",
+                "on-secondary-fixed-variant": "#476400",
+                "on-tertiary-fixed-variant": "#663100",
+                "on-background": "#373222",
+                "surface-container-lowest": "#ffffff",
+                "inverse-surface": "#110e06",
+                "surface-container-low": "#fbf3e1",
+                "surface-container": "#f6edda",
+                "primary-dim": "#863e1b",
+                "on-surface": "#373222",
+                "secondary-dim": "#405b00",
+                "surface": "#fff8ef",
+                "secondary-container": "#c8f17a",
+                "on-primary-fixed-variant": "#75310e",
+                "on-primary-fixed": "#4a1800",
+                "surface-dim": "#e4d9bf",
+                "surface-container-high": "#f1e7d2",
+                "secondary-fixed-dim": "#bae26e",
+                "tertiary-fixed": "#ffa35d",
+                "outline": "#827a66",
+                "on-primary": "#fff7f5",
+                "secondary-fixed": "#c8f17a",
+                "on-primary-container": "#692906",
+                "outline-variant": "#bab19b",
+                "inverse-on-surface": "#a29c8f",
+                "surface-container-highest": "#ece2ca",
+                "tertiary-fixed-dim": "#fc8f34",
+                "primary-fixed-dim": "#fb9b70",
+                "secondary": "#4a6800",
+                "on-surface-variant": "#655f4c",
+                "on-error-container": "#65000b",
+                "on-secondary-container": "#3f5a00",
+                "tertiary-container": "#ffa35d",
+                "primary": "#954a25",
+                "on-tertiary": "#fff7f4",
+                "tertiary-dim": "#834100",
+                "surface-tint": "#954a25",
+                "surface-bright": "#fff8ef",
+                "error-dim": "#70030f",
+                "on-error": "#fff7f6",
+                "surface-variant": "#ece2ca",
+                "inverse-primary": "#f8986d",
+                "background": "#fff8ef",
+                "error": "#ac3434",
+                "tertiary": "#954b00",
+                "on-secondary": "#f0ffce",
+                "on-tertiary-container": "#592a00",
+                "primary-container": "#ffae8a",
+                "on-secondary-fixed": "#304600",
+                "error-container": "#f56965"
+            },
+            "borderRadius": {
+                "DEFAULT": "1rem",
+                "lg": "2rem",
+                "xl": "3rem",
+                "full": "9999px"
+            },
+            "fontFamily": {
+                "headline": ["Plus Jakarta Sans", "Pretendard", "sans-serif"],
+                "body": ["Be Vietnam Pro", "Pretendard", "sans-serif"],
+                "label": ["Be Vietnam Pro", "Pretendard", "sans-serif"]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Be Vietnam Pro', 'Pretendard', sans-serif;
+            background-color: #fff8ef;
+            color: #373222;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen flex flex-col items-center justify-start bg-surface overflow-x-hidden">
+<!-- Top AppBar (Navigation Shell Suppressed for Onboarding Flow) -->
+<header class="w-full max-w-md px-6 py-8 flex items-center justify-between">
+<button class="w-12 h-12 flex items-center justify-center rounded-full bg-surface-container-low active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined text-on-surface-variant">arrow_back</span>
+</button>
+<div class="flex flex-col items-center gap-1">
+<div class="flex gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-primary-container"></div>
+<div class="w-6 h-1.5 rounded-full bg-primary"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-primary-container"></div>
+</div>
+<span class="font-label text-[10px] font-bold text-primary tracking-widest uppercase film-step">STEP 02/03</span>
+</div>
+<div class="w-12"></div>
+</header>
+<!-- Main Content Canvas -->
+<main class="w-full max-w-md px-6 flex flex-col flex-grow">
+<!-- Headline Section -->
+<section class="mb-8">
+<p class="film-note">collect the mood you love</p>
+<h1 class="font-headline font-bold text-3xl text-on-surface tracking-tight mb-3 film-headline">원하는 스타일을<br/>알려주세요</h1>
+<p class="font-body text-on-surface-variant text-base leading-relaxed warm-copy">
+                인스타그램 링크나 참고 이미지를 주면 AI가 사장님의 취향을 더 잘 이해해요.
+            </p>
+</section>
+<section class="mb-8">
+<div class="bg-surface-container-lowest rounded-xl px-5 py-4 paper-card">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary text-[20px] mt-0.5">info</span>
+<div class="space-y-1">
+<p class="text-sm font-semibold text-on-surface">여기는 편하게 넘겨도 되는 단계예요</p>
+<p class="text-sm text-on-surface-variant leading-relaxed">인스타 링크만 넣어도 되고, 참고 이미지만 올려도 돼요. 둘 다 없으면 그냥 건너뛰고 다음으로 가셔도 됩니다.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Instagram Link Input -->
+<section class="mb-10">
+<div class="flex items-center justify-between mb-3 px-2">
+<label class="block font-label text-sm font-semibold text-on-surface-variant">인스타그램 주소</label>
+<span class="text-[11px] font-bold text-primary bg-primary-container/35 px-3 py-1 rounded-full">선택</span>
+</div>
+<div class="relative group">
+<div class="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline text-xl">link</span>
+</div>
+<input class="w-full h-16 pl-14 pr-6 bg-surface-container-highest border-none rounded-xl text-on-surface focus:ring-2 focus:ring-primary/30 transition-all placeholder:text-outline/60 font-body" placeholder="https://instagram.com/cafe_name" type="text"/>
+</div>
+<p class="mt-3 px-2 text-xs leading-relaxed text-on-surface-variant">좋아하는 베이커리 카페 인스타 계정이 있다면 링크 하나만 넣어주세요.</p>
+</section>
+<!-- Gallery Reference Section -->
+<section class="mb-10">
+<div class="flex justify-between items-end mb-4 px-2">
+<label class="font-label text-sm font-semibold text-on-surface-variant">참고 이미지 업로드</label>
+<span class="font-label text-xs text-primary font-medium">선택 · 최대 4장</span>
+</div>
+<p class="px-2 mb-4 text-xs leading-relaxed text-on-surface-variant">링크가 없다면 이미지 한 장만 올려도 충분해요. 둘 다 넣을 필요는 없어요.</p>
+<!-- Asymmetric Grid for Style Reference -->
+<div class="grid grid-cols-2 gap-4">
+<!-- Large Upload Trigger (Tall) -->
+<div class="row-span-2 group relative cursor-pointer">
+<div class="w-full h-full min-h-[220px] bg-surface-container-low border-2 border-dashed border-outline-variant/30 rounded-xl flex flex-col items-center justify-center gap-3 transition-all group-hover:bg-surface-container-high active:scale-[0.98]">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-2xl">add_a_photo</span>
+</div>
+<span class="font-label text-sm font-bold text-primary">직접 추가하기</span>
+</div>
+</div>
+<!-- Example Thumbnail 1: Bread Basket -->
+<div class="relative group h-32 rounded-xl overflow-hidden shadow-sm editorial-photo">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="close-up of artisanal sourdough bread rolls in a rustic wicker basket on a sunlit wooden table in a warm cafe" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAU9dE_h-b-YoN17rULoLuSTzndemjoYCxOO4Wi8M1VU1OicsVy336WXn7xp2jghv8r7oByjuTuJMMPFogZ2SKFBzSm6BDSQC8cZfuuyxbI70h9G8Bi8CRb2Z0dfpe6pRrdcBlLRRsM2r1XccMdN2V9tqe9bI0SXHFWIw1fkodKWvvtGjNUCNisGL7Hvl4hIJvRlITGpZ-QiSr-qhaRUH-P0916OCpCEtiQS3LBI1RAf4ybhYl0Y-7_HTt6MAkmGWsdw6NsdA9px34"/>
+<div class="absolute inset-0 bg-black/5"></div>
+<div class="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/80 backdrop-blur-md flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+</div>
+<!-- Example Thumbnail 2: Latte Art -->
+<div class="relative group h-32 rounded-xl overflow-hidden shadow-sm editorial-photo">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="creamy latte art in a ceramic cup on a natural stone countertop with warm morning light shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBE8tWdmi5SfWZD5Cs54gP1pi54-RhpqRlIAKixSgQvP535ULEyacKbFXXYG5H4Wtd5bGxs_Kit19L9XUdnAYX6-n2fDQTUScMDMaXKZ7DqX_NNS-iIvxcSewzIy1PLLgP5qMueRNDiy3hcRq_52QmJjT7Enn5jOJlFuXXnLXuaFAhoh2ABv2rjgBjS9oDFqAhG_aLazLPCKzxZfh5Cz7xel_H8Id4GEkCAOF4EHhTxxAbq8ipURoLHZgM0rn3COsOcfIqx4Zk48s"/>
+<div class="absolute inset-0 bg-black/5"></div>
+<div class="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-white">circle</span>
+</div>
+</div>
+<!-- Example Thumbnail 3: Interior (Full width) -->
+<div class="col-span-2 relative group h-40 rounded-xl overflow-hidden shadow-sm editorial-photo">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="interior view of a cozy bakery with warm wood textures, shelves of fresh bread, and soft sunlight streaming through the window" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBxTjM-wvRPhsFC6gIpplJarzD5EuSkTEeQQWTZpobbddln6z-fUALr17PU6RNaT_O0oQDYdsUlJCugpgN3oD2ac3Gzw523p68ygwr2CDCb0k_NtGNN3WBkiyBzCmb2Mgg4qTWh4jBOZNQ09Z5k8CqafIAp9gUuTqHRkD3fq23f3loaub6kB7g4wtN5E7-V0pCSKPxl25zRsweRzTy0Xi2seReBgurpZzoUM4Gr9YwSN20l9mJZQjX6ydiHLQ2d5QZd6FWcuJKfzN0"/>
+<div class="absolute inset-0 bg-gradient-to-t from-on-background/40 to-transparent"></div>
+<div class="absolute bottom-3 left-4">
+<span class="font-label text-xs text-white/90">추천 스타일: 내추럴 우드</span>
+</div>
+<div class="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-white">circle</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Footer Tip Box -->
+<div class="bg-surface-container-high/50 p-5 rounded-lg flex gap-4 items-start mb-12 paper-card">
+<span class="material-symbols-outlined text-tertiary-fixed-dim text-xl">lightbulb</span>
+<p class="font-body text-sm text-on-surface-variant leading-relaxed">
+                링크 하나만 있거나 이미지 한 장만 있어도 충분해요. 아무것도 없다면 지금은 건너뛰고, 나중에 메인 화면에서 다시 추가할 수도 있어요.
+            </p>
+</div>
+</main>
+<!-- Fixed Footer Action Area -->
+<footer class="w-full max-w-md p-6 bg-surface/90 backdrop-blur-xl flex gap-3 pb-10">
+<button class="flex-[1] h-14 rounded-full font-label font-bold text-on-surface-variant hover:bg-surface-container-high transition-colors active:scale-95">
+            건너뛰기
+        </button>
+<button class="flex-[2] h-14 bg-gradient-to-r from-primary to-primary-dim rounded-full font-label font-bold text-on-primary shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-95 transition-all warm-button">
+            다음
+            <span class="material-symbols-outlined text-xl">arrow_forward</span>
+</button>
+</footer>
+</body></html>
