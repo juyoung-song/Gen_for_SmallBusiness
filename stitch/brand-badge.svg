@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Brewgram">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ffb347"/>
+      <stop offset="100%" stop-color="#ff7448"/>
+    </linearGradient>
+  </defs>
+  <rect width="96" height="96" rx="28" fill="url(#bg)"/>
+  <path d="M28 34h24c8.3 0 15 6.7 15 15s-6.7 15-15 15H28V34Z" fill="#fff7f5"/>
+  <path d="M36 44h13c3.9 0 7 3.1 7 7s-3.1 7-7 7H36V44Z" fill="#ffb347"/>
+  <path d="M67 29c4.4 2.9 6.7 7.7 6.7 12.8 0 3.8-1.3 7.6-3.8 10.4" fill="none" stroke="#fff7f5" stroke-linecap="round" stroke-width="5"/>
+  <circle cx="49" cy="51" r="4.5" fill="#954a25"/>
+</svg>
