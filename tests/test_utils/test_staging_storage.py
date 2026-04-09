@@ -52,3 +52,46 @@ class TestSaveToStaging:
         )
         path = save_to_staging(b"data")
         assert path.suffix == ".jpg"
+
+
+class TestSaveToBrandAssets:
+    """Song 이식 — 브랜드 로고 등 영구 브랜드 자산 저장."""
+
+    def test_writes_to_brand_assets_dir(self, tmp_path, monkeypatch):
+        from utils.staging_storage import save_to_brand_assets
+
+        monkeypatch.setattr(
+            "utils.staging_storage.BRAND_ASSETS_DIR", tmp_path
+        )
+        path = save_to_brand_assets(b"PNG logo bytes", extension=".png")
+
+        assert path.exists()
+        assert path.read_bytes() == b"PNG logo bytes"
+        assert path.parent == tmp_path
+        assert path.suffix == ".png"
+
+    def test_creates_dir_if_missing(self, tmp_path, monkeypatch):
+        from utils.staging_storage import save_to_brand_assets
+
+        sub = tmp_path / "new" / "brand"
+        monkeypatch.setattr("utils.staging_storage.BRAND_ASSETS_DIR", sub)
+
+        path = save_to_brand_assets(b"data", extension=".png")
+        assert sub.exists()
+        assert path.parent == sub
+
+    def test_brand_assets_and_staging_are_independent(self, tmp_path, monkeypatch):
+        """staging 과 brand_assets 는 서로 다른 디렉토리."""
+        from utils.staging_storage import save_to_brand_assets
+
+        staging_dir = tmp_path / "staging"
+        brand_dir = tmp_path / "brand"
+        monkeypatch.setattr("utils.staging_storage.STAGING_DIR", staging_dir)
+        monkeypatch.setattr("utils.staging_storage.BRAND_ASSETS_DIR", brand_dir)
+
+        staged = save_to_staging(b"staging bytes")
+        branded = save_to_brand_assets(b"brand bytes", extension=".png")
+
+        assert staged.parent == staging_dir
+        assert branded.parent == brand_dir
+        assert staged.parent != branded.parent

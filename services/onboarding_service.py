@@ -99,12 +99,20 @@ class BrandImageDraft:
 
     사용자 검수 화면에서 `with_edited_content()` 로 content 만 수정 가능.
     source_* 는 추적성 보장을 위해 불변.
+
+    Song 이식 필드 (brand_name / brand_color / brand_atmosphere / brand_logo_path):
+        온보딩 1단계 입력 섹션에서 수집된 구조화 필드. 모두 선택.
+        기존 호출 호환을 위해 기본값 None 또는 빈 문자열.
     """
 
     content: str
     source_freetext: str
     source_reference_url: str
     source_screenshots: list[str]
+    brand_name: str | None = None
+    brand_color: str | None = None
+    brand_atmosphere: str | None = None
+    brand_logo_path: str | None = None
 
     def with_edited_content(self, new_content: str) -> "BrandImageDraft":
         return replace(self, content=new_content)
@@ -192,10 +200,18 @@ class OnboardingService:
         self,
         freetext: str,
         instagram_url: str,
+        brand_name: str | None = None,
+        brand_color: str | None = None,
+        brand_atmosphere: str | None = None,
+        brand_logo_path: str | None = None,
     ) -> BrandImageDraft:
         """1) 캡처 → 2) Vision 분석 → BrandImageDraft 반환.
 
         DB 저장은 하지 않는다. 사용자 검수 후 finalize() 를 호출해야 저장됨.
+
+        Song 이식 — 구조화된 브랜드 입력(brand_name/color/atmosphere)은
+        GPT Vision 에 더 나은 컨텍스트를 주기 위해 freetext 앞부분에 머지된다.
+        brand_logo_path 는 Vision 분석에는 쓰이지 않고 Draft 에 그대로 보존된다.
         """
         logger.info("온보딩 캡처 시작: %s", instagram_url)
         captured = self.capture_backend.capture_profile(
@@ -205,8 +221,15 @@ class OnboardingService:
         )
         logger.info("캡처 완료 (%d장). Vision 분석 시작.", len(captured))
 
-        content = self.vision_analyzer.analyze(
+        merged_freetext = _merge_structured_inputs_into_freetext(
             freetext=freetext,
+            brand_name=brand_name,
+            brand_color=brand_color,
+            brand_atmosphere=brand_atmosphere,
+        )
+
+        content = self.vision_analyzer.analyze(
+            freetext=merged_freetext,
             image_paths=captured,
         )
         logger.info("Vision 분석 완료 (%d chars)", len(content))
@@ -216,6 +239,10 @@ class OnboardingService:
             source_freetext=freetext,
             source_reference_url=instagram_url,
             source_screenshots=[str(p) for p in captured],
+            brand_name=brand_name,
+            brand_color=brand_color,
+            brand_atmosphere=brand_atmosphere,
+            brand_logo_path=brand_logo_path,
         )
 
     async def finalize(
@@ -235,4 +262,34 @@ class OnboardingService:
             source_freetext=draft.source_freetext,
             source_reference_url=draft.source_reference_url,
             source_screenshots=draft.source_screenshots,
+            brand_name=draft.brand_name,
+            brand_color=draft.brand_color,
+            brand_logo_path=draft.brand_logo_path,
         )
+
+
+def _merge_structured_inputs_into_freetext(
+    *,
+    freetext: str,
+    brand_name: str | None,
+    brand_color: str | None,
+    brand_atmosphere: str | None,
+) -> str:
+    """Vision 분석용 freetext 에 구조화 입력을 앞부분에 프리픽스로 추가.
+
+    테스트 가능한 순수 함수. UI 로 들어온 구조화 필드들을 GPT Vision 프롬프트에
+    자연스럽게 녹이기 위한 어댑터.
+    """
+    prefix_lines: list[str] = []
+    if brand_name:
+        prefix_lines.append(f"브랜드 이름: {brand_name}")
+    if brand_color:
+        prefix_lines.append(f"브랜드 대표 색상: {brand_color}")
+    if brand_atmosphere:
+        prefix_lines.append(f"브랜드 분위기: {brand_atmosphere}")
+
+    if not prefix_lines:
+        return freetext
+
+    prefix = "\n".join(prefix_lines)
+    return f"{prefix}\n\n{freetext}"

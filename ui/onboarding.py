@@ -51,9 +51,40 @@ def render_onboarding_screen(settings) -> None:
 
 
 def _render_input_stage(settings) -> None:
-    """1단계: 자유 텍스트 + 인스타 URL 입력."""
+    """1단계: 브랜드 기본 정보 + 자유 서술 + 추구미 레퍼런스 3섹션 입력."""
+    # ── 섹션 1: 브랜드 기본 정보 ──
     with st.container(border=True):
-        st.markdown("### 1️⃣ 우리 가게 소개")
+        st.markdown("### 1️⃣ 브랜드 기본 정보 🎨")
+
+        brand_name = st.text_input(
+            "🏢 브랜드 이름 (필수)",
+            placeholder="예: 구름 베이커리",
+            key="onboarding_brand_name",
+        )
+
+        col_color, col_atmo = st.columns(2)
+        with col_color:
+            brand_color = st.color_picker(
+                "🎨 브랜드 대표 색상",
+                value=st.session_state.get("onboarding_brand_color", "#5562EA"),
+                key="onboarding_brand_color",
+            )
+        with col_atmo:
+            brand_atmosphere = st.text_input(
+                "🌿 브랜드 분위기 (한 줄)",
+                placeholder="예: 따뜻하고 단정한, 모던한 내추럴",
+                key="onboarding_brand_atmosphere",
+            )
+
+        brand_logo_file = st.file_uploader(
+            "📥 브랜드 로고 (선택)",
+            type=["png", "jpg", "jpeg"],
+            key="onboarding_brand_logo",
+        )
+
+    # ── 섹션 2: 가게 상세 소개 ──
+    with st.container(border=True):
+        st.markdown("### 2️⃣ 우리 가게 상세 소개")
         freetext = st.text_area(
             "어떤 가게인가요? 자유롭게 써주세요.",
             placeholder=(
@@ -66,7 +97,9 @@ def _render_input_stage(settings) -> None:
             key="onboarding_freetext",
         )
 
-        st.markdown("### 2️⃣ 추구미 인스타 프로필")
+    # ── 섹션 3: 추구미 인스타 프로필 ──
+    with st.container(border=True):
+        st.markdown("### 3️⃣ 추구미 인스타 프로필")
         st.caption(
             "벤치마크하고 싶은 인스타 계정의 프로필 URL 을 넣어주세요. "
             "AI 가 자동으로 피드를 살펴보고 톤·색감·사진 스타일을 분석합니다. "
@@ -80,14 +113,32 @@ def _render_input_stage(settings) -> None:
         )
 
     st.write("")
+
+    required_ok = bool(
+        brand_name.strip() and freetext.strip() and instagram_url.strip()
+    )
+
     if st.button(
         "🔍 분석 시작 (1~2분 소요)",
         type="primary",
         width="stretch",
-        disabled=not (freetext.strip() and instagram_url.strip()),
+        disabled=not required_ok,
     ):
         with st.status("브랜드 분석 중...", expanded=True) as status:
             try:
+                # 로고가 있으면 영구 자산 디렉토리에 저장
+                brand_logo_path: str | None = None
+                if brand_logo_file is not None:
+                    from pathlib import Path as _Path
+
+                    from utils.staging_storage import save_to_brand_assets
+                    ext = _Path(brand_logo_file.name).suffix.lower() or ".png"
+                    saved = save_to_brand_assets(
+                        brand_logo_file.getvalue(), extension=ext
+                    )
+                    brand_logo_path = str(saved)
+                    st.write(f"📥 로고 저장됨 → {saved.name}")
+
                 st.write("📸 인스타 프로필 캡처 중...")
                 capture = InstaCaptureBackend()
                 analyzer = GPTVisionAnalyzer(settings)
@@ -102,6 +153,10 @@ def _render_input_stage(settings) -> None:
                     service.generate_draft(
                         freetext=freetext.strip(),
                         instagram_url=instagram_url.strip(),
+                        brand_name=brand_name.strip() or None,
+                        brand_color=brand_color or None,
+                        brand_atmosphere=brand_atmosphere.strip() or None,
+                        brand_logo_path=brand_logo_path,
                     )
                 )
                 st.session_state.onboarding_draft = draft

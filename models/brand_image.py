@@ -32,3 +32,14 @@ class BrandImage(Base, TimestampMixin):
     source_screenshots: Mapped[list[str] | None] = mapped_column(
         JSON, nullable=True, default=list
     )
+
+    # Song 이식 — 구조화된 브랜드 기본 정보 (nullable, 기존 레코드 호환)
+    brand_name: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, default=None
+    )
+    brand_color: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, default=None
+    )
+    brand_logo_path: Mapped[str | None] = mapped_column(
+        String(512), nullable=True, default=None
+    )

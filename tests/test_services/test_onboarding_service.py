@@ -226,3 +226,86 @@ class TestOnboardingServiceFinalize:
         saved = await service.finalize(edited_draft, user_id="default")
 
         assert saved.content == "사용자가 수정한 최종 버전"
+
+
+class TestOnboardingStructuredInputs:
+    """Song 이식 — 브랜드 이름/색상/로고 등 구조화 입력 파이프라인."""
+
+    async def test_generate_draft_accepts_brand_name_color_atmosphere(self, tmp_path):
+        """generate_draft 가 신규 파라미터를 받고 Draft 에 담는다."""
+        capture = _FakeCaptureBackend(fake_paths=[])
+        analyzer = _FakeVisionAnalyzer(fake_response="정제된 브랜드 설명")
+
+        service = OnboardingService(
+            capture_backend=capture,
+            vision_analyzer=analyzer,
+            onboarding_dir=tmp_path,
+        )
+
+        draft = await service.generate_draft(
+            freetext="따뜻한 느낌",
+            instagram_url="https://example.com/",
+            brand_name="구름 베이커리",
+            brand_color="#5562EA",
+            brand_atmosphere="따뜻하고 단정한",
+            brand_logo_path="data/brand/logo.png",
+        )
+
+        assert draft.brand_name == "구름 베이커리"
+        assert draft.brand_color == "#5562EA"
+        assert draft.brand_atmosphere == "따뜻하고 단정한"
+        assert draft.brand_logo_path == "data/brand/logo.png"
+
+    async def test_generate_draft_merges_structured_fields_into_vision_freetext(
+        self, tmp_path
+    ):
+        """generate_draft 가 신규 필드를 freetext 에 합쳐 Vision 호출로 전달."""
+        capture = _FakeCaptureBackend(fake_paths=[])
+        analyzer = _FakeVisionAnalyzer(fake_response="...")
+        service = OnboardingService(
+            capture_backend=capture,
+            vision_analyzer=analyzer,
+            onboarding_dir=tmp_path,
+        )
+
+        await service.generate_draft(
+            freetext="동네 베이커리예요",
+            instagram_url="https://example.com/",
+            brand_name="구름 베이커리",
+            brand_color="#5562EA",
+            brand_atmosphere="따뜻하고 단정한",
+        )
+
+        # vision analyzer 가 받은 freetext 에 구조화 필드가 포함되어야 함
+        assert len(analyzer.calls) == 1
+        merged_freetext, _ = analyzer.calls[0]
+        assert "구름 베이커리" in merged_freetext
+        assert "#5562EA" in merged_freetext
+        assert "따뜻하고 단정한" in merged_freetext
+        assert "동네 베이커리예요" in merged_freetext
+
+    async def test_finalize_persists_structured_fields(self, db_session, tmp_path):
+        """finalize 가 Draft 의 신규 필드를 BrandImage 에 저장."""
+        brand_service = BrandImageService(db_session)
+        service = OnboardingService(
+            capture_backend=_FakeCaptureBackend(fake_paths=[]),
+            vision_analyzer=_FakeVisionAnalyzer(fake_response=""),
+            onboarding_dir=tmp_path,
+            brand_image_service=brand_service,
+        )
+
+        draft = BrandImageDraft(
+            content="정제된 설명",
+            source_freetext="...",
+            source_reference_url="https://example.com/",
+            source_screenshots=[],
+            brand_name="구름 베이커리",
+            brand_color="#5562EA",
+            brand_atmosphere="따뜻하고 단정한",
+            brand_logo_path="data/brand/logo.png",
+        )
+
+        saved = await service.finalize(draft, user_id="default")
+        assert saved.brand_name == "구름 베이커리"
+        assert saved.brand_color == "#5562EA"
+        assert saved.brand_logo_path == "data/brand/logo.png"

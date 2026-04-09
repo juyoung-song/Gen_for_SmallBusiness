@@ -171,13 +171,37 @@ for key, default in _DEFAULT_STATE.items():
 # 온보딩 라우팅 + brand_image 본문 로드 (Phase 2 Step 2.1 + Step A)
 # ══════════════════════════════════════════════
 # brand_image 가 DB 에 없으면 온보딩 화면만 렌더하고 조기 return.
-# 존재하면 본문(content)을 한 번 읽어 session_state 에 캐시해서 이후 광고 생성 시
-# 매번 request.brand_prompt 로 주입한다 (design.md §2.3).
+# 존재하면 본문(content) + 구조화 필드(brand_name, brand_color)를 읽어
+# 하나의 brand_prompt 문자열로 합쳐 session_state 에 캐시한다.
+# 이후 광고 생성 시 request.brand_prompt 로 주입된다 (design.md §2.3).
 async def _load_brand_prompt() -> str | None:
     async with AsyncSessionLocal() as session:
         service = BrandImageService(session)
         brand = await service.get_for_user("default")
-        return brand.content if brand else None
+        if brand is None:
+            return None
+        return _compose_brand_prompt(
+            content=brand.content,
+            brand_name=brand.brand_name,
+            brand_color=brand.brand_color,
+        )
+
+
+def _compose_brand_prompt(
+    *, content: str, brand_name: str | None, brand_color: str | None
+) -> str:
+    """구조화 필드 (brand_name/brand_color) 를 content 앞에 프리픽스로 합친다.
+
+    Song 이식 방안 B — 별도 파라미터 없이 brand_prompt 하나로 모두 전달.
+    """
+    prefix_lines: list[str] = []
+    if brand_name:
+        prefix_lines.append(f"브랜드 이름: {brand_name}")
+    if brand_color:
+        prefix_lines.append(f"브랜드 대표 색상: {brand_color}")
+    if not prefix_lines:
+        return content
+    return "\n".join(prefix_lines) + "\n\n" + content
 
 
 _loaded_brand = run_async(_load_brand_prompt())

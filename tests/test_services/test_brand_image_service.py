@@ -88,3 +88,39 @@ class TestBrandImageService:
         b = await service.get_for_user("user_b")
         assert a is not None and a.content == "A의 톤"
         assert b is not None and b.content == "B의 톤"
+
+    async def test_create_persists_brand_name_color_logo_path(self, db_session):
+        """Song 이식: create 가 brand_name / brand_color / brand_logo_path 를 저장한다."""
+        service = BrandImageService(db_session)
+        created = await service.create(
+            user_id="default",
+            content="정제된 브랜드 설명",
+            source_freetext="자유 텍스트",
+            source_reference_url="https://example.com/",
+            brand_name="구름 베이커리",
+            brand_color="#5562EA",
+            brand_logo_path="data/brand/abc123.png",
+        )
+
+        assert created.brand_name == "구름 베이커리"
+        assert created.brand_color == "#5562EA"
+        assert created.brand_logo_path == "data/brand/abc123.png"
+
+        loaded = await service.get_for_user("default")
+        assert loaded is not None
+        assert loaded.brand_name == "구름 베이커리"
+        assert loaded.brand_color == "#5562EA"
+        assert loaded.brand_logo_path == "data/brand/abc123.png"
+
+    async def test_create_optional_fields_default_to_none(self, db_session):
+        """brand_name/color/logo_path 미지정 시 None 으로 저장 (기존 호출 호환)."""
+        service = BrandImageService(db_session)
+        created = await service.create(
+            user_id="default",
+            content="...",
+            source_freetext="...",
+            source_reference_url="https://example.com/",
+        )
+        assert created.brand_name is None
+        assert created.brand_color is None
+        assert created.brand_logo_path is None

@@ -69,3 +69,48 @@ class TestBrandImageModel:
         await db_session.refresh(brand)
 
         assert brand.user_id == "default"
+
+    async def test_brand_name_and_color_fields_optional(self, db_session):
+        """Song 이식: brand_name, brand_color 필드는 선택 (nullable)."""
+        brand = BrandImage(
+            user_id="default",
+            content="...",
+            source_freetext="...",
+            source_reference_url="https://example.com/",
+            brand_name="구름 베이커리",
+            brand_color="#5562EA",
+        )
+        db_session.add(brand)
+        await db_session.commit()
+        await db_session.refresh(brand)
+
+        assert brand.brand_name == "구름 베이커리"
+        assert brand.brand_color == "#5562EA"
+
+    async def test_brand_name_and_color_default_to_none(self, db_session):
+        """신규 필드 미지정 시 None (기존 레코드 호환)."""
+        brand = BrandImage(
+            content="...",
+            source_freetext="...",
+            source_reference_url="https://example.com/",
+        )
+        db_session.add(brand)
+        await db_session.commit()
+        await db_session.refresh(brand)
+
+        assert brand.brand_name is None
+        assert brand.brand_color is None
+
+    async def test_logo_path_field_optional(self, db_session):
+        """Song 이식: brand_logo_path 필드도 nullable."""
+        brand = BrandImage(
+            content="...",
+            source_freetext="...",
+            source_reference_url="https://example.com/",
+            brand_logo_path="data/brand/logo_abc.png",
+        )
+        db_session.add(brand)
+        await db_session.commit()
+        await db_session.refresh(brand)
+
+        assert brand.brand_logo_path == "data/brand/logo_abc.png"

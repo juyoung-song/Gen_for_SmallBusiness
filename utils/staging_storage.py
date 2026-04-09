@@ -1,23 +1,42 @@
-"""Staging 파일 저장 유틸.
+"""Staging + 브랜드 자산 파일 저장 유틸.
 
-design.md §4.4 의 하이브리드 저장 정책을 지원:
-- 사용자가 업로드한 파일은 **즉시** staging 디렉토리에 저장 (손실 방지)
-- DB row 등 메타데이터는 생성 후 백그라운드 태스크에서 처리
+두 가지 저장 위치를 분리:
 
-staging → permanent 이동은 별도 작업 (추후).
+- STAGING_DIR (data/staging):
+    사용자가 업로드한 raw 이미지 등 임시 파일.
+    design.md §4.4 의 "파일은 즉시 staging 저장" 정책 지원.
+    추후 permanent 로 이동되거나 정리될 수 있음.
+
+- BRAND_ASSETS_DIR (data/brand):
+    온보딩에서 저장되는 영구 브랜드 자산 (로고 등).
+    브랜드 생존 기간 동안 유지.
+
+두 함수 모두 UUID 기반 파일명 + 디렉토리 자동 생성.
 """
 
 from pathlib import Path
 from uuid import uuid4
 
-# 프로젝트 루트 기준 data/staging. 테스트에서 monkeypatch 가능.
-STAGING_DIR: Path = (
-    Path(__file__).resolve().parent.parent / "data" / "staging"
-)
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+# 임시 파일 (업로드 raw 이미지 등)
+STAGING_DIR: Path = _DATA_DIR / "staging"
+
+# 영구 브랜드 자산 (로고 등)
+BRAND_ASSETS_DIR: Path = _DATA_DIR / "brand"
+
+
+def _save_to(dir_path: Path, data: bytes, extension: str) -> Path:
+    """내부 공통 구현 — dir_path 에 UUID 파일명으로 저장."""
+    dir_path.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid4().hex}{extension}"
+    path = dir_path / filename
+    path.write_bytes(data)
+    return path
 
 
 def save_to_staging(data: bytes, extension: str = ".jpg") -> Path:
-    """바이트를 staging 디렉토리에 고유한 이름으로 저장하고 경로 반환.
+    """업로드 바이트를 staging 디렉토리에 고유 이름으로 저장.
 
     Args:
         data: 저장할 바이너리
@@ -26,8 +45,16 @@ def save_to_staging(data: bytes, extension: str = ".jpg") -> Path:
     Returns:
         저장된 파일의 절대 경로.
     """
-    STAGING_DIR.mkdir(parents=True, exist_ok=True)
-    filename = f"{uuid4().hex}{extension}"
-    path = STAGING_DIR / filename
-    path.write_bytes(data)
-    return path
+    return _save_to(STAGING_DIR, data, extension)
+
+
+def save_to_brand_assets(data: bytes, extension: str = ".png") -> Path:
+    """브랜드 로고 등 영구 자산을 BRAND_ASSETS_DIR 에 저장.
+
+    staging 과 달리 영구 보관 대상이라 정리 로직이 없음.
+
+    Args:
+        data: 저장할 바이너리
+        extension: 기본값 .png (로고가 PNG 가 많음)
+    """
+    return _save_to(BRAND_ASSETS_DIR, data, extension)
