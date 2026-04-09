@@ -86,8 +86,8 @@ class ImageService:
             request.image_data is not None,
         )
 
-        # Mock 백엔드는 번역 불필요
-        if self.settings.USE_MOCK:
+        # Mock 백엔드는 번역 불필요 (외부 호출 안 하므로)
+        if self.settings.is_mock_image:
             return self._call_backend(backend, request)
 
         # 그 외 모든 백엔드는 영문 프롬프트 입력 가정 → 번역 수행

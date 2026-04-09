@@ -1,4 +1,7 @@
-"""인스타그램용 캡션 및 해시태그 생성 서비스."""
+"""인스타그램용 캡션 및 해시태그 생성 서비스.
+
+Stage 2 결정: 텍스트 백엔드는 무조건 OpenAI. Mock 분기는 폐지.
+"""
 
 import logging
 
@@ -8,36 +11,6 @@ from config.settings import Settings
 from schemas.instagram_schema import CaptionGenerationRequest, CaptionGenerationResponse
 
 logger = logging.getLogger(__name__)
-
-
-# 스타일별 Mock 캡션 템플릿 (USE_MOCK=True 일 때 사용)
-_MOCK_CAPTIONS: dict[str, str] = {
-    "기본": (
-        "{name} ✨\n\n"
-        "오늘도 당신에게 특별한 하루를 선물합니다.\n"
-        "지금 만나보세요 💫"
-    ),
-    "감성": (
-        "{name} 🌸\n\n"
-        "일상에 스며드는 작은 행복.\n"
-        "따뜻한 순간을 {name} 과 함께 해보세요 ☕"
-    ),
-    "고급": (
-        "{name} 👑\n\n"
-        "품격이 다른 선택.\n"
-        "진정한 프리미엄을 경험해보세요 ✦"
-    ),
-    "유머": (
-        "{name} 😄\n\n"
-        "한번 맛보면 빠져나올 수 없어요!\n"
-        "이 기회 놓치지 마세요 🔥"
-    ),
-    "심플": (
-        "{name}.\n\n"
-        "군더더기 없이, 핵심만.\n"
-        "지금 확인하세요."
-    ),
-}
 
 
 class CaptionService:
@@ -54,33 +27,7 @@ class CaptionService:
     def generate_caption(
         self, request: CaptionGenerationRequest
     ) -> CaptionGenerationResponse:
-        """인스타그램 본문 + 해시태그 생성.
-
-        USE_MOCK=True → 스타일별 하드코딩 응답 (I-2 수정).
-        USE_MOCK=False → OpenAI chat completions 호출.
-        """
-        if self.settings.USE_MOCK:
-            return self._mock_response(request)
-        return self._api_response(request)
-
-    # ──────────────────────────────────────────
-    # Mock 응답 (I-2)
-    # ──────────────────────────────────────────
-    def _mock_response(
-        self, request: CaptionGenerationRequest
-    ) -> CaptionGenerationResponse:
-        """Mock 모드에서 외부 호출 없이 하드코딩 캡션 반환."""
-        template = _MOCK_CAPTIONS.get(request.style, _MOCK_CAPTIONS["기본"])
-        caption = template.format(name=request.product_name)
-        hashtags = f"#{request.product_name.replace(' ', '')} #추천 #오늘의한끼 #감성스타그램 #맛스타그램"
-        return CaptionGenerationResponse(caption=caption, hashtags=hashtags)
-
-    # ──────────────────────────────────────────
-    # OpenAI 호출
-    # ──────────────────────────────────────────
-    def _api_response(
-        self, request: CaptionGenerationRequest
-    ) -> CaptionGenerationResponse:
+        """인스타그램 본문 + 해시태그 생성 (OpenAI chat completions)."""
         logger.info("GPT를 이용해 인스타그램 캡션과 해시태그 생성 중...")
 
         system_prompt = (

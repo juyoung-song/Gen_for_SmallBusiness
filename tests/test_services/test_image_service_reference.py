@@ -15,7 +15,7 @@ from services.image_service import ImageService
 
 
 class _FakeSettings:
-    USE_MOCK = True
+    is_mock_image = True
     OPENAI_API_KEY = ""
     TEXT_MODEL = "gpt-5-mini"
     TEXT_TIMEOUT = 30.0

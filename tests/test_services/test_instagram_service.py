@@ -12,7 +12,16 @@ from services.instagram_service import InstagramService
 
 
 class _FakeSettings:
-    USE_MOCK = True
+    """instagram_service 가 사용하는 최소 인터페이스만 stub."""
+
+    is_mock_image = True
+    FREEIMAGE_API_KEY = "test"
+    META_ACCESS_TOKEN = "test"
+    INSTAGRAM_ACCOUNT_ID = "test"
+
+    @property
+    def is_instagram_ready(self) -> bool:
+        return True
 
 
 class TestInstagramMockUploadRecordsPostId:

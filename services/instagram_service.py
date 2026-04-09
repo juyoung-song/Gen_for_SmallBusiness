@@ -33,14 +33,14 @@ class InstagramService:
         self.last_posted_at: datetime | None = None
 
     def upload_story(self, image_bytes: bytes, caption_text: str = ""):
-        """[REAL] 검증된 로직 기반 스토리 업로드."""
-        if self.settings and not self.settings.USE_MOCK:
+        """스토리 업로드. IMAGE_BACKEND_KIND=mock 이면 시뮬레이션."""
+        if self.settings and not self.settings.is_mock_image:
             return self._upload_impl(image_bytes, caption_text, is_story=True)
         return self.upload_mock(image_bytes, caption_text, is_story=True)
 
     def upload_real(self, image_bytes: bytes, caption_text: str):
-        """[REAL] 검증된 로직 기반 피드 업로드."""
-        if self.settings and not self.settings.USE_MOCK:
+        """피드 업로드. IMAGE_BACKEND_KIND=mock 이면 시뮬레이션."""
+        if self.settings and not self.settings.is_mock_image:
             return self._upload_impl(image_bytes, caption_text, is_story=False)
         return self.upload_mock(image_bytes, caption_text, is_story=False)
 
