@@ -145,7 +145,18 @@ def run_async(coro):
 # Session State 초기화 (명확한 분리)
 # ══════════════════════════════════════════════
 _DEFAULT_STATE: dict = {
+    # 0. 온보딩 관리
+    "onboarded": False,
+    "brand_name": "",
+    "brand_color": "#5562EA",
+    "brand_atmosphere": "",
+    "brand_logo": None,
+    "brand_ref_link": "",
+    "brand_ref_img": None,
+    "global_style_prompt": "",
+
     # 1. 입력부 세션 관리
+    "is_new_product": True, # 기본값: 신상품
     "product_name": "",
     "product_description": "",
     "product_image": None,
@@ -353,175 +364,285 @@ def render_instagram_story_preview_and_upload(product_name: str, image_bytes: by
                 st.error(f"❌ 스토리 업로드 중 오류 발생: {e}")
 
 # ══════════════════════════════════════════════
-# 공통 헬퍼 — 업무 실행 함수
+# 온보딩 화면 렌더링
 # ══════════════════════════════════════════════
-def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone_name: str, image_data: bytes = None) -> None:
+def render_onboarding():
+    st.markdown('<div class="title-gradient">🎁 브랜드 온보딩을 시작합니다</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle">우리 브랜드만의 색깔과 분위기를 알려주시면, AI가 이를 학습하여 일관성 있는 광고를 만들어드려요.</div>', unsafe_allow_html=True)
+    
+    with st.container(border=True):
+        st.markdown("#### 1. 브랜드 기본 정보 🎨")
+        st.session_state.brand_name = st.text_input("🏢 브랜드 이름", value=st.session_state.brand_name, placeholder="예: 구름 베이커리")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.session_state.brand_color = st.color_picker("🎨 브랜드 대표 색상", value=st.session_state.brand_color)
+        with col2:
+            st.session_state.brand_atmosphere = st.text_input("🌿 브랜드 분위기", value=st.session_state.brand_atmosphere, placeholder="예: 따뜻하고 부드러운, 모던하고 깔끔한")
+        
+        st.session_state.brand_logo = st.file_uploader("📥 브랜드 로고 (선택)", type=["png", "jpg", "jpeg"])
+
+    with st.container(border=True):
+        st.markdown("#### 2. 스타일 레퍼런스 📸")
+        st.caption("인스타그램 링크나 캡처 사진을 주시면 우리 브랜드만의 '촬영 스타일'과 '분위기'를 AI가 정교하게 분석합니다.")
+        st.session_state.brand_ref_link = st.text_input("🔗 참고할 인스타 링크 (선택)", value=st.session_state.brand_ref_link)
+        st.session_state.brand_ref_img = st.file_uploader("📸 참고할 스타일 사진/캡처 (추천)", type=["png", "jpg", "jpeg"])
+
+    if st.button("🚀 분석하고 서비스 시작하기", type="primary", width="stretch"):
+        if not st.session_state.brand_name:
+            st.error("브랜드 이름을 입력해주세요!")
+            return
+
+        with st.spinner("브랜드의 영혼(스타일)을 추출하고 있습니다. 잠시만 기다려주세요..."):
+            from services.analysis_service import AnalysisService
+            from services.brand_service import BrandService
+            from schemas.brand_schema import BrandConfigCreate
+            
+            ana_svc = AnalysisService(settings)
+            ref_img_bytes = st.session_state.brand_ref_img.getvalue() if st.session_state.brand_ref_img else None
+            
+            # 스타일 분석 호출
+            style_prompt = run_async(ana_svc.analyze_brand_style(
+                brand_name=st.session_state.brand_name,
+                atmosphere=st.session_state.brand_atmosphere,
+                brand_color=st.session_state.brand_color,
+                reference_image_bytes=ref_img_bytes,
+                reference_link=st.session_state.brand_ref_link
+            ))
+            
+            st.session_state.global_style_prompt = style_prompt
+            
+            # DB 저장
+            brand_svc = BrandService()
+            create_data = BrandConfigCreate(
+                brand_name=st.session_state.brand_name,
+                brand_color=st.session_state.brand_color,
+                atmosphere=st.session_state.brand_atmosphere,
+                global_style_prompt=style_prompt,
+                reference_context=st.session_state.brand_ref_link
+            )
+            run_async(brand_svc.save_brand_config(create_data))
+            
+            st.session_state.onboarded = True
+            st.success("✅ 온보딩 완료! 이제 우리 브랜드만의 광고를 만들 수 있습니다.")
+            st.balloons()
+            st.rerun()
+
+# ══════════════════════════════════════════════
+# 공통 헬퍼 — 업무 실행 함수 (Async 업데이트)
+# ══════════════════════════════════════════════
+async def _run_text_generation_async(name: str, desc: str, goal: str, tone_val: str, ui_tone_name: str, image_data: bytes = None) -> None:
     st.session_state.error_message = None
     st.session_state.last_request = {
         "product_name": name, "description": desc, "goal": goal, "text_tone": tone_val, "ui_text_tone": ui_tone_name, 
         "image_data": image_data, "type": "홍보 글"
     }
     try:
-        with st.spinner("💬 사장님을 대신해 멋진 홍보 글을 작성하고 있어요. 잠시만 기다려주세요..."):
+        with st.spinner("💬 사장님을 대신해 멋진 홍보 글을 작성하고 있어요..."):
             request = TextGenerationRequest(product_name=name, description=desc, style=tone_val, goal=goal, image_data=image_data)
-            response = text_service.generate_ad_copy(request)
+            response = await text_service.generate_ad_copy(request)
             
-            async def _save():
-                create_data = HistoryCreate(generation_type=GenerationType.TEXT, product_name=name, description=desc, style=tone_val, result_data=response.model_dump())
-                await HistoryService().save_history(create_data)
-            run_async(_save())
+            create_data = HistoryCreate(generation_type=GenerationType.TEXT, product_name=name, description=desc, style=tone_val, result_data=response.model_dump())
+            await HistoryService().save_history(create_data)
         st.session_state.text_result = response.model_dump()
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
 
-def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_style_name: str, image_data: bytes = None) -> None:
+async def _run_image_generation_async(name: str, desc: str, goal: str, style_val: str, ui_style_name: str, image_data: bytes = None) -> None:
     st.session_state.error_message = None
     st.session_state.last_request = {
         "product_name": name, "description": desc, "goal": goal, "image_style": style_val, "ui_image_style": ui_style_name, 
         "image_data": image_data, "type": "홍보 사진"
     }
     try:
-        with st.spinner("🖼️ 상품과 어울리는 예쁜 사진을 그리고 있어요... (약 10~20초 정도 걸립니다)"):
+        with st.spinner("🖼️ 상품과 어울리는 예쁜 사진을 그리고 있어요... (약 10~20초)"):
             request = ImageGenerationRequest(product_name=name, description=desc, goal=goal, style=style_val, image_data=image_data)
-            response = image_service.generate_ad_image(request)
+            response = await image_service.generate_ad_image(request)
 
-            async def _save():
-                create_data = HistoryCreate(generation_type=GenerationType.IMAGE, product_name=name, description=desc, style=style_val, result_data=response.model_dump())
-                await HistoryService().save_history(create_data)
-            run_async(_save())
+            create_data = HistoryCreate(generation_type=GenerationType.IMAGE, product_name=name, description=desc, style=style_val, result_data=response.model_dump())
+            await HistoryService().save_history(create_data)
         st.session_state.image_result = response.model_dump()
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
 
-def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, style_val: str, ui_tone_name: str, ui_style_name: str, image_data: bytes = None) -> None:
+async def _run_combined_generation_async(name: str, desc: str, goal: str, tone_val: str, style_val: str, ui_tone_name: str, ui_style_name: str, image_data: bytes = None) -> None:
     st.session_state.error_message = None
     st.session_state.last_request = {
         "product_name": name, "description": desc, "goal": goal, "text_tone": tone_val, "image_style": style_val,
         "ui_text_tone": ui_tone_name, "ui_image_style": ui_style_name, "image_data": image_data, "type": "글과 사진 세트"
     }
-    
-    res_t, res_i = None, None
     try:
-        with st.spinner("💬 [1단계] 사장님을 대신해 멋진 홍보 글을 먼저 작성하고 있어요..."):
+        with st.spinner("💬 [1단계] 홍보 글 작성 중..."):
             req_t = TextGenerationRequest(product_name=name, description=desc, style=tone_val, goal=goal, image_data=image_data)
-            res_t = text_service.generate_ad_copy(req_t)
+            res_t = await text_service.generate_ad_copy(req_t)
             st.session_state.text_result = res_t.model_dump()
             
-        with st.spinner("🖼️ [2단계] 작성된 글과 어울리는 예쁜 홍보 사진을 알아서 그리고 있어요... (약 10~20초)"):
+        with st.spinner("🖼️ [2단계] 홍보 사진 생성 중... (약 10~20초)"):
             hint_copy = res_t.ad_copies[0] if res_t.ad_copies else ""
             req_i = ImageGenerationRequest(product_name=name, description=desc, goal=goal, style=style_val, prompt=hint_copy, image_data=image_data)
-            res_i = image_service.generate_ad_image(req_i)
+            res_i = await image_service.generate_ad_image(req_i)
             st.session_state.image_result = res_i.model_dump()
             
-        async def _save_combined():
-            combined_dict = {**res_t.model_dump(), **res_i.model_dump()}
-            create_data = HistoryCreate(generation_type=GenerationType.COMBINED, product_name=name, description=desc, style=f"글:{tone_val}/사진:{style_val}", result_data=combined_dict)
-            await HistoryService().save_history(create_data)
-        run_async(_save_combined())
+        combined_dict = {**res_t.model_dump(), **res_i.model_dump()}
+        create_data = HistoryCreate(generation_type=GenerationType.COMBINED, product_name=name, description=desc, style=f"글:{tone_val}/사진:{style_val}", result_data=combined_dict)
+        await HistoryService().save_history(create_data)
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
 
 # ══════════════════════════════════════════════
-# 헤더 / 탭 레이아웃
+# 메인 로직 렌더링
 # ══════════════════════════════════════════════
-st.markdown('<div class="title-gradient">✨ 사장님을 위한 AI 홍보 도우미</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">어려운 홍보 문구와 멋진 사진, 복잡한 설정 없이 알아서 만들어드려요!</div>', unsafe_allow_html=True)
+# DB에서 온보딩 여부 확인
+from services.brand_service import BrandService
+brand_config = run_async(BrandService().get_brand_config())
+if brand_config:
+    st.session_state.onboarded = True
+    st.session_state.brand_name = brand_config.brand_name
+    st.session_state.global_style_prompt = brand_config.global_style_prompt
 
-with st.expander("🛠️ 시스템 환경 확인 (관리자용)", expanded=False):
-    if settings.USE_MOCK: st.warning("🧪 현재 연습용 테스트 모드입니다.")
-    elif not settings.is_api_ready: st.error("🔑 환경 설정이 올바르지 않습니다.")
-    else: st.success("🟢 정상적으로 서비스와 연결되어 있습니다.")
+if not st.session_state.onboarded:
+    render_onboarding()
+else:
+    # 헤더 / 탭 레이아웃
+    st.markdown('<div class="title-gradient">✨ 사장님을 위한 AI 홍보 도우미</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle">어려운 홍보 문구와 멋진 사진, 복잡한 설정 없이 알아서 만들어드려요!</div>', unsafe_allow_html=True)
 
-st.write("")
-
-tab_create, tab_archive = st.tabs(["✨ 새로 만들기", "🗂️ 예전에 만든 홍보물 보기"])
-
-# ── 탭 1: 새로 만들기 ──
-with tab_create:
-    # 1. 상품 정보 섹션
-    with st.container(border=True):
-        st.markdown("#### <span class='step-badge'>1</span> 우리 가게 상품 정보 ✏️", unsafe_allow_html=True)
-        product_name = st.text_input("📦 어떤 상품을 홍보할까요? (필수)", value=st.session_state.product_name, placeholder="예: 무화과 크림치즈 휘낭시에")
-        product_description = st.text_input("✒️ 상품의 장점을 짤막하게 알려주세요 (선택)", value=st.session_state.product_description, placeholder="예: 최고급 원재료, 유기농, 당일 한정 수량 등")
-        product_image = st.file_uploader("📸 상품 사진을 올려주시면 AI가 더 잘 이해해요 (선택사항)", type=["png", "jpg", "jpeg"])
-
-    # 2. 생성 타입 섹션
-    with st.container(border=True):
-        st.markdown("#### <span class='step-badge'>2</span> 무엇을 만드시겠어요? ⚙️", unsafe_allow_html=True)
-        generation_type = st.radio(
-            "선택해주세요:",
-            ["홍보 글만 만들기", "홍보 이미지만 만들기", "글 + 이미지 함께 만들기"],
-            index=2, # 기본값: 둘 다
-            horizontal=True,
-            label_visibility="collapsed"
-        )
-
-    # 3. 생성 옵션 섹션
-    with st.container(border=True):
-        st.markdown("#### <span class='step-badge'>3</span> 옵션 선택 🎨", unsafe_allow_html=True)
-        
-        ad_purpose_ui = st.selectbox("🎯 이번 홍보의 목적은 무엇인가요?", PURPOSE_OPTIONS)
-        ad_purpose_custom = ""
-        if ad_purpose_ui == "기타 (직접 입력)":
-            ad_purpose_custom = st.text_input("홍보 목적을 직접 적어주세요", placeholder="예: 배달의 민족 입점 기념")
-            
-        col_t, col_i = st.columns(2)
-        
-        selected_tone_ui = "기본 (가장 깔끔하게)"
-        selected_style_ui = "기본 (가장 깔끔하게)"
-        
-        with col_t:
-            if "글" in generation_type:
-                selected_tone_ui = st.selectbox("✍️ 글은 어떤 느낌으로 만들어드릴까요? (톤)", list(TONE_DISPLAY_MAP.keys()))
-                
-        with col_i:
-            if "이미지" in generation_type or "사진" in generation_type:
-                selected_style_ui = st.selectbox("🖼️ 이미지는 어떤 느낌으로 만들어드릴까요? (스타일)", list(STYLE_DISPLAY_MAP.keys()))
+    with st.expander("🛠️ 시스템 환경 확인 (관리자용)", expanded=False):
+        if settings.USE_MOCK: st.warning("🧪 현재 연습용 테스트 모드입니다.")
+        elif not settings.is_api_ready: st.error("🔑 환경 설정이 올바르지 않습니다.")
+        else: st.success("🟢 정상적으로 서비스와 연결되어 있습니다.")
 
     st.write("")
-    
-    # 생성 버튼
-    button_disabled = not settings.USE_MOCK and not settings.is_api_ready
-    if st.button("🚀 위 내용으로 똑똑하게 알아서 만들기", width="stretch", type="primary", disabled=button_disabled):
-        # 0. 초기화
-        st.session_state.text_result = None
-        st.session_state.image_result = None
-        st.session_state.caption_result = None
-        st.session_state.error_message = None
 
-        name = product_name.strip()
-        if not name:
-            st.session_state.error_message = "⚠️ 위에 상품 이름을 먼저 입력해주세요! (예: 맛있는 사과)"
-            st.rerun()
+    tab_create, tab_archive = st.tabs(["✨ 새로 만들기", "🗂️ 예전에 만든 홍보물 보기"])
 
-        # 1. 상태 업데이트
-        st.session_state.product_name = name
-        st.session_state.product_description = product_description.strip()
-        st.session_state.generation_type = generation_type
-        
-        final_ad_purpose = ad_purpose_custom if ad_purpose_ui == "기타 (직접 입력)" else ad_purpose_ui
-        st.session_state.ad_purpose = final_ad_purpose
-
-        tone_val = TONE_DISPLAY_MAP.get(selected_tone_ui, "기본")
-        style_val = STYLE_DISPLAY_MAP.get(selected_style_ui, "기본")
-        st.session_state.text_tone = tone_val
-        st.session_state.image_style = style_val
-
-        # 설명에 목적 추가 로직 제거 (request.goal로 별도 전달됨)
-        desc_payload = st.session_state.product_description
-        
-        # 이미지 데이터 추출
-        image_data = product_image.getvalue() if product_image is not None else None
-
-        # 2. 로직 분기
-        if generation_type == "글 + 이미지 함께 만들기":
-            _run_combined_generation(name, desc_payload, final_ad_purpose, tone_val, style_val, selected_tone_ui, selected_style_ui, image_data)
-        elif generation_type == "홍보 글만 만들기":
-            _run_text_generation(name, desc_payload, final_ad_purpose, tone_val, selected_tone_ui, image_data)
-        else: # 이미지만
-            _run_image_generation(name, desc_payload, final_ad_purpose, style_val, selected_style_ui, image_data)
+    # ── 탭 1: 새로 만들기 ──
+    with tab_create:
+        # 1. 우리 가게 상품 정보 ✏️ (신상품/기존 상품 분기)
+        with st.container(border=True):
+            st.markdown(f"#### <span class='step-badge'>1</span> **{st.session_state.brand_name}**의 상품 정보 ✏️", unsafe_allow_html=True)
             
-        st.rerun()
+            is_new = st.toggle("✨ 신상품인가요?", value=st.session_state.is_new_product)
+            st.session_state.is_new_product = is_new
+            
+            if is_new:
+                product_name = st.text_input("📦 신상품 이름을 입력해주세요 (필수)", value=st.session_state.product_name, placeholder="예: 무화과 크림치즈 휘낭시에")
+                product_description = st.text_input("✒️ 상품의 장점을 알려주세요", value=st.session_state.product_description)
+                product_image = st.file_uploader("📸 [필수] 상품 대표 이미지를 올려주세요", type=["png", "jpg", "jpeg"])
+            else:
+                from services.product_service import ProductService
+                existing_products = run_async(ProductService().get_all_products())
+                product_names = [p.name for p in existing_products]
+                
+                if not product_names:
+                    st.info("아직 등록된 상품이 없습니다. 먼저 신상품으로 등록해주세요!")
+                    product_name = ""
+                    product_description = ""
+                    product_image = None
+                else:
+                    selected_name = st.selectbox("📦 홍보할 기존 상품을 골라주세요", product_names)
+                    prod_info = run_async(ProductService().get_product_by_name(selected_name))
+                    product_name = prod_info.name
+                    product_description = prod_info.description or ""
+                    
+                    # 대표 이미지 로드 및 미리보기
+                    if os.path.exists(prod_info.representative_image_path):
+                        with open(prod_info.representative_image_path, "rb") as f:
+                            product_image_bytes = f.read()
+                        
+                        col_img, col_txt = st.columns([1, 2])
+                        with col_img:
+                            st.image(product_image_bytes, width=150, caption="등록된 대표 이미지")
+                        with col_txt:
+                            st.success(f"'{product_name}' 상품의 정보를 불러왔습니다.")
+                        product_image = product_image_bytes # bytes 타입 전달
+                    else:
+                        st.error("대표 이미지를 찾을 수 없습니다.")
+                        product_image = None
+        
+        # 2. 생성 타입 섹션
+        with st.container(border=True):
+            st.markdown("#### <span class='step-badge'>2</span> 무엇을 만드시겠어요? ⚙️", unsafe_allow_html=True)
+            generation_type = st.radio(
+                "선택해주세요:",
+                ["홍보 글만 만들기", "홍보 이미지만 만들기", "글 + 이미지 함께 만들기"],
+                index=2, horizontal=True, label_visibility="collapsed"
+            )
+
+        # 3. 생성 옵션 섹션
+        with st.container(border=True):
+            st.markdown("#### <span class='step-badge'>3</span> 옵션 선택 🎨", unsafe_allow_html=True)
+            ad_purpose_ui = st.selectbox("🎯 이번 홍보의 목적은 무엇인가요?", PURPOSE_OPTIONS)
+            ad_purpose_custom = ""
+            if ad_purpose_ui == "기타 (직접 입력)":
+                ad_purpose_custom = st.text_input("홍보 목적을 직접 적어주세요", placeholder="예: 배달의 민족 입점 기념")
+                
+            col_t, col_i = st.columns(2)
+            selected_tone_ui = "기본 (가장 깔끔하게)"
+            selected_style_ui = "기본 (가장 깔끔하게)"
+            
+            with col_t:
+                if "글" in generation_type:
+                    selected_tone_ui = st.selectbox("✍️ 글은 어떤 느낌으로 만들어드릴까요? (톤)", list(TONE_DISPLAY_MAP.keys()))
+            with col_i:
+                if "이미지" in generation_type or "사진" in generation_type:
+                    selected_style_ui = st.selectbox("🖼️ 이미지는 어떤 느낌으로 만들어드릴까요? (스타일)", list(STYLE_DISPLAY_MAP.keys()))
+
+        st.write("")
+        
+        # 생성 버튼
+        button_disabled = not settings.USE_MOCK and not settings.is_api_ready
+        if st.button("🚀 위 내용으로 브랜드 컨셉 맞춰 만들기", width="stretch", type="primary", disabled=button_disabled):
+            st.session_state.text_result = None
+            st.session_state.image_result = None
+            st.session_state.caption_result = None
+            st.session_state.error_message = None
+
+            name = product_name.strip()
+            if not name:
+                st.error("상품명을 입력해주세요!")
+                st.stop()
+            
+            # 신상품일 경우 이미지 저장 (대표 이미지 지정)
+            final_img_data = None
+            if st.session_state.is_new_product:
+                if not product_image:
+                    st.error("신상품은 대표 이미지가 꼭 필요합니다!")
+                    st.stop()
+                
+                final_img_data = product_image.getvalue()
+                # Product DB 저장 (중복 체크 후 저장)
+                from services.product_service import ProductService
+                from schemas.product_schema import ProductCreate
+                import uuid
+                
+                prod_svc = ProductService()
+                existing = run_async(prod_svc.get_product_by_name(name))
+                if not existing:
+                    img_path = f"./data/products/{uuid.uuid4()}.png"
+                    os.makedirs("./data/products", exist_ok=True)
+                    with open(img_path, "wb") as f:
+                        f.write(final_img_data)
+                    
+                    run_async(prod_svc.register_product(ProductCreate(
+                        name=name, description=product_description, representative_image_path=img_path
+                    )))
+            else:
+                final_img_data = product_image # bytes 타입
+
+            # 생성 로직 호출
+            tone_val = TONE_DISPLAY_MAP.get(selected_tone_ui, "기본")
+            style_val = STYLE_DISPLAY_MAP.get(selected_style_ui, "기본")
+            final_purpose = ad_purpose_custom if ad_purpose_ui == "기타 (직접 입력)" else ad_purpose_ui
+
+            if generation_type == "글 + 이미지 함께 만들기":
+                run_async(_run_combined_generation_async(name, product_description, final_purpose, tone_val, style_val, selected_tone_ui, selected_style_ui, final_img_data))
+            elif generation_type == "홍보 글만 만들기":
+                run_async(_run_text_generation_async(name, product_description, final_purpose, tone_val, selected_tone_ui, final_img_data))
+            else: # 이미지만
+                run_async(_run_image_generation_async(name, product_description, final_purpose, style_val, selected_style_ui, final_img_data))
+                
+            st.rerun()
 
     # 4. 결과 섹션 렌더링
     if st.session_state.error_message: 
@@ -540,11 +661,11 @@ with tab_create:
                 st.session_state.caption_result = None
                 
                 if req["type"] == "글과 사진 세트":
-                    _run_combined_generation(req["product_name"], req["description"], req.get("goal", "일반 홍보"), req["text_tone"], req["image_style"], req["ui_text_tone"], req["ui_image_style"], req.get("image_data"))
+                    run_async(_run_combined_generation_async(req["product_name"], req["description"], req.get("goal", "일반 홍보"), req["text_tone"], req["image_style"], req["ui_text_tone"], req["ui_image_style"], req.get("image_data")))
                 elif req["type"] == "홍보 글":
-                    _run_text_generation(req["product_name"], req["description"], req.get("goal", "일반 홍보"), req["text_tone"], req["ui_text_tone"], req.get("image_data"))
+                    run_async(_run_text_generation_async(req["product_name"], req["description"], req.get("goal", "일반 홍보"), req["text_tone"], req["ui_text_tone"], req.get("image_data")))
                 else:
-                    _run_image_generation(req["product_name"], req["description"], req.get("goal", "일반 홍보"), req["image_style"], req["ui_image_style"], req.get("image_data"))
+                    run_async(_run_image_generation_async(req["product_name"], req["description"], req.get("goal", "일반 홍보"), req["image_style"], req["ui_image_style"], req.get("image_data")))
                 st.rerun()
         
         st.write("")
@@ -630,41 +751,28 @@ with tab_create:
                 st.warning("⚠️ 이번 생성 결과에는 스토리용 카피가 포함되어 있지 않습니다. 다시 생성을 시도해주세요.")
 
 
-# ── 탭 2: 히스토리 아카이브 ──
-with tab_archive:
-    st.markdown("### 🗂️ 예전에 만든 홍보물 보관함")
-    st.caption("지금까지 사장님이 만드셨던 모든 홍보 글과 사진들이 날아가지 않고 이곳에 안전하게 보관되어 있습니다.")
+    # ── 탭 2: 히스토리 아카이브 ──
+    with tab_archive:
+        st.markdown("### 🗂️ 예전에 만든 홍보물 보관함")
+        st.caption("지금까지 사장님이 만드셨던 모든 홍보 글과 사진들이 날아가지 않고 이곳에 안전하게 보관되어 있습니다.")
 
-    async def _fetch_histories():
-        return await HistoryService().get_all_histories()
+        async def _fetch_histories():
+            return await HistoryService().get_all_histories()
 
-    histories = run_async(_fetch_histories())
+        histories = run_async(_fetch_histories())
 
-    if not histories:
-        st.info("아직 보관된 홍보물이 없습니다. '✨ 새로 만들기' 탭에서 우리 가게의 첫 번째 홍보물을 멋지게 만들어보세요!")
-    else:
-        for history in histories:
-            icon = "📝(글만)" if history.generation_type == GenerationType.TEXT else "🖼️(사진만)" if history.generation_type == GenerationType.IMAGE else "💎(글+사진 세트)"
-            
-            title = f"[{icon}] {history.product_name} ─ {history.style} ─ {history.created_at.strftime('%Y년 %m월 %d일 %H:%M')}"
+        if not histories:
+            st.info("아직 보관된 홍보물이 없습니다. '✨ 새로 만들기' 탭에서 우리 가게의 첫 번째 홍보물을 멋지게 만들어보세요!")
+        else:
+            for history in histories:
+                icon = "📝(글만)" if history.generation_type == GenerationType.TEXT else "🖼️(사진만)" if history.generation_type == GenerationType.IMAGE else "💎(글+사진 세트)"
+                
+                title = f"[{icon}] {history.product_name} ─ {history.style} ─ {history.created_at.strftime('%Y년 %m월 %d일 %H:%M')}"
 
-            with st.expander(title):
-                res_data = history.result_data
+                with st.expander(title):
+                    res_data = history.result_data
 
-                if history.generation_type == GenerationType.TEXT:
-                    st.markdown("**👉 추천하는 짧은 홍보 문장**")
-                    for copy in res_data.get("ad_copies", []):
-                        st.code(copy, language="plaintext")
-                    if res_data.get("promo_sentences"):
-                        st.markdown("**📣 길게 쓸 수 있는 상세 설명**")
-                        for sentence in res_data.get("promo_sentences", []):
-                            st.code(sentence, language="plaintext")
-                elif history.generation_type == GenerationType.IMAGE:
-                    img_path = res_data.get("image_path")
-                    if img_path and os.path.exists(img_path): st.image(img_path)
-                elif history.generation_type == GenerationType.COMBINED:
-                    col_t, col_i = st.columns([1.5, 1])
-                    with col_t:
+                    if history.generation_type == GenerationType.TEXT:
                         st.markdown("**👉 추천하는 짧은 홍보 문장**")
                         for copy in res_data.get("ad_copies", []):
                             st.code(copy, language="plaintext")
@@ -672,31 +780,44 @@ with tab_archive:
                             st.markdown("**📣 길게 쓸 수 있는 상세 설명**")
                             for sentence in res_data.get("promo_sentences", []):
                                 st.code(sentence, language="plaintext")
-                    with col_i:
+                    elif history.generation_type == GenerationType.IMAGE:
                         img_path = res_data.get("image_path")
-                        if img_path and os.path.exists(img_path):
-                            st.image(img_path, width="stretch")
+                        if img_path and os.path.exists(img_path): st.image(img_path)
+                    elif history.generation_type == GenerationType.COMBINED:
+                        col_t, col_i = st.columns([1.5, 1])
+                        with col_t:
+                            st.markdown("**👉 추천하는 짧은 홍보 문장**")
+                            for copy in res_data.get("ad_copies", []):
+                                st.code(copy, language="plaintext")
+                            if res_data.get("promo_sentences"):
+                                st.markdown("**📣 길게 쓸 수 있는 상세 설명**")
+                                for sentence in res_data.get("promo_sentences", []):
+                                    st.code(sentence, language="plaintext")
+                        with col_i:
+                            img_path = res_data.get("image_path")
+                            if img_path and os.path.exists(img_path):
+                                st.image(img_path, width="stretch")
+                            
+                        st.divider()
                         
-                    st.divider()
-                    
-                    if st.button(f"🪄 이 결과물을 사용해서 다시 인스타그램에 올리기", key=f"gen_cap_{history.id}", width="stretch"):
-                        from schemas.instagram_schema import CaptionGenerationRequest
-                        from services.caption_service import CaptionService
-                        with st.spinner("선택하신 홍보물을 싹 모아서 인스타그램용 글 스타일로 새롭게 정리하고 있어요..."):
-                            cap_svc = CaptionService(settings)
-                            # 히스토리에 있는 건 원본 style (tone/style 복합 문자열일수도 있지만)
-                            # caption_service는 style 파라미터를 그대로 사용하므로 전달
-                            req = CaptionGenerationRequest(product_name=history.product_name, ad_copies=res_data.get("ad_copies", []), style="기본")
-                            st.session_state.history_captions[str(history.id)] = cap_svc.generate_caption(req)
-                    
-                    cap_result = st.session_state.history_captions.get(str(history.id))
-                    if cap_result:
-                        with open(img_path, "rb") as f:
-                            img_bytes = f.read()
+                        if st.button(f"🪄 이 결과물을 사용해서 다시 인스타그램에 올리기", key=f"gen_cap_{history.id}", width="stretch"):
+                            from schemas.instagram_schema import CaptionGenerationRequest
+                            from services.caption_service import CaptionService
+                            with st.spinner("선택하신 홍보물을 싹 모아서 인스타그램용 글 스타일로 새롭게 정리하고 있어요..."):
+                                cap_svc = CaptionService(settings)
+                                # 히스토리에 있는 건 원본 style (tone/style 복합 문자열일수도 있지만)
+                                # caption_service는 style 파라미터를 그대로 사용하므로 전달
+                                req = CaptionGenerationRequest(product_name=history.product_name, ad_copies=res_data.get("ad_copies", []), style="기본")
+                                st.session_state.history_captions[str(history.id)] = cap_svc.generate_caption(req)
                         
-                        render_instagram_preview_and_upload(
-                            product_name=history.product_name,
-                            image_bytes=img_bytes,
-                            caption_data=cap_result,
-                            key_suffix=f"archive_{history.id}"
-                        )
+                        cap_result = st.session_state.history_captions.get(str(history.id))
+                        if cap_result:
+                            with open(img_path, "rb") as f:
+                                img_bytes = f.read()
+                            
+                            render_instagram_preview_and_upload(
+                                product_name=history.product_name,
+                                image_bytes=img_bytes,
+                                caption_data=cap_result,
+                                key_suffix=f"archive_{history.id}"
+                            )

@@ -150,6 +150,7 @@ Thumbs.db
 # Project specific
 ad_history.db
 data/
+data/history.db
 image_outputs/
 temp_story_*.png
 fb_debug_*.json

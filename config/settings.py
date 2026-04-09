@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     # ── Model Settings ──
     TEXT_MODEL: str = "gpt-5-mini"
-    IMAGE_MODEL: str = "stabilityai/stable-diffusion-xl-base-1.0"
+    IMAGE_MODEL: str = "stabilityai/stable-diffusion-2-1"
     IMAGE_SIZE: Literal["1024x1024", "1024x1792", "1792x1024"] = "1024x1024"
     IMAGE_QUALITY: Literal["standard", "hd"] = "standard"
 

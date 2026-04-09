@@ -147,7 +147,7 @@ class TextService:
             self._client = OpenAI(api_key=self.settings.OPENAI_API_KEY)
         return self._client
 
-    def generate_ad_copy(
+    async def generate_ad_copy(
         self, request: TextGenerationRequest
     ) -> TextGenerationResponse:
         """광고 문구를 생성하여 반환."""
@@ -157,7 +157,7 @@ class TextService:
 
         logger.info("API 모드: OpenAI GPT 호출 (product=%s, model=%s)",
                      request.product_name, self.settings.TEXT_MODEL)
-        return self._api_response(request)
+        return await self._api_response(request)
 
     # ──────────────────────────────────────────
     # Mock 응답
@@ -189,7 +189,7 @@ class TextService:
     # ──────────────────────────────────────────
     # OpenAI API 호출
     # ──────────────────────────────────────────
-    def _api_response(
+    async def _api_response(
         self, request: TextGenerationRequest
     ) -> TextGenerationResponse:
         """OpenAI GPT API를 호출하여 광고 문구를 생성."""
@@ -202,12 +202,19 @@ class TextService:
         # 파일 힌트 생성
         image_hint = "상점에 상품 이미지가 업로드되었습니다. 그 분위기를 참고하세요." if request.image_data else None
 
+        # 브랜드 설정 로드
+        from services.brand_service import BrandService
+        brand_service = BrandService()
+        brand_config = await brand_service.get_brand_config()
+        brand_context = brand_config.model_dump() if brand_config else None
+
         system_prompt, user_prompt = build_text_prompt(
             product_name=request.product_name,
             description=request.description,
             style=request.style,
             goal=request.goal,
             image_hint=image_hint,
+            brand_context=brand_context
         )
 
         try:

@@ -42,11 +42,21 @@ def build_text_prompt(
     description: str,
     style: str,
     goal: str = "일반 홍보",
-    image_hint: str = None
+    image_hint: str = None,
+    brand_context: dict = None
 ) -> tuple[str, str]:
-    """광고 문구 생성을 위한 프롬프트를 반환합니다. 홍보 목적과 이미지 특징을 반영합니다."""
+    """광고 문구 생성을 위한 프롬프트를 반환합니다. 홍보 목적과 브랜드 정체성을 반영합니다."""
     style_instruction = _STYLE_GUIDE.get(style, _STYLE_GUIDE["기본"])
     
+    brand_info = ""
+    if brand_context:
+        brand_info = (
+            f"[[브랜드 정체성]]\n"
+            f"- 브랜드 분위기: {brand_context.get('atmosphere', 'N/A')}\n"
+            f"- 브랜드 색상: {brand_context.get('brand_color', 'N/A')}\n"
+            f"- 스타일 가이드: {brand_context.get('global_style_prompt', 'N/A')}\n\n"
+        )
+
     image_context = ""
     if image_hint:
         image_context = (
@@ -59,6 +69,7 @@ def build_text_prompt(
         f"현재 프로젝트의 핵심 홍보 목적은 [{goal}] 입니다.\n"
         "모든 생성 결과물은 반드시 이 목적을 최우선으로 달성해야 합니다.\n"
         "반드시 한국어로 작성하세요.\n\n"
+        f"{brand_info}"
         f"[[브랜드 가이드라인]]\n{_BRAND_CUES}\n"
         f"[[글 톤 지침]]: {style_instruction}\n\n"
         "중요 규칙:\n"
@@ -117,9 +128,10 @@ def build_image_prompt(
     style: str,
     goal: str = "일반 홍보",
     ad_copy: str = "",
-    has_reference: bool = False
+    has_reference: bool = False,
+    brand_context: dict = None
 ) -> str:
-    """상품 정보와 홍보 목적을 포함한 시각적 광고 컨셉이미지 프롬프트를 생성합니다."""
+    """상품 정보와 홍보 목적, 그리고 브랜드 스타일을 포함한 시각적 광고 이미지 프롬프트를 생성합니다."""
     style_desc = _IMAGE_STYLE_MAP.get(style, _IMAGE_STYLE_MAP["기본"])
 
     # 목적(Goal)에 따른 시각적 연출 가이드
@@ -135,14 +147,23 @@ def build_image_prompt(
     if has_reference:
         reference_guide = "Respect the composition and color scheme of the provided reference image. Maintain product identity. "
 
+    brand_guideline = ""
+    if brand_context:
+        brand_guideline = (
+            f"Brand Style Identity: {brand_context.get('global_style_prompt', '')}. "
+            f"Primary Brand Tone: {brand_context.get('atmosphere', '')}. "
+            f"Color Accents: {brand_context.get('brand_color', '')}. "
+        )
+
     return (
-        f"A professional commercial advertisement visual concept for '{product_name}'. "
+        f"A professional commercial advertisement visual for '{product_name}'. "
+        f"{brand_guideline}"
         f"{reference_guide}"
         f"Promotional Context: {goal}. "
         f"Visual Strategy: {visual_strategy} "
         f"Style: {style_desc}. "
         f"Inspiration: {ad_copy} {description}. "
-        "The image should clearly reflect the marketing goal. "
+        "The image should clearly reflect the marketing goal and brand identity. "
         "Clean composition, high-end product photography, commercial lighting. "
         "High resolution, cinematic quality, no text on image."
     )

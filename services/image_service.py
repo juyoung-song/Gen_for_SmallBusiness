@@ -68,7 +68,7 @@ class ImageService:
             self._client = OpenAI(api_key=self.settings.OPENAI_API_KEY)
         return self._client
 
-    def generate_ad_image(
+    async def generate_ad_image(
         self, request: ImageGenerationRequest
     ) -> ImageGenerationResponse:
         """광고 이미지를 생성하여 반환.
@@ -88,11 +88,11 @@ class ImageService:
 
         if self.settings.USE_LOCAL_MODEL:
             logger.info("로컬 모델 모드: diffusers 추론 (has_reference=%s)", request.image_data is not None)
-            return self._local_response(request)
+            return await self._local_response(request)
 
         logger.info("API 모드: Hugging Face 추론 호출 (prompt=%s, model=%s)",
                      request.prompt[:30], self.settings.IMAGE_MODEL)
-        return self._api_response(request)
+        return await self._api_response(request)
 
     # ──────────────────────────────────────────
     # Mock 응답 — Pillow 이미지 생성
@@ -118,7 +118,7 @@ class ImageService:
     # ──────────────────────────────────────────
     # Hugging Face Inference API 호출
     # ──────────────────────────────────────────
-    def _api_response(
+    async def _api_response(
         self, request: ImageGenerationRequest
     ) -> ImageGenerationResponse:
         """Hugging Face API를 호출하여 광고 이미지를 생성.
@@ -132,13 +132,20 @@ class ImageService:
                 ".env 파일에서 HUGGINGFACE_API_KEY를 발급받아 설정해주세요."
             )
 
+        # 브랜드 설정 로드
+        from services.brand_service import BrandService
+        brand_service = BrandService()
+        brand_config = await brand_service.get_brand_config()
+        brand_context = brand_config.model_dump() if brand_config else None
+
         raw_image_prompt = build_image_prompt(
             product_name=request.product_name,
             description=request.description,
             style=request.style,
             goal=request.goal,
             ad_copy=request.prompt,
-            has_reference=(request.image_data is not None)
+            has_reference=(request.image_data is not None),
+            brand_context=brand_context
         )
 
         try:
@@ -209,7 +216,7 @@ class ImageService:
     # ──────────────────────────────────────────
     # 로컬 diffusers 추론 (SD 1.5 / IP-Adapter)
     # ──────────────────────────────────────────
-    def _local_response(
+    async def _local_response(
         self, request: ImageGenerationRequest
     ) -> ImageGenerationResponse:
         """로컬 diffusers 모델로 이미지 생성.
@@ -224,6 +231,12 @@ class ImageService:
         from models.ip_adapter import IPAdapterBackend
         from models.sd15 import SD15Backend
 
+        # 브랜드 설정 로드
+        from services.brand_service import BrandService
+        brand_service = BrandService()
+        brand_config = await brand_service.get_brand_config()
+        brand_context = brand_config.model_dump() if brand_config else None
+
         # GPT로 한글 프롬프트 → 영어 번역
         raw_prompt = build_image_prompt(
             product_name=request.product_name,
@@ -232,6 +245,7 @@ class ImageService:
             goal=request.goal,
             ad_copy=request.prompt,
             has_reference=(request.image_data is not None),
+            brand_context=brand_context
         )
         try:
             translation = self.client.chat.completions.create(

@@ -32,6 +32,8 @@ async def init_db() -> None:
     """애플리케이션 시작 시 DB 테이블 동기화(초기화) 진행."""
     from models.base import Base
     import models.history  # 모델 레지스트리 자동 등록을 위한 Import
+    import models.brand
+    import models.product
 
     async with engine.begin() as conn:
         # DB 존재 안할 시 스키마 생성 (production에서는 alembic 권장)
