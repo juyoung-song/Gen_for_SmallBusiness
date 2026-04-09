@@ -96,10 +96,12 @@ class Settings(BaseSettings):
 
     @property
     def is_instagram_ready(self) -> bool:
-        """인스타그램 업로드(Meta API & ImgBB API) 준비 여부"""
-        return bool(
-            self.IMGBB_API_KEY and self.META_ACCESS_TOKEN and self.INSTAGRAM_ACCOUNT_ID
-        )
+        """인스타그램 업로드(Meta API) 준비 여부.
+
+        OAuth 연결 시 instagram_auth_adapter 가 META_ACCESS_TOKEN /
+        INSTAGRAM_ACCOUNT_ID 를 런타임에 주입하므로, 이 두 값의 존재 여부로 판단.
+        """
+        return bool(self.META_ACCESS_TOKEN and self.INSTAGRAM_ACCOUNT_ID)
 
 
 @lru_cache
