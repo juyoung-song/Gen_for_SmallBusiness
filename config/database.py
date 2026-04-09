@@ -6,6 +6,7 @@
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # SQLite 데이터베이스 파일 경로 — 프로젝트 루트 기준 절대경로 (S-1)
@@ -14,8 +15,25 @@ DB_DIR = Path(__file__).resolve().parent.parent / "data"
 DB_DIR.mkdir(parents=True, exist_ok=True)
 DB_URL = f"sqlite+aiosqlite:///{DB_DIR / 'history.db'}"
 
-# 비동기 엔진 생성
+
+def attach_sqlite_fk_listener(async_engine) -> None:
+    """SQLite 외래키 cascade 를 위한 PRAGMA 리스너를 async engine 에 부착한다.
+
+    SQLite 는 기본값이 FK OFF 라서 매 connect 시 PRAGMA 로 켜줘야 한다.
+    production engine (config/database.py) 과 테스트용 in-memory 엔진
+    (tests/conftest.py) 모두 동일 리스너가 필요하므로 공용 헬퍼로 분리.
+    """
+
+    @event.listens_for(async_engine.sync_engine, "connect")
+    def _enable_sqlite_fk(dbapi_conn, _):  # pragma: no cover - trivial
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.close()
+
+
+# 비동기 엔진 생성 (+ FK PRAGMA 리스너 부착)
 engine = create_async_engine(DB_URL, echo=False)
+attach_sqlite_fk_listener(engine)
 
 # 세션 팩토리 생성
 AsyncSessionLocal = async_sessionmaker(
