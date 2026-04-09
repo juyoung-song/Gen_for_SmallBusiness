@@ -168,19 +168,25 @@ for key, default in _DEFAULT_STATE.items():
 
 
 # ══════════════════════════════════════════════
-# 온보딩 라우팅 (Phase 2 Step 2.1)
+# 온보딩 라우팅 + brand_image 본문 로드 (Phase 2 Step 2.1 + Step A)
 # ══════════════════════════════════════════════
-# brand_image 가 DB 에 없으면 온보딩 화면만 렌더하고 조기 return 한다.
-# 존재하면 기존 광고 생성 화면으로 진입.
-async def _check_brand_image_exists() -> bool:
+# brand_image 가 DB 에 없으면 온보딩 화면만 렌더하고 조기 return.
+# 존재하면 본문(content)을 한 번 읽어 session_state 에 캐시해서 이후 광고 생성 시
+# 매번 request.brand_prompt 로 주입한다 (design.md §2.3).
+async def _load_brand_prompt() -> str | None:
     async with AsyncSessionLocal() as session:
         service = BrandImageService(session)
-        return await service.exists_for_user("default")
+        brand = await service.get_for_user("default")
+        return brand.content if brand else None
 
 
-if not run_async(_check_brand_image_exists()):
+_loaded_brand = run_async(_load_brand_prompt())
+if _loaded_brand is None:
     render_onboarding_screen(settings)
     st.stop()
+
+# 이후 _run_*_generation 이 읽어쓸 수 있도록 session_state 에 저장
+st.session_state.brand_prompt = _loaded_brand
 
 
 # ══════════════════════════════════════════════
@@ -442,7 +448,14 @@ def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone
     }
     try:
         with st.spinner("💬 사장님을 대신해 멋진 홍보 글을 작성하고 있어요. 잠시만 기다려주세요..."):
-            request = TextGenerationRequest(product_name=name, description=desc, style=tone_val, goal=goal, image_data=image_data)
+            request = TextGenerationRequest(
+                product_name=name,
+                description=desc,
+                style=tone_val,
+                goal=goal,
+                image_data=image_data,
+                brand_prompt=st.session_state.get("brand_prompt", ""),
+            )
             response = text_service.generate_ad_copy(request)
         # Step 2.5: legacy HistoryService 호출 제거.
         # 텍스트 전용 생성은 DB 에 기록되지 않는다. 이미지+인스타 게시 후 generated_upload 에만 저장.
@@ -465,6 +478,7 @@ def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_st
                 style=style_val,
                 image_data=image_data,
                 reference_image_paths=reference_image_paths or [],
+                brand_prompt=st.session_state.get("brand_prompt", ""),
             )
             response = image_service.generate_ad_image(request)
 
@@ -483,9 +497,17 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
     }
 
     res_t, res_i = None, None
+    brand = st.session_state.get("brand_prompt", "")
     try:
         with st.spinner("💬 [1단계] 사장님을 대신해 멋진 홍보 글을 먼저 작성하고 있어요..."):
-            req_t = TextGenerationRequest(product_name=name, description=desc, style=tone_val, goal=goal, image_data=image_data)
+            req_t = TextGenerationRequest(
+                product_name=name,
+                description=desc,
+                style=tone_val,
+                goal=goal,
+                image_data=image_data,
+                brand_prompt=brand,
+            )
             res_t = text_service.generate_ad_copy(req_t)
             st.session_state.text_result = res_t.model_dump()
 
@@ -499,6 +521,7 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
                 prompt=hint_copy,
                 image_data=image_data,
                 reference_image_paths=reference_image_paths or [],
+                brand_prompt=brand,
             )
             res_i = image_service.generate_ad_image(req_i)
             # Step 2.4 — 생성 결과를 staging 에 저장
@@ -593,9 +616,6 @@ with tab_create:
                     product_name = selected_product.name
                     product_description = selected_product.description
                     existing_raw_image_path = selected_product.raw_image_path
-                    st.caption(
-                        f"✅ 선택된 상품: **{product_name}** · raw 이미지: `{existing_raw_image_path}`"
-                    )
 
     # 2. 생성 타입 섹션
     with st.container(border=True):

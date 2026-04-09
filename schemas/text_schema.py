@@ -37,6 +37,13 @@ class TextGenerationRequest(BaseModel):
         default=None,
         description="업로드된 상품 이미지 바이너리",
     )
+    brand_prompt: str = Field(
+        default="",
+        description=(
+            "온보딩 단계에서 생성된 brand_image.txt 본문. "
+            "모든 텍스트 생성 호출에 system prompt 로 주입된다 (design.md §2.3)."
+        ),
+    )
 
     @field_validator("product_name")
     @classmethod

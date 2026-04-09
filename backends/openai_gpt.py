@@ -69,6 +69,7 @@ class OpenAIGPTBackend:
             style=request.style,
             goal=request.goal,
             image_hint=image_hint,
+            brand_prompt=request.brand_prompt,
         )
 
         response = self.client.chat.completions.create(

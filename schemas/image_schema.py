@@ -45,6 +45,13 @@ class ImageGenerationRequest(BaseModel):
             "백엔드가 지원하면 다중 참조, 지원 안 하면 첫 장만 사용."
         ),
     )
+    brand_prompt: str = Field(
+        default="",
+        description=(
+            "온보딩 단계에서 생성된 brand_image.txt 본문. "
+            "모든 이미지 생성 호출에 system prompt 로 주입된다 (design.md §2.3)."
+        ),
+    )
 
     @field_validator("style")
     @classmethod

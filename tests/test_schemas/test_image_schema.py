@@ -34,3 +34,15 @@ class TestImageGenerationRequestReferencePaths:
         )
         assert request.image_data == b"raw jpeg bytes"
         assert request.reference_image_paths == ["data/uploads/previous.png"]
+
+    def test_brand_prompt_defaults_to_empty(self):
+        """brand_prompt 필드가 기본값 빈 문자열이어야 함 (Step A)."""
+        request = ImageGenerationRequest(product_name="무화과 케이크")
+        assert request.brand_prompt == ""
+
+    def test_brand_prompt_can_be_set(self):
+        request = ImageGenerationRequest(
+            product_name="무화과 케이크",
+            brand_prompt="이 브랜드는 동네 베이커리로, 따뜻한 목재 톤...",
+        )
+        assert "동네 베이커리" in request.brand_prompt

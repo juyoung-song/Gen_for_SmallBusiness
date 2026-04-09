@@ -137,6 +137,7 @@ class ImageService:
             goal=request.goal,
             ad_copy=request.prompt,
             has_reference=(request.image_data is not None),
+            brand_prompt=request.brand_prompt,
         )
 
         try:

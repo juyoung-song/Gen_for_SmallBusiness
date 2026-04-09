@@ -42,11 +42,19 @@ def build_text_prompt(
     description: str,
     style: str,
     goal: str = "일반 홍보",
-    image_hint: str = None
+    image_hint: str = None,
+    brand_prompt: str = "",
 ) -> tuple[str, str]:
-    """광고 문구 생성을 위한 프롬프트를 반환합니다. 홍보 목적과 이미지 특징을 반영합니다."""
+    """광고 문구 생성을 위한 프롬프트를 반환합니다.
+
+    brand_prompt (Step A, design.md §2.3):
+        온보딩 단계에서 GPT Vision 이 정제한 brand_image.txt 본문.
+        이 값이 주어지면 기존 하드코딩 _BRAND_CUES 대신 사용자별 브랜드
+        가이드라인으로 system prompt 에 주입된다. 빈 문자열이면 기본
+        _BRAND_CUES 로 폴백 (개발/테스트 편의).
+    """
     style_instruction = _STYLE_GUIDE.get(style, _STYLE_GUIDE["기본"])
-    
+
     image_context = ""
     if image_hint:
         image_context = (
@@ -54,18 +62,25 @@ def build_text_prompt(
             "업로드 이미지의 색감, 분위기, 제품 인상을 문구에 자연스럽게 참고하세요.\n"
         )
 
+    # Step A: 사용자별 brand_image 가 있으면 그걸, 없으면 하드코딩 기본값
+    if brand_prompt.strip():
+        brand_section = brand_prompt.strip()
+    else:
+        brand_section = _BRAND_CUES
+
     system_prompt = (
         "당신은 대한민국 최고의 브랜드 전략가이자 카피라이터입니다.\n"
         f"현재 프로젝트의 핵심 홍보 목적은 [{goal}] 입니다.\n"
         "모든 생성 결과물은 반드시 이 목적을 최우선으로 달성해야 합니다.\n"
         "반드시 한국어로 작성하세요.\n\n"
-        f"[[브랜드 가이드라인]]\n{_BRAND_CUES}\n"
+        f"[[브랜드 가이드라인]]\n{brand_section}\n\n"
         f"[[글 톤 지침]]: {style_instruction}\n\n"
         "중요 규칙:\n"
         "1. 모든 문구는 사용자가 제시한 [홍보 목적]에 부합해야 합니다.\n"
-        "2. [홍보 문장] 섹션은 절대 짧게 쓰지 마세요. 각 항목은 반드시 2문장 이상이어야 합니다.\n"
-        "3. [스토리 카피]는 가장 짧고 강력한 Hook으로 작성하되, 전체 홍보 목적을 내포해야 합니다.\n"
-        "4. 각 섹션은 길이와 목적이 서로 달라야 합니다.\n"
+        "2. 모든 문구는 반드시 위 [[브랜드 가이드라인]]과 일치하는 톤으로 작성해야 합니다.\n"
+        "3. [홍보 문장] 섹션은 절대 짧게 쓰지 마세요. 각 항목은 반드시 2문장 이상이어야 합니다.\n"
+        "4. [스토리 카피]는 가장 짧고 강력한 Hook으로 작성하되, 전체 홍보 목적을 내포해야 합니다.\n"
+        "5. 각 섹션은 길이와 목적이 서로 달라야 합니다.\n"
         "- [광고 문구]는 짧고 임팩트 있게\n"
         "- [홍보 문장]은 충분히 길고 설명적으로\n"
         "- [스토리 카피]는 가장 짧고 훅 중심으로 작성하세요."
@@ -117,9 +132,16 @@ def build_image_prompt(
     style: str,
     goal: str = "일반 홍보",
     ad_copy: str = "",
-    has_reference: bool = False
+    has_reference: bool = False,
+    brand_prompt: str = "",
 ) -> str:
-    """상품 정보와 홍보 목적을 포함한 시각적 광고 컨셉이미지 프롬프트를 생성합니다."""
+    """상품 정보와 홍보 목적을 포함한 시각적 광고 컨셉이미지 프롬프트를 생성합니다.
+
+    brand_prompt (Step A, design.md §2.3):
+        온보딩 단계에서 GPT Vision 이 정제한 brand_image.txt 본문.
+        주어지면 프롬프트 앞부분에 "Brand guidelines" 섹션으로 주입되어
+        _translate_to_english() 단계에서 영문 번역과 함께 반영된다.
+    """
     style_desc = _IMAGE_STYLE_MAP.get(style, _IMAGE_STYLE_MAP["기본"])
 
     # 목적(Goal)에 따른 시각적 연출 가이드
@@ -130,19 +152,25 @@ def build_image_prompt(
         "시즌 홍보": "Seasonal color palette, thematic props matching the season, atmospheric lighting."
     }
     visual_strategy = goal_visual_map.get(goal, "Clean, commercial grade product photography.")
-    
+
     reference_guide = ""
     if has_reference:
         reference_guide = "Respect the composition and color scheme of the provided reference image. Maintain product identity. "
 
+    # Step A: brand_prompt 가 주어지면 맨 앞에 배치 → 번역 단계에서 SD 프롬프트로 통합됨
+    brand_section = ""
+    if brand_prompt.strip():
+        brand_section = f"Brand guidelines (MUST follow): {brand_prompt.strip()}\n\n"
+
     return (
+        f"{brand_section}"
         f"A professional commercial advertisement visual concept for '{product_name}'. "
         f"{reference_guide}"
         f"Promotional Context: {goal}. "
         f"Visual Strategy: {visual_strategy} "
         f"Style: {style_desc}. "
         f"Inspiration: {ad_copy} {description}. "
-        "The image should clearly reflect the marketing goal. "
+        "The image should clearly reflect the marketing goal AND the brand guidelines above. "
         "Clean composition, high-end product photography, commercial lighting. "
         "High resolution, cinematic quality, no text on image."
     )
