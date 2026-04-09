@@ -3,208 +3,128 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Brewgram Stitch Preview</title>
+    <title>Brewgram - 홈</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Be+Vietnam+Pro:wght@400;500;600&display=swap"
+    />
     <link rel="stylesheet" href="./shared.css" />
-    <style>
-      body {
-        margin: 0;
-        min-height: 100vh;
-      }
-
-      .wrap {
-        max-width: 1320px;
-        margin: 0 auto;
-        padding: 48px 24px 72px;
-      }
-
-      .title {
-        margin: 0 0 8px;
-        font-size: 2.4rem;
-      }
-
-      .desc {
-        margin: 0 0 32px;
-        color: #6d6450;
-        line-height: 1.6;
-      }
-
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-        gap: 24px;
-      }
-
-      .card {
-        display: block;
-        text-decoration: none;
-        color: inherit;
-        border-radius: 28px;
-        overflow: hidden;
-        background: rgba(255, 255, 255, 0.88);
-        box-shadow: 0 18px 40px rgba(55, 50, 34, 0.08);
-        transition: transform 160ms ease, box-shadow 160ms ease;
-      }
-
-      .card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 24px 48px rgba(55, 50, 34, 0.12);
-      }
-
-      .shot {
-        display: block;
-        width: 100%;
-        height: 360px;
-        background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,247,251,0.96));
-        overflow: hidden;
-        position: relative;
-      }
-
-      .frame {
-        position: absolute;
-        inset: 0;
-        overflow: hidden;
-        background: #ffffff;
-      }
-
-      .phone {
-        width: 390px;
-        height: 844px;
-        border: 0;
-        transform: scale(0.54);
-        transform-origin: top left;
-        pointer-events: none;
-        background: #fff;
-      }
-
-      .shot::after {
-        content: "";
-        position: absolute;
-        inset: auto 0 0 0;
-        height: 72px;
-        background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.82));
-        pointer-events: none;
-      }
-
-      .meta {
-        padding: 18px 18px 20px;
-      }
-
-      .eyebrow {
-        display: inline-flex;
-        align-items: center;
-        padding: 6px 10px;
-        margin-bottom: 10px;
-        border-radius: 9999px;
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.14em;
-        color: #c65a4d;
-        background: rgba(255, 174, 138, 0.16);
-      }
-
-      .name {
-        margin: 0 0 8px;
-        font-size: 1.2rem;
-        font-weight: 800;
-        letter-spacing: -0.03em;
-      }
-
-      .hint {
-        margin: 0;
-        font-size: 0.95rem;
-        color: #6d6450;
-        line-height: 1.5;
-      }
-
-      .hero-lockup {
-        display: inline-flex;
-        align-items: center;
-        gap: 14px;
-        margin-bottom: 16px;
-      }
-
-      .hero-logo {
-        width: 52px;
-        height: 52px;
-        border-radius: 16px;
-        object-fit: cover;
-        box-shadow: 0 16px 28px rgba(255, 95, 109, 0.14);
-      }
-
-      .hero-name {
-        font-size: 1.55rem;
-        font-weight: 800;
-        letter-spacing: -0.05em;
-        color: #3b281e;
-      }
-    </style>
   </head>
-  <body>
-    <div class="wrap">
-      <div class="hero-lockup">
-        <img class="hero-logo" src="./brand-badge.svg" alt="Brewgram 로고" />
-        <div class="hero-name">Brewgram</div>
+  <body data-stitch-page="home">
+    <header class="app-topbar">
+      <div class="brand-lockup">
+        <img class="brand-mark" src="./brand-badge.svg" alt="Brewgram 로고" />
+        <div>
+          <div class="app-topbar__title">사장님 AI 도우미</div>
+          <div class="app-topbar__meta">오늘의 홍보 흐름을 한 번에</div>
+        </div>
       </div>
-      <div class="film-note">stitch preview reel</div>
-      <h1 class="title film-headline">Brewgram 모바일 UI 미리보기</h1>
-      <p class="desc">
-        Brewgram 온보딩 3단계와 메인 생성 화면 1종을 바로 확인할 수 있게 정리했습니다.
-        각 카드를 누르면 실제 HTML 화면으로 이동합니다.
-      </p>
+      <a class="icon-circle" href="/stitch/settings.html" aria-label="설정">
+        <span class="material-symbols-outlined">settings</span>
+      </a>
+    </header>
 
-      <div class="grid">
-        <a class="card" href="./1./code.html">
-          <div class="shot" aria-hidden="true">
-            <div class="frame">
-              <iframe class="phone" src="./1./code.html" title="브랜드 기본 정보 미리보기"></iframe>
-            </div>
+    <main class="app-shell">
+      <section class="app-section hero-panel">
+        <div class="hero-eyebrow" id="home-hero-eyebrow">Today with Brewgram</div>
+        <div class="tag-list" id="home-status-list"></div>
+        <h1 class="hero-title" id="home-hero-title">오늘은 어떤 메뉴를 자랑해볼까요?</h1>
+        <p class="hero-copy" id="home-hero-copy">
+          상품 한 개만 적어도, 문구와 이미지까지 바로 이어서 만들 수 있어요.
+        </p>
+        <div class="hero-metrics">
+          <div class="hero-metric">
+            <span class="hero-metric__label">최근 생성</span>
+            <span class="hero-metric__value" id="home-metric-history">0건</span>
           </div>
-          <div class="meta">
-            <div class="eyebrow">STEP 01</div>
-            <h2 class="name">브랜드 기본 정보</h2>
-            <p class="hint">브랜드 이름, 메인 컬러, 분위기, 로고 업로드를 입력하는 시작 화면</p>
+          <div class="hero-metric">
+            <span class="hero-metric__label">상품 데이터</span>
+            <span class="hero-metric__value" id="home-metric-products">0개</span>
           </div>
-        </a>
+          <div class="hero-metric">
+            <span class="hero-metric__label">참고 게시물</span>
+            <span class="hero-metric__value" id="home-metric-references">0건</span>
+          </div>
+        </div>
+        <div class="hero-actions">
+          <a class="soft-button" id="home-primary-cta" href="/stitch/4._2/code.html">
+            <span class="material-symbols-outlined">auto_awesome</span>
+            새 홍보 만들기
+          </a>
+          <a class="hero-button" id="home-secondary-cta" href="/stitch/1./code.html">
+            <span class="material-symbols-outlined">edit_square</span>
+            브랜드 세팅 보기
+          </a>
+        </div>
+      </section>
 
-        <a class="card" href="./2./code.html">
-          <div class="shot" aria-hidden="true">
-            <div class="frame">
-              <iframe class="phone" src="./2./code.html" title="스타일 레퍼런스 미리보기"></iframe>
-            </div>
-          </div>
-          <div class="meta">
-            <div class="eyebrow">STEP 02</div>
-            <h2 class="name">스타일 레퍼런스</h2>
-            <p class="hint">인스타 링크와 베이커리 레퍼런스 이미지를 등록하는 페이지</p>
-          </div>
-        </a>
+      <section class="app-section panel">
+        <div class="panel-head">
+          <h2 class="panel-title">빠른 실행</h2>
+        </div>
+        <div class="quick-grid">
+          <a class="quick-card quick-card--accent" href="/stitch/4._2/code.html">
+            <span class="quick-icon material-symbols-outlined">add_circle</span>
+            <strong class="quick-label">새 홍보 만들기</strong>
+            <span class="quick-sub">상품 정보만 넣고 바로 결과까지 확인합니다.</span>
+          </a>
+          <a class="quick-card" href="/stitch/archive.html">
+            <span class="quick-icon material-symbols-outlined">inventory_2</span>
+            <strong class="quick-label">보관함 보기</strong>
+            <span class="quick-sub">이번 세션에서 만든 결과를 다시 모아봅니다.</span>
+          </a>
+          <a class="quick-card" href="/stitch/1./code.html">
+            <span class="quick-icon material-symbols-outlined">storefront</span>
+            <strong class="quick-label">브랜드 정보 수정</strong>
+            <span class="quick-sub">로고, 색상, 분위기를 다시 손볼 수 있습니다.</span>
+          </a>
+          <a class="quick-card" href="/stitch/settings.html">
+            <span class="quick-icon material-symbols-outlined">tune</span>
+            <strong class="quick-label">기본 설정</strong>
+            <span class="quick-sub">기본 톤, 스타일, 알림 여부를 맞춰둡니다.</span>
+          </a>
+        </div>
+      </section>
 
-        <a class="card" href="./3./code.html">
-          <div class="shot" aria-hidden="true">
-            <div class="frame">
-              <iframe class="phone" src="./3./code.html" title="우리 가게 소개 미리보기"></iframe>
-            </div>
-          </div>
-          <div class="meta">
-            <div class="eyebrow">STEP 03</div>
-            <h2 class="name">우리 가게 소개</h2>
-            <p class="hint">선택 입력으로 매장 분위기와 브랜드 설명을 적는 마지막 온보딩 화면</p>
-          </div>
-        </a>
+      <section class="app-section panel">
+        <div class="panel-head">
+          <h2 class="panel-title">최근 홍보물</h2>
+          <a class="panel-link" href="/stitch/archive.html">모두 보기</a>
+        </div>
+        <div class="history-stack" id="home-recent-list"></div>
+      </section>
 
-        <a class="card" href="./4._2/code.html">
-          <div class="shot" aria-hidden="true">
-            <div class="frame">
-              <iframe class="phone" src="./4._2/code.html" title="메인 생성 화면 미리보기"></iframe>
-            </div>
-          </div>
-          <div class="meta">
-            <div class="eyebrow">CREATE</div>
-            <h2 class="name">메인 생성 화면</h2>
-            <p class="hint">기본 입력으로 시작하고, 상세 옵션 토글을 눌러 목적·타입·스타일을 펼칠 수 있는 통합 화면</p>
-          </div>
-        </a>
-      </div>
-    </div>
+      <section class="app-section panel">
+        <div class="panel-head">
+          <h2 class="panel-title">오늘의 가이드</h2>
+        </div>
+        <p class="panel-copy" id="home-guide-copy">
+          자동 업로드는 곧 연결될 예정입니다. 지금은 피드 캡션과 스토리 이미지를 만든 뒤 직접 업로드하는 흐름으로 사용하세요.
+        </p>
+      </section>
+
+      <div class="hidden" id="home-status"></div>
+    </main>
+
+    <nav class="app-nav" aria-label="앱 탐색">
+      <a class="app-nav__item app-nav__item--active" href="/stitch/index.html">
+        <span class="material-symbols-outlined">home</span>
+        <span class="app-nav__label">홈</span>
+      </a>
+      <a class="app-nav__item app-nav__item--fab" href="/stitch/4._2/code.html">
+        <span class="material-symbols-outlined">add</span>
+        <span class="app-nav__label">만들기</span>
+      </a>
+      <a class="app-nav__item" href="/stitch/archive.html">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <span class="app-nav__label">보관함</span>
+      </a>
+    </nav>
+
+    <script src="./shared.js"></script>
   </body>
 </html>

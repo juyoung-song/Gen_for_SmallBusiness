@@ -75,3 +75,34 @@ class BrandImageService:
         await self.session.commit()
         await self.session.refresh(brand)
         return brand
+
+    async def update_for_user(
+        self,
+        *,
+        user_id: str,
+        content: str,
+        source_freetext: str,
+        source_reference_url: str,
+        source_screenshots: list[str] | None = None,
+        brand_name: str | None = None,
+        brand_color: str | None = None,
+        brand_atmosphere: str | None = None,
+        brand_logo_path: str | None = None,
+    ) -> BrandImage | None:
+        """기존 사용자의 brand_image 갱신. 없으면 None."""
+        brand = await self.get_for_user(user_id)
+        if brand is None:
+            return None
+
+        brand.content = content
+        brand.source_freetext = source_freetext
+        brand.source_reference_url = source_reference_url
+        brand.source_screenshots = source_screenshots or []
+        brand.brand_name = brand_name
+        brand.brand_color = brand_color
+        brand.brand_atmosphere = brand_atmosphere
+        brand.brand_logo_path = brand_logo_path
+
+        await self.session.commit()
+        await self.session.refresh(brand)
+        return brand

@@ -105,7 +105,7 @@ class MobileOnboardingRequest(BaseModel):
 
 
 class MobileOnboardingResponse(BaseModel):
-    status: Literal["created", "existing"]
+    status: Literal["created", "updated", "existing"]
     brand: MobileBrandSummary
     warnings: list[str] = Field(default_factory=list)
 
@@ -331,11 +331,6 @@ async def complete_onboarding(
     async with AsyncSessionLocal() as session:
         brand_service = BrandImageService(session)
         existing = await brand_service.get_for_user("default")
-        if existing is not None:
-            return MobileOnboardingResponse(
-                status="existing",
-                brand=_serialize_brand(existing),
-            )
 
     brand_name = payload.brand_name.strip()
     brand_color = (payload.brand_color or "").strip()
@@ -434,21 +429,36 @@ async def complete_onboarding(
 
     async with AsyncSessionLocal() as session:
         brand_service = BrandImageService(session)
-        created = await brand_service.create(
-            user_id="default",
-            content=draft.content,
-            source_freetext=draft.source_freetext,
-            source_reference_url=draft.source_reference_url,
-            source_screenshots=draft.source_screenshots,
-            brand_name=draft.brand_name,
-            brand_color=draft.brand_color,
-            brand_atmosphere=draft.brand_atmosphere,
-            brand_logo_path=draft.brand_logo_path,
-        )
+        if existing is not None:
+            brand_record = await brand_service.update_for_user(
+                user_id="default",
+                content=draft.content,
+                source_freetext=draft.source_freetext,
+                source_reference_url=draft.source_reference_url,
+                source_screenshots=draft.source_screenshots,
+                brand_name=draft.brand_name,
+                brand_color=draft.brand_color,
+                brand_atmosphere=draft.brand_atmosphere,
+                brand_logo_path=draft.brand_logo_path,
+            )
+            status = "updated"
+        else:
+            brand_record = await brand_service.create(
+                user_id="default",
+                content=draft.content,
+                source_freetext=draft.source_freetext,
+                source_reference_url=draft.source_reference_url,
+                source_screenshots=draft.source_screenshots,
+                brand_name=draft.brand_name,
+                brand_color=draft.brand_color,
+                brand_atmosphere=draft.brand_atmosphere,
+                brand_logo_path=draft.brand_logo_path,
+            )
+            status = "created"
 
     return MobileOnboardingResponse(
-        status="created",
-        brand=_serialize_brand(created),
+        status=status,
+        brand=_serialize_brand(brand_record),
         warnings=warnings,
     )
 

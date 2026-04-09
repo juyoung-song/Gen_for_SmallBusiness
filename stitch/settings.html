@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brewgram - 설정</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Be+Vietnam+Pro:wght@400;500;600&display=swap"
+    />
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-stitch-page="settings">
+    <header class="app-topbar">
+      <div class="brand-lockup">
+        <img class="brand-mark" src="./brand-badge.svg" alt="Brewgram 로고" />
+        <div>
+          <div class="app-topbar__title">설정</div>
+          <div class="app-topbar__meta">생성 기본값과 연결 상태 확인</div>
+        </div>
+      </div>
+      <a class="icon-circle" href="/stitch/index.html" aria-label="홈으로">
+        <span class="material-symbols-outlined">home</span>
+      </a>
+    </header>
+
+    <main class="app-shell">
+      <section class="settings-group">
+        <h2 class="settings-group__title">브랜드</h2>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">현재 브랜드</p>
+              <p class="settings-sub" id="settings-brand-sub">브랜드 정보를 불러오는 중입니다.</p>
+            </div>
+            <span class="settings-value" id="settings-brand-name">로딩 중</span>
+          </div>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">인스타그램 연동 상태</p>
+              <p class="settings-sub">자동 업로드 기능 연결 전, 상태 표기만 제공합니다.</p>
+            </div>
+            <span class="settings-value" id="settings-instagram-status">확인 중</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h2 class="settings-group__title">생성 기본값</h2>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">기본 톤</p>
+              <p class="settings-sub">새 홍보물 만들기 화면에서 먼저 선택될 말투입니다.</p>
+            </div>
+            <select class="settings-select" id="settings-default-tone">
+              <option value="감성">감성</option>
+              <option value="고급">고급</option>
+              <option value="유머">유머</option>
+              <option value="심플">심플</option>
+              <option value="기본">기본</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">기본 이미지 스타일</p>
+              <p class="settings-sub">생성 화면에 미리 들어갈 이미지 무드입니다.</p>
+            </div>
+            <select class="settings-select" id="settings-default-style">
+              <option value="감성">감성</option>
+              <option value="고급">고급</option>
+              <option value="기본">기본</option>
+              <option value="심플">심플</option>
+              <option value="유머">유머</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">피드 업로드 버튼</p>
+              <p class="settings-sub">UI는 먼저 제공하고, 자동 업로드 연결은 다음 단계에서 붙입니다.</p>
+            </div>
+            <button class="settings-toggle" id="settings-upload-toggle" type="button" aria-pressed="false"></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h2 class="settings-group__title">실행 상태</h2>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">텍스트/API 준비 상태</p>
+              <p class="settings-sub">OpenAI 등 외부 API 사용 가능 여부</p>
+            </div>
+            <span class="settings-value" id="settings-api-status">확인 중</span>
+          </div>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">이미지 백엔드</p>
+              <p class="settings-sub">현재 모바일 앱이 붙어 있는 생성 경로</p>
+            </div>
+            <span class="settings-value" id="settings-image-backend">확인 중</span>
+          </div>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">알림 표시</p>
+              <p class="settings-sub">세션 내부 UI 상태만 저장됩니다.</p>
+            </div>
+            <button class="settings-toggle" id="settings-notify-toggle" type="button" aria-pressed="false"></button>
+          </div>
+        </div>
+      </section>
+
+      <div class="hidden" id="settings-status"></div>
+    </main>
+
+    <nav class="app-nav" aria-label="앱 탐색">
+      <a class="app-nav__item" href="/stitch/index.html">
+        <span class="material-symbols-outlined">home</span>
+        <span class="app-nav__label">홈</span>
+      </a>
+      <a class="app-nav__item app-nav__item--fab" href="/stitch/4._2/code.html">
+        <span class="material-symbols-outlined">add</span>
+        <span class="app-nav__label">만들기</span>
+      </a>
+      <a class="app-nav__item" href="/stitch/archive.html">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <span class="app-nav__label">보관함</span>
+      </a>
+    </nav>
+
+    <script src="./shared.js"></script>
+  </body>
+</html>

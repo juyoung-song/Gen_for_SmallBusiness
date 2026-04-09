@@ -2,6 +2,17 @@
   const STORAGE_KEY = "brewgram.mobile.state.v1";
   const PAGE = document.body.dataset.stitchPage;
   const API_BASE = "/api/mobile";
+  const MAX_HISTORY_ITEMS = 12;
+  const PATHS = {
+    home: "/stitch/index.html",
+    archive: "/stitch/archive.html",
+    settings: "/stitch/settings.html",
+    create: "/stitch/4._2/code.html",
+    onboarding1: "/stitch/1./code.html",
+    onboarding2: "/stitch/2./code.html",
+    onboarding3: "/stitch/3./code.html",
+  };
+  const PRESET_GOALS = ["신제품 출시", "브랜드 인지도", "이벤트 홍보", "매장 방문 유도"];
 
   const defaultState = {
     onboarding: {
@@ -23,9 +34,20 @@
       referenceUrl: "",
       referenceImage: null,
     },
+    preferences: {
+      notificationsEnabled: true,
+      uploadPlaceholderEnabled: true,
+      defaultTone: "감성",
+      defaultStyle: "감성",
+    },
+    history: [],
+    meta: {
+      lastHistoryId: null,
+    },
   };
 
   let lastGenerateResult = null;
+  let lastBootstrap = null;
 
   function cloneDefaults() {
     return JSON.parse(JSON.stringify(defaultState));
@@ -100,21 +122,19 @@
     }
 
     const toneClassMap = {
-      neutral: "bg-surface-container-low text-on-surface-variant",
-      loading: "bg-primary-container/40 text-primary",
-      success: "bg-secondary-container/45 text-on-secondary-container",
-      error: "bg-error-container/35 text-error",
+      neutral: "stitch-status--neutral",
+      loading: "stitch-status--loading",
+      success: "stitch-status--success",
+      error: "stitch-status--error",
     };
 
-    node.className =
-      "rounded-xl px-4 py-3 text-sm font-medium leading-relaxed " +
-      (toneClassMap[tone] || toneClassMap.neutral);
+    node.className = `stitch-status ${toneClassMap[tone] || toneClassMap.neutral}`;
     node.textContent = message;
     node.classList.remove("hidden");
   }
 
   function toggleTokens(element, tokens, enabled) {
-    if (!tokens) return;
+    if (!tokens || !element) return;
     tokens
       .split(/\s+/)
       .filter(Boolean)
@@ -127,6 +147,187 @@
 
   function selectAll(selector) {
     return Array.from(document.querySelectorAll(selector));
+  }
+
+  function navigate(path) {
+    window.location.href = path;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (character) => {
+      const map = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      };
+      return map[character] || character;
+    });
+  }
+
+  function formatHistoryTimestamp(isoString) {
+    if (!isoString) return "방금";
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return "방금";
+    const now = new Date();
+    const timeLabel = new Intl.DateTimeFormat("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+    const isToday =
+      now.getFullYear() === date.getFullYear() &&
+      now.getMonth() === date.getMonth() &&
+      now.getDate() === date.getDate();
+    if (isToday) {
+      return `오늘 ${timeLabel}`;
+    }
+    return new Intl.DateTimeFormat("ko-KR", {
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  }
+
+  function parseInstagramHandle(rawUrl, fallbackLabel) {
+    if (rawUrl) {
+      const match = rawUrl.match(/instagram\.com\/([^/?#]+)/i);
+      if (match?.[1]) {
+        return match[1].replace(/^@/, "");
+      }
+    }
+    return String(fallbackLabel || "brewgram")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_가-힣]/g, "")
+      .slice(0, 20) || "brewgram";
+  }
+
+  function productThumb(productName) {
+    const name = String(productName || "").toLowerCase();
+    if (/(coffee|커피|아메리카노|라떼|에스프레소)/.test(name)) return "☕";
+    if (/(croissant|크루아상|빵|식빵|베이글)/.test(name)) return "🥐";
+    if (/(cake|케이크|티라미수|디저트)/.test(name)) return "🍰";
+    if (/(cookie|쿠키)/.test(name)) return "🍪";
+    if (/(muffin|머핀)/.test(name)) return "🧁";
+    return "✨";
+  }
+
+  function buildHistoryEntry(createState, result) {
+    const copies = result.text_result?.ad_copies || [];
+    return {
+      id: `hist_${Date.now()}`,
+      productName: createState.productName.trim(),
+      goal: createState.goal,
+      generationType: createState.generationType,
+      tone: createState.tone,
+      style: createState.style,
+      createdAt: new Date().toISOString(),
+      summary:
+        copies[0] ||
+        createState.productDescription ||
+        `${createState.goal}용 ${createState.productName} 홍보 초안`,
+      thumb: productThumb(createState.productName),
+      imageReady: Boolean(result.image_data_url),
+      captionReady: false,
+      storyReady: false,
+      uploadFeedStatus: "idle",
+      uploadStoryStatus: "idle",
+    };
+  }
+
+  function saveHistoryEntry(createState, result) {
+    const state = readState();
+    const entry = buildHistoryEntry(createState, result);
+    const nextState = {
+      ...state,
+      history: [entry, ...state.history].slice(0, MAX_HISTORY_ITEMS),
+      meta: {
+        ...state.meta,
+        lastHistoryId: entry.id,
+      },
+    };
+    writeState(nextState);
+    return entry;
+  }
+
+  function updateLastHistory(patch) {
+    const state = readState();
+    const targetId = state.meta?.lastHistoryId;
+    if (!targetId) return;
+
+    const nextHistory = state.history.map((item) =>
+      item.id === targetId ? { ...item, ...patch } : item,
+    );
+    writeState({
+      ...state,
+      history: nextHistory,
+    });
+  }
+
+  function renderEmptyState(title, copy, buttonHref, buttonLabel) {
+    return `
+      <div class="empty-state">
+        <div class="empty-state__icon">
+          <span class="material-symbols-outlined">auto_awesome</span>
+        </div>
+        <p class="empty-state__title">${escapeHtml(title)}</p>
+        <p class="empty-state__copy">${escapeHtml(copy)}</p>
+        ${
+          buttonHref && buttonLabel
+            ? `<a class="soft-button" style="margin-top:1rem;" href="${escapeHtml(buttonHref)}">${escapeHtml(buttonLabel)}</a>`
+            : ""
+        }
+      </div>
+    `;
+  }
+
+  function renderHistoryList(node, items, emptyOptions = {}) {
+    if (!node) return;
+    if (!items.length) {
+      node.innerHTML = renderEmptyState(
+        emptyOptions.title || "아직 만든 홍보물이 없어요",
+        emptyOptions.copy || "첫 홍보물을 만들면 여기에 최근 작업이 차곡차곡 쌓입니다.",
+        emptyOptions.href || PATHS.create,
+        emptyOptions.label || "지금 만들기",
+      );
+      return;
+    }
+
+    node.innerHTML = items
+      .map((item) => {
+        const badges = [
+          item.goal,
+          item.captionReady ? "캡션 완료" : null,
+          item.storyReady ? "스토리 완료" : null,
+          item.uploadFeedStatus === "placeholder" ? "피드 업로드 준비" : null,
+          item.uploadStoryStatus === "placeholder" ? "스토리 업로드 준비" : null,
+        ].filter(Boolean);
+        const status =
+          item.uploadFeedStatus === "placeholder" || item.uploadStoryStatus === "placeholder"
+            ? "준비 중"
+            : "생성 완료";
+
+        return `
+          <article class="history-item">
+            <div class="history-thumb">${escapeHtml(item.thumb || "✨")}</div>
+            <div class="history-body">
+              <p class="history-title">${escapeHtml(item.productName || "이름 없는 홍보물")}</p>
+              <p class="history-meta">${escapeHtml(formatHistoryTimestamp(item.createdAt))} · ${escapeHtml(item.summary || "생성된 결과 요약")}</p>
+              <div class="history-badges">
+                ${badges
+                  .slice(0, 4)
+                  .map((badge) => `<span class="history-badge">${escapeHtml(badge)}</span>`)
+                  .join("")}
+              </div>
+            </div>
+            <div class="history-status">${escapeHtml(status)}</div>
+          </article>
+        `;
+      })
+      .join("");
   }
 
   async function fileToPayload(file) {
@@ -150,6 +351,12 @@
       toggleTokens(button, classMap.activeText, isActive);
       toggleTokens(button, classMap.inactiveText, !isActive);
     });
+  }
+
+  function applyToggleState(button, isOn) {
+    if (!button) return;
+    button.classList.toggle("on", isOn);
+    button.setAttribute("aria-pressed", String(isOn));
   }
 
   function bindStep1() {
@@ -222,13 +429,13 @@
     });
 
     selectOne("#step1-next")?.addEventListener("click", () => {
-      window.location.href = "../2./code.html";
+      navigate(PATHS.onboarding2);
     });
     selectOne("#step1-prev")?.addEventListener("click", () => {
-      window.location.href = "../index.html";
+      navigate(PATHS.home);
     });
     selectOne("#step1-back")?.addEventListener("click", () => {
-      window.location.href = "../index.html";
+      navigate(PATHS.home);
     });
   }
 
@@ -260,14 +467,14 @@
     });
 
     selectOne("#step2-next")?.addEventListener("click", () => {
-      window.location.href = "../3./code.html";
+      navigate(PATHS.onboarding3);
     });
     selectOne("#step2-skip")?.addEventListener("click", () => {
       patchState({ onboarding: { instagramUrl: "", referenceImages: [] } });
-      window.location.href = "../3./code.html";
+      navigate(PATHS.onboarding3);
     });
     selectOne("#step2-back")?.addEventListener("click", () => {
-      window.location.href = "../1./code.html";
+      navigate(PATHS.onboarding1);
     });
   }
 
@@ -309,13 +516,15 @@
         });
         setStatus(
           statusNode,
-          result.status === "existing"
-            ? "이미 저장된 브랜드가 있어서 기존 설정을 그대로 사용합니다."
-            : "브랜드 세팅이 완료되었습니다. 메인 화면으로 이동합니다.",
+          result.status === "updated"
+            ? "브랜드 정보를 새 입력값으로 업데이트했습니다. 메인 화면으로 이동합니다."
+            : result.status === "existing"
+              ? "이미 저장된 브랜드가 있어서 기존 설정을 그대로 사용합니다."
+              : "브랜드 세팅이 완료되었습니다. 메인 화면으로 이동합니다.",
           "success",
         );
         window.setTimeout(() => {
-          window.location.href = "../4._2/code.html";
+          navigate(PATHS.create);
         }, 700);
       } catch (error) {
         setStatus(statusNode, error.message, "error");
@@ -328,7 +537,7 @@
     submitButton?.addEventListener("click", () => submit(false));
     skipButton?.addEventListener("click", () => submit(true));
     selectOne("#step3-back")?.addEventListener("click", () => {
-      window.location.href = "../2./code.html";
+      navigate(PATHS.onboarding2);
     });
   }
 
@@ -378,101 +587,395 @@
 
   function renderGenerateResult(result) {
     const wrap = selectOne("#create-results");
+    const summaryBlock = selectOne("#result-summary-block");
     const textBlock = selectOne("#result-text-block");
     const imageBlock = selectOne("#result-image-block");
+    const previewBlock = selectOne("#result-preview-block");
     const captionBlock = selectOne("#result-caption-block");
     const storyBlock = selectOne("#result-story-block");
     const actionRow = selectOne("#result-actions");
     const storyChooser = selectOne("#story-copy-chooser");
     const captionButton = selectOne("#create-caption-button");
     const storyButton = selectOne("#create-story-button");
+    const saveImageLink = selectOne("#create-save-image-link");
+    const uploadFeedButton = selectOne("#create-upload-feed-button");
+    const uploadStoryButton = selectOne("#create-upload-story-button");
+    const uploadNote = selectOne("#result-upload-note");
     const canCaption = Boolean(result.text_result?.ad_copies?.length);
     const canStory = Boolean(
       result.image_data_url && (result.text_result?.story_copies || []).length,
     );
+    const state = readState();
+    const brand = lastBootstrap?.brand;
+    const brandName = brand?.brand_name || state.onboarding.brandName || "우리 가게";
+    const handle = parseInstagramHandle(state.onboarding.instagramUrl, brandName);
+    const previewCaption =
+      result.text_result?.ad_copies?.[0] ||
+      result.text_result?.promo_sentences?.[0] ||
+      `${state.create.productName} 홍보 문구`;
+    const preferenceUploadEnabled = state.preferences.uploadPlaceholderEnabled;
 
     wrap?.classList.remove("hidden");
+    summaryBlock?.classList.add("hidden");
     textBlock?.classList.add("hidden");
     imageBlock?.classList.add("hidden");
+    previewBlock?.classList.add("hidden");
     captionBlock?.classList.add("hidden");
     storyBlock?.classList.add("hidden");
     actionRow?.classList.add("hidden");
     storyChooser?.classList.add("hidden");
+    uploadNote?.classList.add("hidden");
+
     if (captionBlock) captionBlock.innerHTML = "";
     if (storyBlock) storyBlock.innerHTML = "";
-    captionButton?.classList.toggle("hidden", !canCaption);
-    storyButton?.classList.toggle("hidden", !canStory);
-    if (captionButton) {
-      captionButton.disabled = !canCaption;
+
+    if (summaryBlock) {
+      summaryBlock.innerHTML = `
+        <div class="result-card">
+          <div class="tag-list" style="margin-bottom:0.8rem;">
+            <span class="mini-tag">${escapeHtml(state.create.goal)}</span>
+            <span class="mini-tag">${escapeHtml(
+              state.create.generationType === "both"
+                ? "글 + 이미지"
+                : state.create.generationType === "image"
+                  ? "이미지"
+                  : "글",
+            )}</span>
+            <span class="mini-tag">${escapeHtml(state.create.tone)}</span>
+            <span class="mini-tag">${escapeHtml(state.create.style)}</span>
+          </div>
+          <h3 class="result-card__title">광고 세트가 완성됐어요</h3>
+          <p class="panel-copy">인스타그램 프리뷰와 저장 버튼까지 한 번에 확인한 뒤, 캡션·스토리까지 이어서 만들 수 있습니다.</p>
+        </div>
+      `;
+      summaryBlock.classList.remove("hidden");
     }
-    if (storyButton) {
-      storyButton.disabled = !canStory;
+
+    if (result.image_data_url && imageBlock) {
+      imageBlock.innerHTML = `
+        <div class="result-card">
+          <h3 class="result-card__title">생성된 이미지</h3>
+          <img class="result-media" src="${result.image_data_url}" alt="생성된 홍보 이미지" />
+        </div>
+      `;
+      imageBlock.classList.remove("hidden");
+      if (saveImageLink) {
+        saveImageLink.href = result.image_data_url;
+        saveImageLink.classList.remove("hidden");
+      }
+    } else if (saveImageLink) {
+      saveImageLink.classList.add("hidden");
+    }
+
+    if (previewBlock) {
+      const previewMedia = result.image_data_url
+        ? `<img class="ig-image" src="${result.image_data_url}" alt="인스타그램 피드 미리보기 이미지" />`
+        : `<div class="ig-image"></div>`;
+      previewBlock.innerHTML = `
+        <div class="ig-card">
+          <div class="ig-header">
+            <div class="ig-avatar"></div>
+            <div>
+              <p class="ig-name">${escapeHtml(handle)}</p>
+              <p class="ig-sub">${escapeHtml(brandName)} · Sponsored</p>
+            </div>
+          </div>
+          ${previewMedia}
+          <div class="ig-actions">♡ 💬 ↗</div>
+          <div class="ig-caption">
+            <b>${escapeHtml(handle)}</b>${escapeHtml(previewCaption)}
+          </div>
+        </div>
+      `;
+      previewBlock.classList.remove("hidden");
     }
 
     if (result.text_result && textBlock) {
       const adCopies = (result.text_result.ad_copies || [])
-        .map((copy) => `<li class="rounded-xl bg-surface-container-highest px-4 py-3">${copy}</li>`)
+        .map((copy) => `<div class="copy-line">${escapeHtml(copy)}</div>`)
         .join("");
       const promoSentences = (result.text_result.promo_sentences || [])
-        .map((copy) => `<li class="rounded-xl bg-surface-container-highest px-4 py-3">${copy}</li>`)
+        .map((copy) => `<div class="copy-line">${escapeHtml(copy)}</div>`)
         .join("");
 
       textBlock.innerHTML = `
-        <div class="space-y-4">
-          <h3 class="text-lg font-bold text-on-surface">생성된 홍보 문구</h3>
-          <div class="space-y-3">
-            <p class="text-sm font-semibold text-on-surface-variant">짧은 카피</p>
-            <ul class="space-y-2 text-sm text-on-surface">${adCopies}</ul>
+        <div class="result-card">
+          <h3 class="result-card__title">광고 문구</h3>
+          <div class="copy-stack" style="margin-bottom:0.9rem;">
+            ${adCopies || `<div class="copy-line">생성된 짧은 카피가 아직 없습니다.</div>`}
           </div>
-          <div class="space-y-3">
-            <p class="text-sm font-semibold text-on-surface-variant">상세 소개 문장</p>
-            <ul class="space-y-2 text-sm text-on-surface">${promoSentences}</ul>
+          <div class="copy-stack">
+            ${promoSentences || `<div class="copy-line">상세 소개 문장은 이번 생성에서 생략되었습니다.</div>`}
           </div>
         </div>
       `;
       textBlock.classList.remove("hidden");
     }
 
-    if (result.image_data_url && imageBlock) {
-      imageBlock.innerHTML = `
-        <div class="space-y-4">
-          <h3 class="text-lg font-bold text-on-surface">생성된 이미지</h3>
-          <img class="w-full rounded-xl shadow-[0_18px_36px_rgba(55,50,34,0.10)]" src="${result.image_data_url}" alt="생성된 홍보 이미지" />
-          <a class="inline-flex items-center justify-center rounded-full bg-primary px-5 py-3 text-sm font-bold text-on-primary" href="${result.image_data_url}" download="brewgram-ad.png">이미지 저장하기</a>
-        </div>
-      `;
-      imageBlock.classList.remove("hidden");
+    if (actionRow) {
+      actionRow.classList.remove("hidden");
+      captionButton?.classList.toggle("hidden", !canCaption);
+      storyButton?.classList.toggle("hidden", !canStory);
+      if (captionButton) captionButton.disabled = !canCaption;
+      if (storyButton) storyButton.disabled = !canStory;
+      if (uploadFeedButton) uploadFeedButton.disabled = !result.image_data_url;
+      if (uploadStoryButton) uploadStoryButton.disabled = !result.image_data_url;
+      uploadFeedButton?.classList.toggle("action-button--disabled", !result.image_data_url);
+      uploadStoryButton?.classList.toggle("action-button--disabled", !result.image_data_url);
     }
 
-    if ((canCaption || canStory) && actionRow) {
-      actionRow.classList.remove("hidden");
-      const storyCopies = result.text_result.story_copies || [];
-      if (canStory && storyCopies.length && storyChooser) {
-        storyChooser.innerHTML = `
-          <p class="text-sm font-semibold text-on-surface-variant mb-3">스토리 문구 선택</p>
-          <div class="space-y-2">
+    if (preferenceUploadEnabled && uploadNote) {
+      uploadNote.innerHTML =
+        "피드/스토리 업로드 버튼은 먼저 UI만 제공됩니다. 지금은 저장 후 직접 인스타그램에 업로드해 주세요.";
+      uploadNote.className = "upload-note";
+      uploadNote.classList.remove("hidden");
+    }
+
+    const storyCopies = result.text_result?.story_copies || [];
+    if (canStory && storyCopies.length && storyChooser) {
+      storyChooser.innerHTML = `
+        <div class="result-card">
+          <h3 class="result-card__title">스토리 문구 선택</h3>
+          <div class="copy-stack">
             ${storyCopies
               .map(
                 (copy, index) => `
-                  <label class="flex items-center gap-3 rounded-xl bg-surface-container-highest px-4 py-3 text-sm text-on-surface">
-                    <input ${index === 0 ? "checked" : ""} type="radio" name="story-copy" value="${copy.replace(/"/g, "&quot;")}" />
-                    <span>${copy}</span>
+                  <label class="story-option">
+                    <input ${index === 0 ? "checked" : ""} type="radio" name="story-copy" value="${escapeHtml(copy)}" />
+                    <span>${escapeHtml(copy)}</span>
                   </label>`,
               )
               .join("")}
           </div>
-        `;
-        storyChooser.classList.remove("hidden");
+        </div>
+      `;
+      storyChooser.classList.remove("hidden");
+    }
+  }
+
+  function renderHome(bootstrap) {
+    const state = readState();
+    const brand = bootstrap?.brand;
+    const heroEyebrow = selectOne("#home-hero-eyebrow");
+    const heroTitle = selectOne("#home-hero-title");
+    const heroCopy = selectOne("#home-hero-copy");
+    const primaryCta = selectOne("#home-primary-cta");
+    const secondaryCta = selectOne("#home-secondary-cta");
+    const metricHistory = selectOne("#home-metric-history");
+    const metricProducts = selectOne("#home-metric-products");
+    const metricReferences = selectOne("#home-metric-references");
+    const statusList = selectOne("#home-status-list");
+    const guideCopy = selectOne("#home-guide-copy");
+
+    const recentCount = state.history.length;
+    if (metricHistory) metricHistory.textContent = `${recentCount}건`;
+    if (metricProducts) metricProducts.textContent = `${bootstrap?.product_count || 0}개`;
+    if (metricReferences) {
+      metricReferences.textContent = `${bootstrap?.published_reference_count || 0}건`;
+    }
+
+    if (!bootstrap?.onboarding_completed) {
+      if (heroEyebrow) heroEyebrow.textContent = "STEP 01 recommended";
+      if (heroTitle) heroTitle.textContent = "브랜드 세팅부터 시작해볼까요?";
+      if (heroCopy) {
+        heroCopy.textContent =
+          "로고와 분위기만 먼저 적어두면 이후 결과 화면과 인스타 프리뷰가 훨씬 자연스럽게 맞춰집니다.";
       }
+      if (primaryCta) {
+        primaryCta.href = PATHS.onboarding1;
+        primaryCta.innerHTML =
+          '<span class="material-symbols-outlined">edit_square</span>브랜드 세팅 시작';
+      }
+      if (secondaryCta) {
+        secondaryCta.href = PATHS.create;
+        secondaryCta.innerHTML =
+          '<span class="material-symbols-outlined">auto_awesome</span>바로 생성 화면 보기';
+      }
+    } else {
+      if (heroEyebrow) heroEyebrow.textContent = "Today with Brewgram";
+      if (heroTitle) {
+        heroTitle.textContent = `${brand?.brand_name || "우리 가게"}용 새 홍보물을 만들어볼까요?`;
+      }
+      if (heroCopy) {
+        heroCopy.textContent =
+          bootstrap?.image_backend_kind === "remote_worker"
+            ? "실제 워커와 연결된 이미지 생성 경로를 사용 중입니다. 결과 화면에서 업로드 UI까지 함께 확인해보세요."
+            : "상품 하나만 넣으면 문구와 이미지, 피드 프리뷰까지 한 번에 만들어집니다.";
+      }
+      if (primaryCta) {
+        primaryCta.href = PATHS.create;
+        primaryCta.innerHTML =
+          '<span class="material-symbols-outlined">auto_awesome</span>새 홍보 만들기';
+      }
+      if (secondaryCta) {
+        secondaryCta.href = PATHS.archive;
+        secondaryCta.innerHTML =
+          '<span class="material-symbols-outlined">inventory_2</span>최근 결과 보기';
+      }
+    }
+
+    if (statusList) {
+      const statuses = [
+        brand?.brand_atmosphere ? `#${brand.brand_atmosphere}` : "브랜드 세팅 완료",
+        bootstrap?.image_backend_kind === "remote_worker"
+          ? "실제 이미지 생성 연결됨"
+          : bootstrap?.image_backend_kind === "mock"
+            ? "미리보기 생성 모드"
+            : "이미지 생성 준비 완료",
+      ].filter(Boolean);
+      statusList.innerHTML = statuses
+        .map((value) => `<span class="status-pill">${escapeHtml(value)}</span>`)
+        .join("");
+    }
+
+    if (guideCopy) {
+      guideCopy.textContent = bootstrap?.instagram_ready
+        ? "인스타그램 연동 상태는 확인되지만, 자동 업로드는 아직 UI만 먼저 구성했습니다. 캡션과 스토리 이미지를 만든 뒤 직접 올려주세요."
+        : "자동 업로드는 다음 단계에서 연결합니다. 지금은 저장 버튼과 인스타그램 미리보기 중심으로 결과를 점검하면 됩니다.";
+    }
+
+    renderHistoryList(selectOne("#home-recent-list"), state.history.slice(0, 3), {
+      title: "아직 최근 홍보물이 없어요",
+      copy: "새 홍보물을 만들면 홈에서 최근 결과를 바로 다시 볼 수 있습니다.",
+      href: PATHS.create,
+      label: "첫 홍보물 만들기",
+    });
+  }
+
+  async function bindHome() {
+    const statusNode = selectOne("#home-status");
+    const state = readState();
+    renderHistoryList(selectOne("#home-recent-list"), state.history.slice(0, 3), {
+      title: "아직 최근 홍보물이 없어요",
+      copy: "새 홍보물을 만들면 홈에서 최근 결과를 바로 다시 볼 수 있습니다.",
+      href: PATHS.create,
+      label: "첫 홍보물 만들기",
+    });
+
+    try {
+      const bootstrap = await api("/bootstrap");
+      lastBootstrap = bootstrap;
+      renderHome(bootstrap);
+    } catch (error) {
+      setStatus(statusNode, error.message, "error");
+    }
+  }
+
+  async function bindArchive() {
+    const state = readState();
+    const title = selectOne("#archive-title");
+    const list = selectOne("#archive-list");
+    if (title) {
+      title.textContent = `보관함 · ${state.history.length}개`;
+    }
+    renderHistoryList(list, state.history, {
+      title: "보관함이 비어 있어요",
+      copy: "생성 결과는 세션 기준으로 여기에 쌓입니다. 먼저 하나 만들어보세요.",
+      href: PATHS.create,
+      label: "만들기로 이동",
+    });
+  }
+
+  async function bindSettings() {
+    const state = readState();
+    const toneSelect = selectOne("#settings-default-tone");
+    const styleSelect = selectOne("#settings-default-style");
+    const notifyToggle = selectOne("#settings-notify-toggle");
+    const uploadToggle = selectOne("#settings-upload-toggle");
+    const statusNode = selectOne("#settings-status");
+
+    if (toneSelect) toneSelect.value = state.preferences.defaultTone;
+    if (styleSelect) styleSelect.value = state.preferences.defaultStyle;
+    applyToggleState(notifyToggle, state.preferences.notificationsEnabled);
+    applyToggleState(uploadToggle, state.preferences.uploadPlaceholderEnabled);
+
+    toneSelect?.addEventListener("change", (event) => {
+      patchState({
+        preferences: { defaultTone: event.target.value },
+        create: { tone: event.target.value },
+      });
+      setStatus(statusNode, "기본 톤을 저장했습니다.", "success");
+    });
+
+    styleSelect?.addEventListener("change", (event) => {
+      patchState({
+        preferences: { defaultStyle: event.target.value },
+        create: { style: event.target.value },
+      });
+      setStatus(statusNode, "기본 이미지 스타일을 저장했습니다.", "success");
+    });
+
+    notifyToggle?.addEventListener("click", () => {
+      const nextValue = !readState().preferences.notificationsEnabled;
+      patchState({ preferences: { notificationsEnabled: nextValue } });
+      applyToggleState(notifyToggle, nextValue);
+      setStatus(statusNode, "알림 표시 상태를 저장했습니다.", "success");
+    });
+
+    uploadToggle?.addEventListener("click", () => {
+      const nextValue = !readState().preferences.uploadPlaceholderEnabled;
+      patchState({ preferences: { uploadPlaceholderEnabled: nextValue } });
+      applyToggleState(uploadToggle, nextValue);
+      setStatus(statusNode, "업로드 안내 표시 상태를 저장했습니다.", "success");
+    });
+
+    try {
+      const bootstrap = await api("/bootstrap");
+      lastBootstrap = bootstrap;
+      const brand = bootstrap.brand;
+      const brandNameNode = selectOne("#settings-brand-name");
+      const brandSubNode = selectOne("#settings-brand-sub");
+      const instagramNode = selectOne("#settings-instagram-status");
+      const apiNode = selectOne("#settings-api-status");
+      const backendNode = selectOne("#settings-image-backend");
+
+      if (brandNameNode) {
+        brandNameNode.textContent = brand?.brand_name || "미설정";
+      }
+      if (brandSubNode) {
+        brandSubNode.textContent = brand
+          ? `${brand.brand_color || "대표 컬러 미설정"} · ${brand.brand_atmosphere || "분위기 미설정"}`
+          : "온보딩이 아직 완료되지 않았습니다.";
+      }
+      if (instagramNode) {
+        instagramNode.textContent = bootstrap.instagram_ready ? "준비 완료" : "연동 전";
+      }
+      if (apiNode) {
+        apiNode.textContent = bootstrap.api_ready ? "사용 가능" : "확인 필요";
+      }
+      if (backendNode) {
+        backendNode.textContent = bootstrap.image_backend_kind || "미확인";
+      }
+    } catch (error) {
+      setStatus(statusNode, error.message, "error");
     }
   }
 
   async function bindCreate() {
     const state = readState();
     const bootstrapStatus = selectOne("#create-status");
+    const productNameInput = selectOne("#create-product-name");
+    const descriptionInput = selectOne("#create-product-description");
+    const toneSelect = selectOne("#create-tone-select");
+    const styleSelect = selectOne("#create-style-select");
+    const customGoalInput = selectOne("#create-goal-custom");
+    const referenceUrlInput = selectOne("#create-reference-url");
+    const referenceTrigger = selectOne("#create-reference-trigger");
+    const referenceInput = selectOne("#create-reference-input");
+    const referenceStatus = selectOne("#create-reference-status");
+    const submitButton = selectOne("#create-submit");
+    const captionButton = selectOne("#create-caption-button");
+    const storyButton = selectOne("#create-story-button");
+    const regenerateButton = selectOne("#create-regenerate-button");
+    const uploadFeedButton = selectOne("#create-upload-feed-button");
+    const uploadStoryButton = selectOne("#create-upload-story-button");
+    const uploadNote = selectOne("#result-upload-note");
+    const captionBlock = selectOne("#result-caption-block");
+    const storyBlock = selectOne("#result-story-block");
 
     try {
       const bootstrap = await api("/bootstrap");
+      lastBootstrap = bootstrap;
       renderBrandSummary(bootstrap.brand, bootstrap);
       if (!bootstrap.onboarding_completed) {
         setStatus(
@@ -485,25 +988,17 @@
       setStatus(bootstrapStatus, error.message, "error");
     }
 
-    const productNameInput = selectOne("#create-product-name");
-    const descriptionInput = selectOne("#create-product-description");
-    const toneSelect = selectOne("#create-tone-select");
-    const styleSelect = selectOne("#create-style-select");
-    const referenceUrlInput = selectOne("#create-reference-url");
-    const referenceTrigger = selectOne("#create-reference-trigger");
-    const referenceInput = selectOne("#create-reference-input");
-    const referenceStatus = selectOne("#create-reference-status");
-    const submitButton = selectOne("#create-submit");
-    const captionButton = selectOne("#create-caption-button");
-    const storyButton = selectOne("#create-story-button");
-    const captionBlock = selectOne("#result-caption-block");
-    const storyBlock = selectOne("#result-story-block");
+    const effectiveTone = state.create.tone || state.preferences.defaultTone || "감성";
+    const effectiveStyle = state.create.style || state.preferences.defaultStyle || "감성";
+    const customGoalValue = PRESET_GOALS.includes(state.create.goal) ? "" : state.create.goal || "";
 
     productNameInput.value = state.create.productName || "";
     descriptionInput.value = state.create.productDescription || "";
-    toneSelect.value = state.create.tone || "감성";
-    styleSelect.value = state.create.style || "감성";
+    toneSelect.value = effectiveTone;
+    styleSelect.value = effectiveStyle;
+    if (customGoalInput) customGoalInput.value = customGoalValue;
     referenceUrlInput.value = state.create.referenceUrl || "";
+
     if (state.create.referenceImage && referenceStatus) {
       referenceStatus.textContent = `${state.create.referenceImage.name} 파일이 연결되어 있어요.`;
     }
@@ -540,6 +1035,9 @@
         const value = button.dataset.goalChoice;
         patchState({ create: { goal: value } });
         applyGoalStyles(value);
+        if (customGoalInput) {
+          customGoalInput.value = "";
+        }
       });
     });
 
@@ -556,6 +1054,11 @@
     });
     descriptionInput?.addEventListener("input", (event) => {
       patchState({ create: { productDescription: event.target.value } });
+    });
+    customGoalInput?.addEventListener("input", (event) => {
+      const nextGoal = event.target.value.trim() || PRESET_GOALS[0];
+      patchState({ create: { goal: nextGoal } });
+      applyGoalStyles(nextGoal);
     });
     toneSelect?.addEventListener("change", (event) => {
       patchState({ create: { tone: event.target.value } });
@@ -602,6 +1105,7 @@
             reference_image: latestState.create.referenceImage,
           },
         });
+        saveHistoryEntry(latestState.create, lastGenerateResult);
         renderGenerateResult(lastGenerateResult);
         setStatus(bootstrapStatus, "광고 생성이 완료되었습니다.", "success");
       } catch (error) {
@@ -609,6 +1113,10 @@
       } finally {
         submitButton.disabled = false;
       }
+    });
+
+    regenerateButton?.addEventListener("click", () => {
+      submitButton?.click();
     });
 
     captionButton?.addEventListener("click", async () => {
@@ -627,13 +1135,14 @@
           },
         });
         captionBlock.innerHTML = `
-          <div class="space-y-3">
-            <h3 class="text-lg font-bold text-on-surface">피드 캡션</h3>
-            <div class="rounded-xl bg-surface-container-highest px-4 py-4 text-sm leading-relaxed text-on-surface whitespace-pre-wrap">${caption.caption}</div>
-            <div class="rounded-xl bg-surface-container-highest px-4 py-4 text-sm text-primary">${caption.hashtags}</div>
+          <div class="result-card">
+            <h3 class="result-card__title">피드 캡션</h3>
+            <div class="copy-line" style="white-space:pre-wrap;">${escapeHtml(caption.caption)}</div>
+            <div class="copy-line">${escapeHtml(caption.hashtags)}</div>
           </div>
         `;
         captionBlock.classList.remove("hidden");
+        updateLastHistory({ captionReady: true });
         setStatus(bootstrapStatus, "피드 캡션이 준비되었습니다.", "success");
       } catch (error) {
         setStatus(bootstrapStatus, error.message, "error");
@@ -661,21 +1170,44 @@
           },
         });
         storyBlock.innerHTML = `
-          <div class="space-y-3">
-            <h3 class="text-lg font-bold text-on-surface">스토리 이미지</h3>
-            <img class="w-full rounded-xl shadow-[0_18px_36px_rgba(55,50,34,0.10)]" src="${story.image_data_url}" alt="스토리 이미지" />
-            <a class="inline-flex items-center justify-center rounded-full bg-secondary-container px-5 py-3 text-sm font-bold text-on-secondary-container" href="${story.image_data_url}" download="brewgram-story.png">스토리 저장하기</a>
+          <div class="result-card">
+            <h3 class="result-card__title">스토리 이미지</h3>
+            <img class="result-media" src="${story.image_data_url}" alt="스토리 이미지" />
+            <a class="soft-button" style="margin-top:1rem;" href="${story.image_data_url}" download="brewgram-story.png">스토리 저장하기</a>
           </div>
         `;
         storyBlock.classList.remove("hidden");
+        updateLastHistory({ storyReady: true });
         setStatus(bootstrapStatus, "스토리 이미지가 준비되었습니다.", "success");
       } catch (error) {
         setStatus(bootstrapStatus, error.message, "error");
       }
     });
 
+    uploadFeedButton?.addEventListener("click", () => {
+      updateLastHistory({ uploadFeedStatus: "placeholder" });
+      if (uploadNote) {
+        uploadNote.textContent =
+          "피드 업로드 UI는 준비되었지만, 자동 업로드 연결은 아직 붙지 않았습니다. 지금은 이미지와 캡션을 저장해 직접 업로드해 주세요.";
+        uploadNote.className = "upload-note";
+        uploadNote.classList.remove("hidden");
+      }
+      setStatus(bootstrapStatus, "피드 업로드 기능은 곧 연결됩니다. 지금은 저장 후 직접 업로드해 주세요.", "neutral");
+    });
+
+    uploadStoryButton?.addEventListener("click", () => {
+      updateLastHistory({ uploadStoryStatus: "placeholder" });
+      if (uploadNote) {
+        uploadNote.textContent =
+          "스토리 업로드 버튼은 먼저 UI만 제공됩니다. 스토리 이미지를 저장한 뒤 직접 인스타그램에 업로드해 주세요.";
+        uploadNote.className = "upload-note";
+        uploadNote.classList.remove("hidden");
+      }
+      setStatus(bootstrapStatus, "스토리 업로드 기능은 아직 연결되지 않았습니다.", "neutral");
+    });
+
     selectOne("#create-back")?.addEventListener("click", () => {
-      window.location.href = "../3./code.html";
+      navigate(PATHS.home);
     });
   }
 
@@ -683,6 +1215,9 @@
     if (PAGE === "onboarding-1") bindStep1();
     if (PAGE === "onboarding-2") bindStep2();
     if (PAGE === "onboarding-3") bindStep3();
+    if (PAGE === "home") bindHome();
+    if (PAGE === "archive") bindArchive();
+    if (PAGE === "settings") bindSettings();
     if (PAGE === "create") bindCreate();
   });
 })();
