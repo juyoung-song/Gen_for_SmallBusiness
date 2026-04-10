@@ -19,20 +19,3 @@ Pillow>=10.0
 
 # === HTTP 클라이언트 (이미지 다운로드용) ===
 httpx>=0.25
-
-# === 온보딩 — 인스타 프로필 헤드리스 캡처 (Phase 2 Step 2.1) ===
-browser-use[cli]>=0.12.6
-
-# === Instagram OAuth 2.0 (song 이식) — 토큰 Fernet 암호화용 ===
-cryptography>=42.0.0
-
-# === Remote Worker API ===
-fastapi>=0.115.0
-uvicorn>=0.30.0
-
-# === 로컬 모델 (USE_LOCAL_MODEL=true 시 필요) ===
-torch>=2.1.0
-diffusers>=0.24.0
-transformers>=4.35.0
-accelerate>=0.24.0
-torchvision>=0.26.0
