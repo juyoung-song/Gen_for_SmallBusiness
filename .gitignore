@@ -171,3 +171,4 @@ models/cache/
 
 # Excalidraw
 *.excalidraw
+.env.bak
