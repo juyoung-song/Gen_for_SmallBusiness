@@ -159,6 +159,26 @@ class TestInstagramSummary:
 
 
 class TestInstagramOnboardingFlow:
+    async def test_connect_url_returns_placeholder_when_oauth_not_configured(
+        self, monkeypatch
+    ):
+        async def fake_load_brand():
+            return SimpleNamespace(id=uuid4())
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+        monkeypatch.setattr(mobile_app.settings, "META_APP_ID", "")
+        monkeypatch.setattr(mobile_app.settings, "META_APP_SECRET", "")
+        monkeypatch.setattr(mobile_app.settings, "META_REDIRECT_URI", "")
+        monkeypatch.setattr(mobile_app.settings, "TOKEN_ENCRYPTION_KEY", "")
+
+        response = await mobile_app.mobile_instagram_connect_url(
+            mobile_app.MobileInstagramConnectRequest(source="settings")
+        )
+
+        assert response.mode == "placeholder"
+        assert response.url is None
+        assert "API" in (response.message or "")
+
     async def test_connect_url_accepts_onboarding_source(self, monkeypatch):
         brand_id = uuid4()
 

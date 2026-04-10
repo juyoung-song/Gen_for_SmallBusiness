@@ -92,6 +92,7 @@ class MobileBrandSummary(BaseModel):
 
 class MobileInstagramSummary(BaseModel):
     oauth_available: bool
+    connect_available: bool = True
     connected: bool
     expired: bool = False
     upload_ready: bool
@@ -164,7 +165,9 @@ class MobileStoryResponse(BaseModel):
 
 
 class MobileInstagramConnectResponse(BaseModel):
-    url: str
+    mode: Literal["oauth", "placeholder"]
+    url: str | None = None
+    message: str | None = None
 
 
 class MobileInstagramConnectRequest(BaseModel):
@@ -377,6 +380,7 @@ async def _load_instagram_summary(brand: BrandImage | None) -> MobileInstagramSu
             if not expired:
                 return MobileInstagramSummary(
                     oauth_available=oauth_available,
+                    connect_available=True,
                     connected=True,
                     expired=False,
                     upload_ready=True,
@@ -387,6 +391,7 @@ async def _load_instagram_summary(brand: BrandImage | None) -> MobileInstagramSu
                 )
             return MobileInstagramSummary(
                 oauth_available=oauth_available,
+                connect_available=True,
                 connected=False,
                 expired=True,
                 upload_ready=settings.is_instagram_ready,
@@ -399,6 +404,7 @@ async def _load_instagram_summary(brand: BrandImage | None) -> MobileInstagramSu
     if settings.is_instagram_ready:
         return MobileInstagramSummary(
             oauth_available=oauth_available,
+            connect_available=True,
             connected=False,
             expired=False,
             upload_ready=True,
@@ -407,6 +413,7 @@ async def _load_instagram_summary(brand: BrandImage | None) -> MobileInstagramSu
 
     return MobileInstagramSummary(
         oauth_available=oauth_available,
+        connect_available=True,
         connected=False,
         expired=False,
         upload_ready=False,
@@ -460,12 +467,6 @@ async def mobile_instagram_status() -> MobileInstagramSummary:
 async def mobile_instagram_connect_url(
     payload: MobileInstagramConnectRequest | None = None,
 ) -> MobileInstagramConnectResponse:
-    if not settings.is_instagram_oauth_configured:
-        raise HTTPException(
-            status_code=503,
-            detail="Meta OAuth 설정이 아직 준비되지 않았습니다.",
-        )
-
     brand = await _load_brand()
     if brand is None:
         raise HTTPException(
@@ -474,9 +475,19 @@ async def mobile_instagram_connect_url(
         )
 
     source = payload.source if payload is not None else "settings"
+
+    if not settings.is_instagram_oauth_configured:
+        return MobileInstagramConnectResponse(
+            mode="placeholder",
+            message=(
+                "인스타그램 연결 API 자리는 준비되어 있지만, 실제 Meta OAuth 설정은 아직 연결되지 않았습니다. "
+                "다른 팀원이 이 응답 계약(mode/url/message)을 기준으로 실제 연동을 이어붙이면 됩니다."
+            ),
+        )
+
     state = _issue_instagram_state(brand.id, source)
     url = InstagramAuthService(settings).generate_oauth_url(state)
-    return MobileInstagramConnectResponse(url=url)
+    return MobileInstagramConnectResponse(mode="oauth", url=url)
 
 
 @app.post(

@@ -215,6 +215,7 @@
     return (
       bootstrapLike?.instagram || {
         oauth_available: false,
+        connect_available: true,
         connected: false,
         expired: false,
         upload_ready: false,
@@ -242,6 +243,9 @@
     if (summary.oauth_available) {
       return "미연결";
     }
+    if (summary.connect_available) {
+      return "연동 준비 중";
+    }
     return "설정 필요";
   }
 
@@ -262,6 +266,9 @@
     if (summary.oauth_available) {
       return "사장님 본인 계정을 한 번만 연결해두면 이후 피드/스토리 업로드를 자연스럽게 이어붙일 수 있습니다.";
     }
+    if (summary.connect_available) {
+      return "인스타그램 연결 API는 먼저 준비되어 있습니다. 실제 Meta OAuth 설정만 붙이면 지금 버튼 흐름을 그대로 사용할 수 있습니다.";
+    }
     return "Meta OAuth 환경 설정이 아직 없어 개인 계정 연결 기능을 켤 수 없습니다.";
   }
 
@@ -277,6 +284,9 @@
     }
     if (summary.oauth_available) {
       return "이 화면이 계정 연결을 관리하는 유일한 진입점입니다. 홈과 결과 화면은 상태 요약과 연결 유도만 담당합니다.";
+    }
+    if (summary.connect_available) {
+      return "버튼과 API 계약은 준비되어 있습니다. 현재는 placeholder 응답만 내려주고 있어, 다음 구현 단계에서 실제 Meta OAuth만 연결하면 됩니다.";
     }
     return "현재 환경에서는 개인 계정 연결이 비활성화되어 있습니다.";
   }
@@ -294,6 +304,9 @@
     }
     if (summary.oauth_available) {
       return "자동 업로드 기능은 아직 연결 전이지만, 설정에서 인스타그램 계정을 미리 연결해둘 수 있습니다.";
+    }
+    if (summary.connect_available) {
+      return "인스타그램 연결 UI와 API는 먼저 준비되어 있습니다. 실제 인증 연결은 다음 단계에서 이어붙이면 됩니다.";
     }
     return "자동 업로드는 다음 단계에서 연결합니다. 지금은 저장 버튼과 인스타그램 미리보기 중심으로 결과를 점검하면 됩니다.";
   }
@@ -632,7 +645,7 @@
     const state = readState();
     const descriptionInput = selectOne("#brand-description");
     const submitButton = selectOne("#step3-submit");
-    const skipButton = selectOne("#step3-skip");
+    const prevButton = selectOne("#step3-prev");
     const statusNode = selectOne("#onboarding-status");
 
     descriptionInput.value = state.onboarding.brandDescription || "";
@@ -648,7 +661,7 @@
       });
 
       submitButton.disabled = true;
-      skipButton.disabled = true;
+      if (prevButton) prevButton.disabled = true;
       setStatus(statusNode, "브랜드 가이드를 만드는 중입니다. 잠시만 기다려주세요.", "loading");
 
       try {
@@ -680,12 +693,14 @@
         setStatus(statusNode, error.message, "error");
       } finally {
         submitButton.disabled = false;
-        skipButton.disabled = false;
+        if (prevButton) prevButton.disabled = false;
       }
     };
 
     submitButton?.addEventListener("click", () => submit(false));
-    skipButton?.addEventListener("click", () => submit(true));
+    prevButton?.addEventListener("click", () => {
+      navigate(PATHS.onboarding2);
+    });
     selectOne("#step3-back")?.addEventListener("click", () => {
       navigate(PATHS.onboarding2);
     });
@@ -746,6 +761,9 @@
         } else if (summary.oauth_available) {
           copyNode.textContent =
             "지금 연결해두면 이후 업로드 기능이 붙었을 때 더 자연스럽게 이어집니다. 원하지 않으면 건너뛰어도 됩니다.";
+        } else if (summary.connect_available) {
+          copyNode.textContent =
+            "실제 인증 연결은 아직 비어 있지만, 이 버튼과 API 응답 계약은 이미 준비되어 있습니다. 다른 팀원이 바로 이어서 붙일 수 있습니다.";
         } else {
           copyNode.textContent =
             "현재 환경에서는 계정 연결을 사용할 수 없습니다. 나중에 설정이 준비되면 설정 화면에서 연결할 수 있습니다.";
@@ -760,7 +778,7 @@
       if (connectButton) {
         connectButton.classList.toggle(
           "hidden",
-          !bootstrap?.onboarding_completed || !summary.oauth_available || summary.connected,
+          !bootstrap?.onboarding_completed || !summary.connect_available || summary.connected,
         );
         connectButton.textContent = summary.expired ? "다시 연결하기" : "인스타 계정 연결";
       }
@@ -791,7 +809,15 @@
           method: "POST",
           body: { source: "onboarding" },
         });
-        window.location.assign(response.url);
+        if (response.mode === "oauth" && response.url) {
+          window.location.assign(response.url);
+          return;
+        }
+        setStatus(
+          statusNode,
+          response.message || "인스타그램 연결 API는 준비되어 있지만 실제 인증 설정은 아직 연결되지 않았습니다.",
+          "neutral",
+        );
       } catch (error) {
         setStatus(statusNode, error.message, "error");
       }
@@ -1205,8 +1231,8 @@
         instagramNoteNode.textContent = instagramSettingsNote(instagram, onboardingCompleted);
       }
 
-      const canConnect = onboardingCompleted && instagram.oauth_available && !instagram.connected && !instagram.expired;
-      const canReconnect = onboardingCompleted && instagram.oauth_available && (instagram.connected || instagram.expired);
+      const canConnect = onboardingCompleted && instagram.connect_available && !instagram.connected && !instagram.expired;
+      const canReconnect = onboardingCompleted && instagram.connect_available && (instagram.connected || instagram.expired);
       const canDisconnect = onboardingCompleted && (instagram.connected || instagram.expired);
 
       instagramConnectButton?.classList.toggle("hidden", !canConnect);
@@ -1259,7 +1285,15 @@
           method: "POST",
           body: { source: "settings" },
         });
-        window.location.assign(response.url);
+        if (response.mode === "oauth" && response.url) {
+          window.location.assign(response.url);
+          return;
+        }
+        setStatus(
+          statusNode,
+          response.message || "인스타그램 연결 API는 준비되어 있지만 실제 인증 설정은 아직 연결되지 않았습니다.",
+          "neutral",
+        );
       } catch (error) {
         setStatus(statusNode, error.message, "error");
       }
@@ -1272,7 +1306,15 @@
           method: "POST",
           body: { source: "settings" },
         });
-        window.location.assign(response.url);
+        if (response.mode === "oauth" && response.url) {
+          window.location.assign(response.url);
+          return;
+        }
+        setStatus(
+          statusNode,
+          response.message || "인스타그램 연결 API는 준비되어 있지만 실제 인증 설정은 아직 연결되지 않았습니다.",
+          "neutral",
+        );
       } catch (error) {
         setStatus(statusNode, error.message, "error");
       }
