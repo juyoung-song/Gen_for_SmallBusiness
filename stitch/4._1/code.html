@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Brewgram - 광고 만들기</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Be+Vietnam+Pro:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="../shared.css" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-tertiary-fixed": "#371800",
+                    "primary-fixed": "#ffae8a",
+                    "on-secondary-fixed-variant": "#476400",
+                    "on-tertiary-fixed-variant": "#663100",
+                    "on-background": "#373222",
+                    "surface-container-lowest": "#ffffff",
+                    "inverse-surface": "#110e06",
+                    "surface-container-low": "#fbf3e1",
+                    "surface-container": "#f6edda",
+                    "primary-dim": "#863e1b",
+                    "on-surface": "#373222",
+                    "secondary-dim": "#405b00",
+                    "surface": "#fff8ef",
+                    "secondary-container": "#c8f17a",
+                    "on-primary-fixed-variant": "#75310e",
+                    "on-primary-fixed": "#4a1800",
+                    "surface-dim": "#e4d9bf",
+                    "surface-container-high": "#f1e7d2",
+                    "secondary-fixed-dim": "#bae26e",
+                    "tertiary-fixed": "#ffa35d",
+                    "outline": "#827a66",
+                    "on-primary": "#fff7f5",
+                    "secondary-fixed": "#c8f17a",
+                    "on-primary-container": "#692906",
+                    "outline-variant": "#bab19b",
+                    "inverse-on-surface": "#a29c8f",
+                    "surface-container-highest": "#ece2ca",
+                    "tertiary-fixed-dim": "#fc8f34",
+                    "primary-fixed-dim": "#fb9b70",
+                    "secondary": "#4a6800",
+                    "on-surface-variant": "#655f4c",
+                    "on-error-container": "#65000b",
+                    "on-secondary-container": "#3f5a00",
+                    "tertiary-container": "#ffa35d",
+                    "primary": "#954a25",
+                    "on-tertiary": "#fff7f4",
+                    "tertiary-dim": "#834100",
+                    "surface-tint": "#954a25",
+                    "surface-bright": "#fff8ef",
+                    "error-dim": "#70030f",
+                    "on-error": "#fff7f6",
+                    "surface-variant": "#ece2ca",
+                    "inverse-primary": "#f8986d",
+                    "background": "#fff8ef",
+                    "error": "#ac3434",
+                    "tertiary": "#954b00",
+                    "on-secondary": "#f0ffce",
+                    "on-tertiary-container": "#592a00",
+                    "primary-container": "#ffae8a",
+                    "on-secondary-fixed": "#304600",
+                    "error-container": "#f56965"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Plus Jakarta Sans"],
+                    "body": ["Be Vietnam Pro"],
+                    "label": ["Be Vietnam Pro"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Be Vietnam Pro', sans-serif; }
+        h1, h2, h3 { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#fff8ef]/80 dark:bg-stone-950/80 backdrop-blur-xl">
+<div class="flex justify-between items-center w-full px-6 py-4">
+<button class="material-symbols-outlined text-[#954a25] dark:text-[#f1e7d2] active:scale-95 transition-transform duration-200">arrow_back</button>
+<div class="brand-lockup">
+<img alt="Brewgram 로고" class="brand-mark" src="../../logo-app-icon-192.png"/>
+<span class="brand-wordmark">Brewgram</span>
+</div>
+<div class="w-6"></div> <!-- Spacer for centering -->
+</div>
+</header>
+<main class="mt-20 px-6 max-w-2xl mx-auto space-y-8">
+<!-- Hero Section -->
+<section class="space-y-2">
+<p class="film-note">today's warm issue</p>
+<h2 class="text-3xl font-extrabold tracking-tight text-on-surface film-headline">광고 만들기</h2>
+<p class="text-on-surface-variant font-medium warm-copy">당신의 브랜드를 위한 따뜻한 이야기를 시작해보세요.</p>
+</section>
+<!-- Promotion Objective -->
+<section class="space-y-4">
+<label class="text-sm font-bold text-on-surface-variant uppercase tracking-wider">홍보 목적</label>
+<div class="flex flex-wrap gap-3">
+<button class="px-6 py-2 rounded-full bg-tertiary-container text-on-tertiary-container font-semibold shadow-sm transition-all active:scale-95">신제품 출시</button>
+<button class="px-6 py-2 rounded-full bg-surface-container-high text-on-surface-variant font-medium hover:bg-surface-container-highest transition-colors active:scale-95">브랜드 인지도</button>
+<button class="px-6 py-2 rounded-full bg-surface-container-high text-on-surface-variant font-medium hover:bg-surface-container-highest transition-colors active:scale-95">이벤트 홍보</button>
+<button class="px-6 py-2 rounded-full bg-surface-container-high text-on-surface-variant font-medium hover:bg-surface-container-highest transition-colors active:scale-95">매장 방문 유도</button>
+</div>
+</section>
+<!-- Generation Type & Detailed Options Card -->
+<div class="bg-surface-container-low rounded-xl p-8 space-y-8">
+<!-- Toggle Section -->
+<div class="space-y-4">
+<label class="text-sm font-bold text-on-surface-variant uppercase tracking-wider">생성 타입</label>
+<div class="flex p-1 bg-surface-container-highest rounded-full w-full">
+<button class="flex-1 py-3 text-sm font-bold rounded-full transition-all bg-surface-container-lowest text-primary shadow-sm">글 + 이미지</button>
+<button class="flex-1 py-3 text-sm font-medium rounded-full transition-all text-on-surface-variant">이미지만</button>
+<button class="flex-1 py-3 text-sm font-medium rounded-full transition-all text-on-surface-variant">글만</button>
+</div>
+</div>
+<!-- Dropdown Options Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-3">
+<label class="text-sm font-bold text-on-surface-variant">말투 (Tone)</label>
+<div class="relative">
+<select class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3 appearance-none focus:ring-2 focus:ring-primary/30 text-on-surface font-medium">
+<option>따뜻하고 감성적인</option>
+<option>전문적이고 신뢰감 있는</option>
+<option>유머러스하고 재치있는</option>
+<option>간결하고 명확한</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+</div>
+<div class="space-y-3">
+<label class="text-sm font-bold text-on-surface-variant">이미지 스타일</label>
+<div class="relative">
+<select class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3 appearance-none focus:ring-2 focus:ring-primary/30 text-on-surface font-medium">
+<option>아날로그 필름 감성</option>
+<option>미니멀한 스튜디오</option>
+<option>빈티지 일러스트</option>
+<option>자연스러운 일상</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Upload Area -->
+<div class="space-y-3">
+<label class="text-sm font-bold text-on-surface-variant">참고 이미지/링크</label>
+<div class="relative group">
+<div class="w-full h-48 border-2 border-dashed border-outline-variant rounded-xl flex flex-col items-center justify-center space-y-3 bg-surface-container-lowest/50 hover:bg-surface-container-lowest transition-colors cursor-pointer soft-dash" style="border-dasharray: 8 4;">
+<span class="material-symbols-outlined text-4xl text-outline-variant group-hover:text-primary transition-colors">cloud_upload</span>
+<div class="text-center">
+<p class="text-on-surface font-semibold">이미지를 드래그하거나 클릭하여 업로드</p>
+<p class="text-xs text-on-surface-variant mt-1">또는 참고할 웹사이트 링크를 붙여넣으세요</p>
+</div>
+</div>
+</div>
+<input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary/30 text-on-surface text-sm placeholder:text-outline-variant" placeholder="https://example.com/reference" type="text"/>
+</div>
+</div>
+<!-- Submit Section -->
+<div class="pt-4 pb-12">
+<button class="w-full py-5 rounded-full bg-primary text-on-primary font-bold text-lg shadow-xl shadow-primary/20 hover:scale-[1.01] active:scale-95 transition-all relative overflow-hidden group warm-button">
+<span class="relative z-10">광고 소재 생성하기</span>
+<div class="absolute inset-0 bg-gradient-to-r from-primary to-primary-dim opacity-0 group-hover:opacity-100 transition-opacity"></div>
+</button>
+<p class="text-center text-xs text-on-surface-variant mt-4 leading-relaxed">
+                생성에는 약 30초에서 1분이 소요됩니다.<br/>완성된 소재는 마이페이지의 '제작 기록'에서 다시 볼 수 있습니다.
+            </p>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-[3rem] bg-[#fff8ef]/80 dark:bg-stone-950/80 backdrop-blur-xl shadow-[0_-12px_32px_rgba(55,50,34,0.06)]">
+<div class="fixed bottom-0 left-0 w-full flex justify-around items-center px-8 pb-8 pt-4">
+<!-- Home -->
+<a class="flex flex-col items-center justify-center text-[#655f4c] dark:text-[#a19985] px-5 py-2 active:scale-90 transition-all duration-300 ease-out hover:text-[#954a25]" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[11px] font-medium mt-1">홈</span>
+</a>
+<!-- Create (Active) -->
+<a class="flex flex-col items-center justify-center bg-[#fbf3e1] dark:bg-stone-800 text-[#954a25] dark:text-[#ffa35d] rounded-full px-5 py-2 active:scale-90 transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined" data-icon="add_circle" style="font-variation-settings: 'FILL' 1;">add_circle</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[11px] font-medium mt-1">만들기</span>
+</a>
+<!-- Profile -->
+<a class="flex flex-col items-center justify-center text-[#655f4c] dark:text-[#a19985] px-5 py-2 active:scale-90 transition-all duration-300 ease-out hover:text-[#954a25]" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[11px] font-medium mt-1">프로필</span>
+</a>
+</div>
+</nav>
+<!-- Background Decoration (Sunlight Effect) -->
+<div class="fixed -top-24 -right-24 w-96 h-96 bg-primary-fixed opacity-10 rounded-full blur-[100px] pointer-events-none"></div>
+<div class="fixed -bottom-24 -left-24 w-96 h-96 bg-tertiary-fixed opacity-10 rounded-full blur-[100px] pointer-events-none"></div>
+</body></html>

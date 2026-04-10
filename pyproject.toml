@@ -1,0 +1,44 @@
+[project]
+name = "gen-for-smallbusiness"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "aiosqlite>=0.19",
+    "greenlet>=3.0.0",
+    "httpx>=0.25",
+    "fastapi>=0.115.0",
+    "openai>=1.40",
+    "pillow>=10.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "python-dotenv>=1.0",
+    "sqlalchemy[asyncio]>=2.0",
+    "streamlit>=1.30",
+    "uvicorn>=0.30.0",
+    # ── Local Model (optional, for USE_LOCAL_MODEL=true) ──
+    "torch>=2.1.0",
+    "diffusers==0.31.0",
+    "transformers>=4.44.0,<5.0.0",
+    "accelerate>=0.24.0",
+    "torchvision>=0.26.0",
+    # ── Onboarding (Phase 2 Step 2.1) ──
+    # 인스타 프로필 헤드리스 캡처에 사용. subprocess 로 browser-use CLI 호출.
+    "browser-use[cli]>=0.12.6",
+    "cryptography>=42.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore::DeprecationWarning:pydantic.*",
+]

@@ -35,7 +35,30 @@ class ImageGenerationRequest(BaseModel):
     )
     image_data: bytes | None = Field(
         default=None,
-        description="참조용 업로드 이미지",
+        description="상품 raw 이미지 (화장 전). 신상품 업로드 또는 기존 상품의 DB raw 이미지.",
+    )
+    reference_image_paths: list[str] = Field(
+        default_factory=list,
+        description=(
+            "참조 이미지 풀(화장 후)에서 사용자가 선택한 파일 경로 리스트. "
+            "각 경로는 generated_upload.image_path 에서 온 것이며, "
+            "백엔드가 지원하면 다중 참조, 지원 안 하면 첫 장만 사용."
+        ),
+    )
+    brand_prompt: str = Field(
+        default="",
+        description=(
+            "온보딩 단계에서 생성된 brand_image.txt 본문. "
+            "모든 이미지 생성 호출에 system prompt 로 주입된다 (design.md §2.3)."
+        ),
+    )
+    is_new_product: bool = Field(
+        default=False,
+        description="신상품 여부 — 이미지 프롬프트에 런칭 에너지/신선함 반영",
+    )
+    reference_analysis: str = Field(
+        default="",
+        description="참조 이미지 분석 텍스트. 시각적 합성의 1차 참고 자료.",
     )
 
     @field_validator("style")

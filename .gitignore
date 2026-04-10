@@ -148,6 +148,9 @@ cython_debug/
 Thumbs.db
 
 # Project specific
+/image_crawled/
+crawled_images.json
+brand_analysis.json
 ad_history.db
 data/
 image_outputs/
@@ -158,3 +161,17 @@ mock_instagram_upload.json
 *.jpg
 *.jpeg
 *.db
+
+# Local model cache (HuggingFace weights, large binary files)
+models/cache/
+
+# uv
+.python-version
+
+# Claude
+.claude/
+
+# Excalidraw
+*.excalidraw
+.claude/skills/gstack/
+.env.bak

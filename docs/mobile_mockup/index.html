@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>모바일 앱 시뮬레이션 — 사장님을 위한 AI 홍보 도우미</title>
+<style>
+  :root {
+    --brand-1: #FF6B6B;
+    --brand-2: #5562EA;
+    --purple-1: #6c5ce7;
+    --purple-2: #a29bfe;
+    --text: #262626;
+    --muted: #8e8e8e;
+    --line: #efefef;
+    --bg: #f5f6fa;
+    --card: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+                 "Noto Sans KR", Roboto, Helvetica, Arial, sans-serif;
+    background:
+      radial-gradient(1200px 600px at 10% 10%, #eef0ff 0%, transparent 60%),
+      radial-gradient(1000px 600px at 90% 30%, #ffeef0 0%, transparent 60%),
+      #f0f2f7;
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── 레이아웃: 왼쪽 안내 패널 + 오른쪽 폰 목업 ── */
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(260px, 360px) 1fr;
+    gap: 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 28px;
+  }
+  @media (max-width: 860px) {
+    .stage { grid-template-columns: 1fr; }
+  }
+
+  .intro h1 {
+    font-size: 28px;
+    margin: 0 0 8px;
+    background: -webkit-linear-gradient(45deg, var(--brand-1), var(--brand-2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800;
+  }
+  .intro p.lead {
+    color: #555;
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0 0 20px;
+  }
+  .legend {
+    background: #fff;
+    border: 1px solid #e8eaf2;
+    border-radius: 14px;
+    padding: 14px 16px;
+    font-size: 12.5px;
+    color: #555;
+    line-height: 1.7;
+    box-shadow: 0 6px 20px rgba(40, 50, 90, 0.06);
+  }
+  .legend b { color: var(--purple-1); }
+  .legend code {
+    background: #f3f4fa;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 11.5px;
+  }
+  .legend ul { margin: 8px 0 0 18px; padding: 0; }
+  .legend li { margin-bottom: 4px; }
+
+  .screen-picker {
+    display: flex;
+    gap: 6px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+  .screen-picker button {
+    border: 1px solid #d9dcee;
+    background: #fff;
+    color: #555;
+    font-size: 12px;
+    padding: 7px 11px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all .15s;
+  }
+  .screen-picker button:hover { border-color: var(--purple-1); color: var(--purple-1); }
+  .screen-picker button.active {
+    background: linear-gradient(135deg, var(--purple-1), var(--purple-2));
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 10px rgba(108, 92, 231, 0.35);
+  }
+
+  /* ── 폰 프레임 ── */
+  .phone-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .phone {
+    width: 390px;
+    height: 820px;
+    background: #111;
+    border-radius: 48px;
+    padding: 14px;
+    box-shadow:
+      0 30px 60px rgba(30, 30, 60, 0.25),
+      0 0 0 2px #2a2a2a inset;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .phone::before {
+    /* 다이나믹 아일랜드 */
+    content: "";
+    position: absolute;
+    top: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 110px;
+    height: 30px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 10;
+  }
+  .screen {
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+    border-radius: 36px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 상단 상태바 */
+  .statusbar {
+    height: 48px;
+    padding: 16px 28px 0;
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 700;
+    color: #111;
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+  .statusbar .icons { letter-spacing: 1px; }
+
+  /* 앱 헤더 */
+  .appbar {
+    padding: 8px 18px 12px;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .appbar .title {
+    font-size: 18px;
+    font-weight: 800;
+    background: -webkit-linear-gradient(45deg, var(--brand-1), var(--brand-2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .appbar .icon-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(20, 30, 80, 0.08);
+    font-size: 16px;
+  }
+
+  /* 콘텐츠 영역 (스크롤) */
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 16px 90px;
+    scrollbar-width: thin;
+  }
+  .content::-webkit-scrollbar { width: 4px; }
+  .content::-webkit-scrollbar-thumb { background: #d0d4e0; border-radius: 2px; }
+
+  .screen-view { display: none; }
+  .screen-view.active { display: block; }
+
+  /* 카드 공통 */
+  .card {
+    background: var(--card);
+    border-radius: 18px;
+    padding: 16px;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 14px rgba(30, 40, 90, 0.05);
+  }
+  .card h3 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    font-weight: 800;
+    color: #222;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .badge-step {
+    background: linear-gradient(135deg, var(--purple-1), var(--purple-2));
+    color: #fff;
+    font-weight: 900;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+  }
+  .input {
+    background: #f5f6fa;
+    border: 1px solid #eaecf4;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #444;
+    margin-bottom: 8px;
+  }
+  .input.placeholder { color: #aab; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .chip {
+    background: #eef0fa;
+    color: #555;
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .chip.on {
+    background: linear-gradient(135deg, var(--purple-1), var(--purple-2));
+    color: #fff;
+  }
+  .btn-primary {
+    width: 100%;
+    background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 14px;
+    font-size: 14px;
+    font-weight: 800;
+    margin-top: 6px;
+    box-shadow: 0 6px 16px rgba(85, 98, 234, 0.3);
+  }
+
+  /* 히어로 (홈) */
+  .hero {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: "✨";
+    position: absolute;
+    right: 14px;
+    top: 14px;
+    font-size: 56px;
+    opacity: 0.25;
+  }
+  .hero .eyebrow {
+    font-size: 11px;
+    opacity: 0.85;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 4px;
+  }
+  .hero h2 {
+    margin: 0 0 6px;
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.35;
+  }
+  .hero p {
+    font-size: 12px;
+    margin: 0;
+    opacity: 0.9;
+  }
+
+  .quick-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .quick {
+    background: #fff;
+    border-radius: 16px;
+    padding: 14px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(30, 40, 90, 0.05);
+  }
+  .quick .ic { font-size: 24px; margin-bottom: 6px; }
+  .quick .lbl { font-size: 12px; font-weight: 700; color: #333; }
+  .quick .sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: #333;
+    margin: 4px 6px 10px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .section-title a { font-size: 11px; color: var(--purple-1); font-weight: 600; text-decoration: none; }
+
+  /* 생성 결과 카드 */
+  .result-img {
+    width: 100%;
+    aspect-ratio: 1/1;
+    border-radius: 14px;
+    background:
+      linear-gradient(135deg, #ffecd2 0%, #fcb69f 40%, #ff9a9e 100%);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .result-img::after {
+    content: "☕";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 80px;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.15));
+  }
+  .copy-line {
+    background: #faf9ff;
+    border-left: 3px solid var(--purple-1);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #333;
+    margin-bottom: 6px;
+    line-height: 1.5;
+  }
+  .action-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .action-row button {
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-feed {
+    background: linear-gradient(45deg, #f09433, #dc2743, #bc1888);
+    color: #fff;
+  }
+  .btn-story {
+    background: #222;
+    color: #fff;
+  }
+
+  /* 인스타 미리보기 */
+  .ig-card {
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #efefef;
+    margin-bottom: 14px;
+  }
+  .ig-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+  }
+  .ig-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(45deg, #f09433, #dc2743, #bc1888);
+    margin-right: 10px;
+  }
+  .ig-name {
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .ig-sub {
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .ig-img {
+    width: 100%;
+    aspect-ratio: 1/1;
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    position: relative;
+  }
+  .ig-img::after {
+    content: "🥐";
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 70px;
+  }
+  .ig-actions {
+    padding: 10px 12px 4px;
+    font-size: 18px;
+    letter-spacing: 10px;
+  }
+  .ig-caption {
+    padding: 0 12px 12px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #333;
+  }
+  .ig-caption b { font-weight: 700; margin-right: 4px; }
+
+  /* 아카이브 */
+  .history-item {
+    display: flex;
+    gap: 10px;
+    background: #fff;
+    padding: 10px;
+    border-radius: 14px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 8px rgba(30, 40, 90, 0.04);
+    align-items: center;
+  }
+  .history-thumb {
+    width: 52px;
+    height: 52px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #ffecd2, #fcb69f);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+  .history-body { flex: 1; min-width: 0; }
+  .history-title { font-size: 12.5px; font-weight: 700; color: #222; margin-bottom: 2px; }
+  .history-meta { font-size: 10.5px; color: var(--muted); }
+  .history-status {
+    font-size: 9.5px;
+    background: #eaf7ef;
+    color: #2b9d5c;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-weight: 700;
+  }
+
+  /* 설정 화면 */
+  .settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background: #fff;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    font-size: 12.5px;
+    color: #333;
+  }
+  .settings-row .sub { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+  .settings-row .toggle {
+    width: 34px; height: 20px;
+    background: #d6d8e6;
+    border-radius: 999px;
+    position: relative;
+  }
+  .settings-row .toggle::after {
+    content: "";
+    position: absolute;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    top: 2px; left: 2px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .settings-row .toggle.on { background: var(--purple-1); }
+  .settings-row .toggle.on::after { left: 16px; }
+
+  /* 하단 GNB */
+  .gnb {
+    position: absolute;
+    left: 14px; right: 14px;
+    bottom: 14px;
+    height: 68px;
+    background: #fff;
+    border-radius: 28px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 10px 30px rgba(30, 40, 90, 0.12);
+    padding: 0 8px;
+  }
+  .gnb .tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 8px 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: #999;
+    cursor: pointer;
+    transition: color .15s;
+  }
+  .gnb .tab .ic { font-size: 20px; }
+  .gnb .tab.active { color: var(--purple-1); }
+  .gnb .tab.fab {
+    background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    color: #fff;
+    justify-content: center;
+    gap: 0;
+    margin-top: -20px;
+    box-shadow: 0 8px 20px rgba(85, 98, 234, 0.45);
+    flex: 0 0 auto;
+  }
+  .gnb .tab.fab .ic { font-size: 24px; }
+  .gnb .tab.fab .lbl { display: none; }
+
+  .note {
+    text-align: center;
+    font-size: 11px;
+    color: #889;
+    margin-top: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <!-- 왼쪽 안내 패널 -->
+  <aside class="intro">
+    <h1>📱 모바일 앱 시뮬레이션</h1>
+    <p class="lead">
+      현재 <code>app.py</code>(Streamlit, 센터 레이아웃)의 기능을
+      모바일 앱 형태로 재구성한 <b>정적 프로토타입</b>이에요.
+      실제 코드는 수정하지 않았고, 레이아웃 검토용입니다.
+    </p>
+
+    <div class="legend">
+      <b>매핑된 기능</b>
+      <ul>
+        <li><b>홈</b> — 온보딩 + 빠른 진입</li>
+        <li><b>만들기</b> — <code>tab_create</code> 흐름 (상품 선택 → 목적 → 톤/스타일 → 생성)</li>
+        <li><b>결과</b> — 텍스트/이미지 생성 결과 + 인스타 미리보기</li>
+        <li><b>보관함</b> — <code>tab_archive</code>(예전에 만든 홍보물)</li>
+        <li><b>설정</b> — <code>render_sidebar_settings</code> (Mock/실제 토글 등)</li>
+      </ul>
+      <br/>
+      <b>기술 메모</b><br/>
+      Streamlit 자체로 이 모양을 내려면
+      <code>streamlit-option-menu</code>로 하단 GNB,
+      CSS로 사이드바/헤더 숨김,
+      PWA 매니페스트 추가가 필요합니다.
+    </div>
+
+    <div class="screen-picker">
+      <button class="active" data-target="home">홈</button>
+      <button data-target="create">만들기</button>
+      <button data-target="result">결과</button>
+      <button data-target="archive">보관함</button>
+      <button data-target="settings">설정</button>
+    </div>
+    <div class="note">← 탭을 눌러 화면 전환</div>
+  </aside>
+
+  <!-- 오른쪽 폰 -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar">
+          <span>9:41</span>
+          <span class="icons">●●●● 5G ▮</span>
+        </div>
+
+        <div class="appbar">
+          <div class="title" id="appbar-title">사장님 AI 도우미</div>
+          <div class="icon-btn">🔔</div>
+        </div>
+
+        <div class="content">
+
+          <!-- HOME -->
+          <section class="screen-view active" data-screen="home">
+            <div class="hero">
+              <div class="eyebrow">오늘의 홍보</div>
+              <h2>오늘은 어떤 메뉴를<br/>자랑해볼까요?</h2>
+              <p>사진 한 장이면 광고 문구·이미지가 뚝딱</p>
+            </div>
+
+            <div class="quick-grid">
+              <div class="quick">
+                <div class="ic">✨</div>
+                <div class="lbl">새로 만들기</div>
+                <div class="sub">1분이면 충분</div>
+              </div>
+              <div class="quick">
+                <div class="ic">📸</div>
+                <div class="lbl">사진만 올리기</div>
+                <div class="sub">AI가 알아서</div>
+              </div>
+              <div class="quick">
+                <div class="ic">🗂️</div>
+                <div class="lbl">예전 홍보물</div>
+                <div class="sub">12개 저장됨</div>
+              </div>
+              <div class="quick">
+                <div class="ic">📊</div>
+                <div class="lbl">업로드 기록</div>
+                <div class="sub">이번 주 3건</div>
+              </div>
+            </div>
+
+            <div class="section-title">
+              <span>최근 홍보물</span><a href="#">모두 보기</a>
+            </div>
+            <div class="history-item">
+              <div class="history-thumb">☕</div>
+              <div class="history-body">
+                <div class="history-title">아메리카노 여름 프로모션</div>
+                <div class="history-meta">오늘 오전 · 인스타 피드 완료</div>
+              </div>
+              <div class="history-status">완료</div>
+            </div>
+            <div class="history-item">
+              <div class="history-thumb">🥐</div>
+              <div class="history-body">
+                <div class="history-title">갓 구운 크루아상</div>
+                <div class="history-meta">어제 · 스토리 업로드</div>
+              </div>
+              <div class="history-status">완료</div>
+            </div>
+          </section>
+
+          <!-- CREATE -->
+          <section class="screen-view" data-screen="create">
+            <div class="card">
+              <h3><span class="badge-step">1</span>어떤 상품인가요?</h3>
+              <div class="input">☕ 시그니처 아메리카노</div>
+              <div class="chips">
+                <div class="chip on">+ 새 상품</div>
+                <div class="chip">아메리카노</div>
+                <div class="chip">크루아상</div>
+                <div class="chip">티라미수</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3><span class="badge-step">2</span>홍보 목적</h3>
+              <div class="chips">
+                <div class="chip on">🎉 신메뉴 출시</div>
+                <div class="chip">⏰ 한정 특가</div>
+                <div class="chip">❤️ 단골 감사</div>
+                <div class="chip">🌤️ 오늘의 추천</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3><span class="badge-step">3</span>톤 &amp; 스타일</h3>
+              <div class="chips" style="margin-bottom:8px;">
+                <div class="chip on">친근한</div>
+                <div class="chip">감성적</div>
+                <div class="chip">유머러스</div>
+              </div>
+              <div class="chips">
+                <div class="chip on">파스텔 일러스트</div>
+                <div class="chip">빈티지</div>
+                <div class="chip">미니멀</div>
+              </div>
+            </div>
+
+            <button class="btn-primary">✨ 광고 만들기</button>
+          </section>
+
+          <!-- RESULT -->
+          <section class="screen-view" data-screen="result">
+            <div class="card">
+              <h3>🎨 생성된 이미지</h3>
+              <div class="result-img"></div>
+              <div class="action-row">
+                <button class="btn-primary" style="margin:0;padding:10px;font-size:11px;">🔄 다시 만들기</button>
+                <button class="btn-primary" style="margin:0;padding:10px;font-size:11px;background:#444;box-shadow:none;">⬇️ 저장</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>✍️ 광고 문구</h3>
+              <div class="copy-line">☀️ 뜨거운 여름, 깊은 풍미 한 잔</div>
+              <div class="copy-line">오늘도 수고한 당신에게, 시그니처 아메리카노 ☕</div>
+              <div class="copy-line">#카페스타그램 #아메리카노 #오늘의커피</div>
+            </div>
+
+            <div class="section-title"><span>📱 인스타그램 미리보기</span></div>
+            <div class="ig-card">
+              <div class="ig-header">
+                <div class="ig-avatar"></div>
+                <div>
+                  <div class="ig-name">my_cafe_seoul</div>
+                  <div class="ig-sub">서울 · Sponsored</div>
+                </div>
+              </div>
+              <div class="ig-img"></div>
+              <div class="ig-actions">♡ 💬 ↗</div>
+              <div class="ig-caption">
+                <b>my_cafe_seoul</b> ☀️ 뜨거운 여름, 깊은 풍미 한 잔...
+              </div>
+            </div>
+
+            <div class="action-row">
+              <button class="btn-feed">📷 피드 업로드</button>
+              <button class="btn-story">⚡ 스토리 업로드</button>
+            </div>
+          </section>
+
+          <!-- ARCHIVE -->
+          <section class="screen-view" data-screen="archive">
+            <div class="section-title"><span>보관함 · 12개</span><a href="#">필터</a></div>
+            <div class="history-item">
+              <div class="history-thumb">☕</div>
+              <div class="history-body">
+                <div class="history-title">아메리카노 여름 프로모션</div>
+                <div class="history-meta">2026-04-09 · 피드</div>
+              </div>
+              <div class="history-status">완료</div>
+            </div>
+            <div class="history-item">
+              <div class="history-thumb">🥐</div>
+              <div class="history-body">
+                <div class="history-title">갓 구운 크루아상</div>
+                <div class="history-meta">2026-04-08 · 스토리</div>
+              </div>
+              <div class="history-status">완료</div>
+            </div>
+            <div class="history-item">
+              <div class="history-thumb">🍰</div>
+              <div class="history-body">
+                <div class="history-title">딸기 티라미수 출시</div>
+                <div class="history-meta">2026-04-06 · 피드</div>
+              </div>
+              <div class="history-status">완료</div>
+            </div>
+            <div class="history-item">
+              <div class="history-thumb">🍪</div>
+              <div class="history-body">
+                <div class="history-title">수제 초코칩 쿠키</div>
+                <div class="history-meta">2026-04-03 · 피드</div>
+              </div>
+              <div class="history-status">완료</div>
+            </div>
+            <div class="history-item">
+              <div class="history-thumb">🧁</div>
+              <div class="history-body">
+                <div class="history-title">블루베리 머핀</div>
+                <div class="history-meta">2026-04-01 · 스토리</div>
+              </div>
+              <div class="history-status">완료</div>
+            </div>
+          </section>
+
+          <!-- SETTINGS -->
+          <section class="screen-view" data-screen="settings">
+            <div class="section-title"><span>계정</span></div>
+            <div class="settings-row">
+              <div>
+                <div>내 가게</div>
+                <div class="sub">my_cafe_seoul · 인스타 연동됨</div>
+              </div>
+              <div>›</div>
+            </div>
+
+            <div class="section-title"><span>생성 설정</span></div>
+            <div class="settings-row">
+              <div>
+                <div>Mock 모드</div>
+                <div class="sub">API 사용 없이 테스트</div>
+              </div>
+              <div class="toggle on"></div>
+            </div>
+            <div class="settings-row">
+              <div>
+                <div>이미지 품질</div>
+                <div class="sub">HD · FLUX</div>
+              </div>
+              <div>›</div>
+            </div>
+            <div class="settings-row">
+              <div>
+                <div>기본 톤</div>
+                <div class="sub">친근한</div>
+              </div>
+              <div>›</div>
+            </div>
+
+            <div class="section-title"><span>기타</span></div>
+            <div class="settings-row">
+              <div>알림</div>
+              <div class="toggle on"></div>
+            </div>
+            <div class="settings-row">
+              <div>앱 정보</div>
+              <div>v0.3.0</div>
+            </div>
+          </section>
+
+        </div>
+
+        <!-- 하단 GNB -->
+        <nav class="gnb">
+          <div class="tab active" data-target="home">
+            <div class="ic">🏠</div><div class="lbl">홈</div>
+          </div>
+          <div class="tab" data-target="archive">
+            <div class="ic">🗂️</div><div class="lbl">보관함</div>
+          </div>
+          <div class="tab fab" data-target="create">
+            <div class="ic">＋</div><div class="lbl">만들기</div>
+          </div>
+          <div class="tab" data-target="result">
+            <div class="ic">✨</div><div class="lbl">결과</div>
+          </div>
+          <div class="tab" data-target="settings">
+            <div class="ic">⚙️</div><div class="lbl">설정</div>
+          </div>
+        </nav>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const titles = {
+    home: "사장님 AI 도우미",
+    create: "새 홍보물 만들기",
+    result: "생성 결과",
+    archive: "보관함",
+    settings: "설정",
+  };
+
+  function show(target) {
+    document.querySelectorAll(".screen-view").forEach(el => {
+      el.classList.toggle("active", el.dataset.screen === target);
+    });
+    document.querySelectorAll(".gnb .tab").forEach(el => {
+      el.classList.toggle("active", el.dataset.target === target);
+    });
+    document.querySelectorAll(".screen-picker button").forEach(el => {
+      el.classList.toggle("active", el.dataset.target === target);
+    });
+    document.getElementById("appbar-title").textContent = titles[target] || "";
+    document.querySelector(".content").scrollTop = 0;
+  }
+
+  document.querySelectorAll(".gnb .tab").forEach(el => {
+    el.addEventListener("click", () => show(el.dataset.target));
+  });
+  document.querySelectorAll(".screen-picker button").forEach(el => {
+    el.addEventListener("click", () => show(el.dataset.target));
+  });
+</script>
+</body>
+</html>
