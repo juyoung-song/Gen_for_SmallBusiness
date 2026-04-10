@@ -156,3 +156,69 @@ class TestInstagramSummary:
         assert summary.connected is False
         assert summary.upload_ready is True
         assert summary.connection_source == "env"
+
+
+class TestInstagramOnboardingFlow:
+    async def test_connect_url_accepts_onboarding_source(self, monkeypatch):
+        brand_id = uuid4()
+
+        async def fake_load_brand():
+            return SimpleNamespace(id=brand_id)
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+        monkeypatch.setattr(mobile_app.settings, "META_APP_ID", "meta-app")
+        monkeypatch.setattr(mobile_app.settings, "META_APP_SECRET", "meta-secret")
+        monkeypatch.setattr(
+            mobile_app.settings,
+            "META_REDIRECT_URI",
+            "https://example.com/api/mobile/instagram/callback",
+        )
+        monkeypatch.setattr(mobile_app.settings, "TOKEN_ENCRYPTION_KEY", "token-key")
+        monkeypatch.setattr(
+            mobile_app.InstagramAuthService,
+            "generate_oauth_url",
+            lambda self, state: f"https://meta.example/oauth?state={state}",
+        )
+
+        response = await mobile_app.mobile_instagram_connect_url(
+            mobile_app.MobileInstagramConnectRequest(source="onboarding")
+        )
+
+        state = response.url.split("state=", 1)[1]
+        pending_brand_id, pending_source, _ = mobile_app.PENDING_INSTAGRAM_STATES[state]
+        assert pending_brand_id == brand_id
+        assert pending_source == "onboarding"
+
+    async def test_callback_redirects_back_to_onboarding_page(self):
+        state = mobile_app._issue_instagram_state(uuid4(), "onboarding")
+
+        response = await mobile_app.mobile_instagram_callback(
+            state=state,
+            error="access_denied",
+        )
+
+        assert response.headers["location"].startswith(
+            "/stitch/onboarding-instagram.html?ig=cancelled"
+        )
+
+
+class TestRootRedirect:
+    async def test_redirects_to_welcome_when_onboarding_incomplete(self, monkeypatch):
+        async def fake_load_brand():
+            return None
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+
+        response = await mobile_app.root()
+
+        assert response.headers["location"] == "/stitch/welcome.html"
+
+    async def test_redirects_to_home_when_brand_exists(self, monkeypatch):
+        async def fake_load_brand():
+            return SimpleNamespace(id=uuid4())
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+
+        response = await mobile_app.root()
+
+        assert response.headers["location"] == "/stitch/index.html"

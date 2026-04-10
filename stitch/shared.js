@@ -4,6 +4,7 @@
   const API_BASE = "/api/mobile";
   const MAX_HISTORY_ITEMS = 12;
   const PATHS = {
+    welcome: "/stitch/welcome.html",
     home: "/stitch/index.html",
     archive: "/stitch/archive.html",
     settings: "/stitch/settings.html",
@@ -11,6 +12,7 @@
     onboarding1: "/stitch/1./code.html",
     onboarding2: "/stitch/2./code.html",
     onboarding3: "/stitch/3./code.html",
+    onboarding4: "/stitch/onboarding-instagram.html",
   };
   const PRESET_GOALS = ["신제품 출시", "브랜드 인지도", "이벤트 홍보", "매장 방문 유도"];
 
@@ -151,6 +153,10 @@
 
   function navigate(path) {
     window.location.href = path;
+  }
+
+  function clearQueryFromCurrentPath() {
+    window.history.replaceState({}, "", window.location.pathname);
   }
 
   function escapeHtml(value) {
@@ -329,7 +335,7 @@
     if (!flag) return null;
 
     const message = params.get("ig_message");
-    window.history.replaceState({}, "", PATHS.settings);
+    clearQueryFromCurrentPath();
 
     if (flag === "connected") {
       return {
@@ -576,10 +582,10 @@
       navigate(PATHS.onboarding2);
     });
     selectOne("#step1-prev")?.addEventListener("click", () => {
-      navigate(PATHS.home);
+      navigate(PATHS.welcome);
     });
     selectOne("#step1-back")?.addEventListener("click", () => {
-      navigate(PATHS.home);
+      navigate(PATHS.welcome);
     });
   }
 
@@ -661,14 +667,14 @@
         setStatus(
           statusNode,
           result.status === "updated"
-            ? "브랜드 정보를 새 입력값으로 업데이트했습니다. 메인 화면으로 이동합니다."
+            ? "브랜드 정보를 새 입력값으로 업데이트했습니다. 마지막 연결 단계로 이동합니다."
             : result.status === "existing"
-              ? "이미 저장된 브랜드가 있어서 기존 설정을 그대로 사용합니다."
-              : "브랜드 세팅이 완료되었습니다. 메인 화면으로 이동합니다.",
+              ? "이미 저장된 브랜드가 있어 기존 설정을 그대로 사용합니다. 마지막 연결 단계로 이동합니다."
+              : "브랜드 세팅이 완료되었습니다. 마지막 연결 단계로 이동합니다.",
           "success",
         );
         window.setTimeout(() => {
-          navigate(PATHS.create);
+          navigate(PATHS.onboarding4);
         }, 700);
       } catch (error) {
         setStatus(statusNode, error.message, "error");
@@ -683,6 +689,126 @@
     selectOne("#step3-back")?.addEventListener("click", () => {
       navigate(PATHS.onboarding2);
     });
+  }
+
+  async function bindWelcome() {
+    const titleNode = selectOne("#welcome-title");
+    const copyNode = selectOne("#welcome-copy");
+    const startButton = selectOne("#welcome-start");
+    const statusNode = selectOne("#welcome-status");
+
+    try {
+      const bootstrap = await api("/bootstrap");
+      lastBootstrap = bootstrap;
+      if (bootstrap.onboarding_completed) {
+        navigate(PATHS.home);
+        return;
+      }
+      if (titleNode) {
+        titleNode.textContent = "사장님만의 홍보 도우미를 시작해볼까요?";
+      }
+      if (copyNode) {
+        copyNode.textContent =
+          "로고, 분위기, 참고 스타일을 차근차근 알려주시면 바로 메인 화면으로 이어집니다.";
+      }
+      startButton?.addEventListener("click", () => navigate(PATHS.onboarding1));
+    } catch (error) {
+      setStatus(statusNode, error.message, "error");
+    }
+  }
+
+  async function bindStep4() {
+    const statusNode = selectOne("#onboarding-instagram-status");
+    const stateNode = selectOne("#onboarding-instagram-state");
+    const copyNode = selectOne("#onboarding-instagram-copy");
+    const noteNode = selectOne("#onboarding-instagram-note");
+    const connectButton = selectOne("#onboarding-instagram-connect");
+    const skipButton = selectOne("#onboarding-instagram-skip");
+    const continueButton = selectOne("#onboarding-instagram-continue");
+    const backButton = selectOne("#onboarding-instagram-back");
+    const brandNameNode = selectOne("#onboarding-instagram-brand-name");
+    const feedback = consumeInstagramFeedback();
+
+    const applyInstagramState = (summary, bootstrap) => {
+      if (brandNameNode) {
+        brandNameNode.textContent = bootstrap?.brand?.brand_name || "우리 가게";
+      }
+      if (stateNode) {
+        stateNode.textContent = instagramStatusLabel(summary);
+      }
+      if (copyNode) {
+        if (summary.connected) {
+          copyNode.textContent =
+            "계정 연결이 끝났어요. 이후 메인 화면과 업로드 준비 상태에 이 연결 정보를 바로 반영합니다.";
+        } else if (summary.expired) {
+          copyNode.textContent =
+            "이전 연결이 만료되었습니다. 지금 다시 연결하거나, 나중에 설정 화면에서 이어서 연결할 수 있습니다.";
+        } else if (summary.oauth_available) {
+          copyNode.textContent =
+            "지금 연결해두면 이후 업로드 기능이 붙었을 때 더 자연스럽게 이어집니다. 원하지 않으면 건너뛰어도 됩니다.";
+        } else {
+          copyNode.textContent =
+            "현재 환경에서는 계정 연결을 사용할 수 없습니다. 나중에 설정이 준비되면 설정 화면에서 연결할 수 있습니다.";
+        }
+      }
+      if (noteNode) {
+        noteNode.textContent = summary.connected
+          ? "설정 화면에서 언제든 재연결하거나 해제할 수 있습니다."
+          : "이 단계는 선택입니다. 지금 건너뛰어도 메인 화면에서 홍보물 만들기를 바로 시작할 수 있습니다.";
+      }
+
+      if (connectButton) {
+        connectButton.classList.toggle(
+          "hidden",
+          !bootstrap?.onboarding_completed || !summary.oauth_available || summary.connected,
+        );
+        connectButton.textContent = summary.expired ? "다시 연결하기" : "인스타 계정 연결";
+      }
+    };
+
+    const loadState = async () => {
+      const [bootstrap, instagram] = await Promise.all([
+        api("/bootstrap"),
+        api("/instagram/status"),
+      ]);
+      lastBootstrap = {
+        ...bootstrap,
+        instagram,
+        instagram_ready: instagram.upload_ready,
+      };
+      if (!bootstrap.onboarding_completed) {
+        navigate(PATHS.welcome);
+        return null;
+      }
+      applyInstagramState(instagram, bootstrap);
+      return { bootstrap, instagram };
+    };
+
+    connectButton?.addEventListener("click", async () => {
+      try {
+        setStatus(statusNode, "Meta 인증 페이지로 이동하는 중입니다.", "loading");
+        const response = await api("/instagram/connect-url", {
+          method: "POST",
+          body: { source: "onboarding" },
+        });
+        window.location.assign(response.url);
+      } catch (error) {
+        setStatus(statusNode, error.message, "error");
+      }
+    });
+
+    skipButton?.addEventListener("click", () => navigate(PATHS.home));
+    continueButton?.addEventListener("click", () => navigate(PATHS.home));
+    backButton?.addEventListener("click", () => navigate(PATHS.onboarding3));
+
+    try {
+      await loadState();
+      if (feedback) {
+        setStatus(statusNode, feedback.message, feedback.tone);
+      }
+    } catch (error) {
+      setStatus(statusNode, error.message, "error");
+    }
   }
 
   function renderBrandSummary(brand, counts) {
@@ -919,24 +1045,7 @@
       metricReferences.textContent = `${bootstrap?.published_reference_count || 0}건`;
     }
 
-    if (!bootstrap?.onboarding_completed) {
-      if (heroEyebrow) heroEyebrow.textContent = "STEP 01 recommended";
-      if (heroTitle) heroTitle.textContent = "브랜드 세팅부터 시작해볼까요?";
-      if (heroCopy) {
-        heroCopy.textContent =
-          "로고와 분위기만 먼저 적어두면 이후 결과 화면과 인스타 프리뷰가 훨씬 자연스럽게 맞춰집니다.";
-      }
-      if (primaryCta) {
-        primaryCta.href = PATHS.onboarding1;
-        primaryCta.innerHTML =
-          '<span class="material-symbols-outlined">edit_square</span>브랜드 세팅 시작';
-      }
-      if (secondaryCta) {
-        secondaryCta.href = PATHS.create;
-        secondaryCta.innerHTML =
-          '<span class="material-symbols-outlined">auto_awesome</span>바로 생성 화면 보기';
-      }
-    } else {
+    if (bootstrap?.onboarding_completed) {
       if (heroEyebrow) heroEyebrow.textContent = "Today with Brewgram";
       if (heroTitle) {
         heroTitle.textContent = `${brand?.brand_name || "우리 가게"}용 새 홍보물을 만들어볼까요?`;
@@ -997,6 +1106,10 @@
 
     try {
       const bootstrap = await api("/bootstrap");
+      if (!bootstrap.onboarding_completed) {
+        navigate(PATHS.welcome);
+        return;
+      }
       lastBootstrap = bootstrap;
       renderHome(bootstrap);
     } catch (error) {
@@ -1005,6 +1118,16 @@
   }
 
   async function bindArchive() {
+    try {
+      const bootstrap = await api("/bootstrap");
+      if (!bootstrap.onboarding_completed) {
+        navigate(PATHS.welcome);
+        return;
+      }
+    } catch (_) {
+      navigate(PATHS.welcome);
+      return;
+    }
     const state = readState();
     const title = selectOne("#archive-title");
     const list = selectOne("#archive-list");
@@ -1096,6 +1219,10 @@
         api("/bootstrap"),
         api("/instagram/status"),
       ]);
+      if (!bootstrap.onboarding_completed) {
+        navigate(PATHS.welcome);
+        return null;
+      }
       lastBootstrap = {
         ...bootstrap,
         instagram,
@@ -1128,7 +1255,10 @@
     instagramConnectButton?.addEventListener("click", async () => {
       try {
         setStatus(statusNode, "Meta 인증 페이지로 이동하는 중입니다.", "loading");
-        const response = await api("/instagram/connect-url", { method: "POST" });
+        const response = await api("/instagram/connect-url", {
+          method: "POST",
+          body: { source: "settings" },
+        });
         window.location.assign(response.url);
       } catch (error) {
         setStatus(statusNode, error.message, "error");
@@ -1138,7 +1268,10 @@
     instagramReconnectButton?.addEventListener("click", async () => {
       try {
         setStatus(statusNode, "Meta 인증 페이지로 다시 이동합니다.", "loading");
-        const response = await api("/instagram/connect-url", { method: "POST" });
+        const response = await api("/instagram/connect-url", {
+          method: "POST",
+          body: { source: "settings" },
+        });
         window.location.assign(response.url);
       } catch (error) {
         setStatus(statusNode, error.message, "error");
@@ -1156,7 +1289,8 @@
     });
 
     try {
-      await loadSettingsStatus();
+      const payload = await loadSettingsStatus();
+      if (!payload) return;
       if (feedback) {
         setStatus(statusNode, feedback.message, feedback.tone);
       }
@@ -1189,15 +1323,12 @@
 
     try {
       const bootstrap = await api("/bootstrap");
+      if (!bootstrap.onboarding_completed) {
+        navigate(PATHS.welcome);
+        return;
+      }
       lastBootstrap = bootstrap;
       renderBrandSummary(bootstrap.brand, bootstrap);
-      if (!bootstrap.onboarding_completed) {
-        setStatus(
-          bootstrapStatus,
-          "브랜드 세팅이 아직 완료되지 않았습니다. 먼저 STEP 01부터 진행해주세요.",
-          "error",
-        );
-      }
     } catch (error) {
       setStatus(bootstrapStatus, error.message, "error");
     }
@@ -1426,9 +1557,11 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
+    if (PAGE === "welcome") bindWelcome();
     if (PAGE === "onboarding-1") bindStep1();
     if (PAGE === "onboarding-2") bindStep2();
     if (PAGE === "onboarding-3") bindStep3();
+    if (PAGE === "onboarding-4") bindStep4();
     if (PAGE === "home") bindHome();
     if (PAGE === "archive") bindArchive();
     if (PAGE === "settings") bindSettings();

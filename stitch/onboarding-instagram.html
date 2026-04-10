@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brewgram - 인스타 계정 연결</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Be+Vietnam+Pro:wght@400;500;600&display=swap"
+    />
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-stitch-page="onboarding-4">
+    <header class="app-topbar onboarding-topbar">
+      <button class="icon-circle" id="onboarding-instagram-back" type="button" aria-label="이전으로">
+        <span class="material-symbols-outlined">arrow_back</span>
+      </button>
+      <div class="brand-lockup">
+        <img class="brand-mark" src="./brand-badge.svg" alt="Brewgram 로고" />
+        <span class="brand-wordmark">Brewgram</span>
+      </div>
+      <div class="topbar-spacer"></div>
+    </header>
+
+    <main class="app-shell onboarding-instagram-shell">
+      <section class="app-section panel onboarding-summary">
+        <div class="hero-eyebrow">STEP 04/04</div>
+        <h1 class="hero-title onboarding-title">마지막으로 인스타 계정을 연결할까요?</h1>
+        <p class="hero-copy onboarding-copy">
+          이 단계는 선택입니다. 지금 연결하면 나중에 자동 업로드 기능과 자연스럽게 이어집니다.
+        </p>
+      </section>
+
+      <section class="app-section panel">
+        <div class="panel-head">
+          <h2 class="panel-title"><span id="onboarding-instagram-brand-name">우리 가게</span> 계정 연결</h2>
+        </div>
+        <div class="onboarding-instagram-state">
+          <div class="onboarding-instagram-chip" id="onboarding-instagram-state">확인 중</div>
+          <p class="panel-copy" id="onboarding-instagram-copy">
+            계정 연결 상태를 불러오는 중입니다.
+          </p>
+        </div>
+        <div class="settings-actions onboarding-instagram-actions">
+          <button
+            class="action-button action-button--primary settings-action"
+            id="onboarding-instagram-connect"
+            type="button"
+          >
+            인스타 계정 연결
+          </button>
+          <button
+            class="action-button action-button--soft settings-action"
+            id="onboarding-instagram-skip"
+            type="button"
+          >
+            지금은 건너뛰기
+          </button>
+        </div>
+        <p class="settings-inline-note" id="onboarding-instagram-note">
+          연결 후에도 설정 화면에서 언제든 다시 관리할 수 있습니다.
+        </p>
+      </section>
+
+      <section class="app-section panel">
+        <div class="panel-head">
+          <h2 class="panel-title">다음으로 이어지는 흐름</h2>
+        </div>
+        <div class="history-stack">
+          <article class="history-item">
+            <div class="history-thumb">1</div>
+            <div class="history-body">
+              <p class="history-title">메인 화면으로 이동</p>
+              <p class="history-meta">브랜드 정보와 연결 상태가 반영된 홈 화면으로 이동합니다.</p>
+            </div>
+          </article>
+          <article class="history-item">
+            <div class="history-thumb">2</div>
+            <div class="history-body">
+              <p class="history-title">홍보물 만들기 시작</p>
+              <p class="history-meta">상품 정보만 입력하면 이미지, 카피, 프리뷰까지 바로 이어집니다.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <button class="welcome-button onboarding-instagram-continue" id="onboarding-instagram-continue" type="button">
+        메인 화면으로 이동
+        <span class="material-symbols-outlined">home</span>
+      </button>
+
+      <div class="hidden" id="onboarding-instagram-status"></div>
+    </main>
+    <script src="./shared.js"></script>
+  </body>
+</html>

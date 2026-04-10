@@ -61,7 +61,7 @@ ONBOARDING_DIR = DATA_DIR / "onboarding" / "mobile"
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
-PENDING_INSTAGRAM_STATES: dict[str, tuple[UUID, datetime]] = {}
+PENDING_INSTAGRAM_STATES: dict[str, tuple[UUID, Literal["settings", "onboarding"], datetime]] = {}
 
 
 @asynccontextmanager
@@ -165,6 +165,10 @@ class MobileStoryResponse(BaseModel):
 
 class MobileInstagramConnectResponse(BaseModel):
     url: str
+
+
+class MobileInstagramConnectRequest(BaseModel):
+    source: Literal["settings", "onboarding"] = "settings"
 
 
 class MobileSimpleStatusResponse(BaseModel):
@@ -321,27 +325,36 @@ def _prune_pending_instagram_states() -> None:
     now = datetime.now(timezone.utc)
     expired = [
         state
-        for state, (_, expires_at) in PENDING_INSTAGRAM_STATES.items()
+        for state, (_, _, expires_at) in PENDING_INSTAGRAM_STATES.items()
         if expires_at <= now
     ]
     for state in expired:
         PENDING_INSTAGRAM_STATES.pop(state, None)
 
 
-def _issue_instagram_state(brand_image_id: UUID) -> str:
+def _issue_instagram_state(
+    brand_image_id: UUID,
+    source: Literal["settings", "onboarding"],
+) -> str:
     _prune_pending_instagram_states()
     state = uuid4().hex
     PENDING_INSTAGRAM_STATES[state] = (
         brand_image_id,
+        source,
         datetime.now(timezone.utc) + timedelta(minutes=10),
     )
     return state
 
 
-def _consume_instagram_state(state: str) -> UUID | None:
+def _consume_instagram_state(
+    state: str,
+) -> tuple[UUID | None, Literal["settings", "onboarding"]]:
     _prune_pending_instagram_states()
-    brand_image_id, _ = PENDING_INSTAGRAM_STATES.pop(state, (None, None))
-    return brand_image_id
+    brand_image_id, source, _ = PENDING_INSTAGRAM_STATES.pop(
+        state,
+        (None, "settings", None),
+    )
+    return brand_image_id, source
 
 
 async def _load_brand() -> BrandImage | None:
@@ -444,7 +457,9 @@ async def mobile_instagram_status() -> MobileInstagramSummary:
     "/api/mobile/instagram/connect-url",
     response_model=MobileInstagramConnectResponse,
 )
-async def mobile_instagram_connect_url() -> MobileInstagramConnectResponse:
+async def mobile_instagram_connect_url(
+    payload: MobileInstagramConnectRequest | None = None,
+) -> MobileInstagramConnectResponse:
     if not settings.is_instagram_oauth_configured:
         raise HTTPException(
             status_code=503,
@@ -458,7 +473,8 @@ async def mobile_instagram_connect_url() -> MobileInstagramConnectResponse:
             detail="브랜드 온보딩을 먼저 완료해야 인스타그램 계정을 연결할 수 있습니다.",
         )
 
-    state = _issue_instagram_state(brand.id)
+    source = payload.source if payload is not None else "settings"
+    state = _issue_instagram_state(brand.id, source)
     url = InstagramAuthService(settings).generate_oauth_url(state)
     return MobileInstagramConnectResponse(url=url)
 
@@ -486,6 +502,14 @@ async def mobile_instagram_callback(
     error: str | None = None,
 ) -> RedirectResponse:
     base_url = "/stitch/settings.html"
+    brand_image_id: UUID | None = None
+    if state:
+        brand_image_id, source = _consume_instagram_state(state)
+        base_url = (
+            "/stitch/onboarding-instagram.html"
+            if source == "onboarding"
+            else "/stitch/settings.html"
+        )
 
     if error:
         return RedirectResponse(
@@ -498,7 +522,6 @@ async def mobile_instagram_callback(
             status_code=307,
         )
 
-    brand_image_id = _consume_instagram_state(state)
     if brand_image_id is None:
         return RedirectResponse(
             url=f"{base_url}?{urlencode({'ig': 'error', 'ig_message': '연결 세션이 만료되어 다시 시도해야 합니다.'})}",
@@ -814,6 +837,9 @@ async def mobile_story(payload: MobileStoryRequest) -> MobileStoryResponse:
 
 @app.get("/")
 async def root() -> RedirectResponse:
+    brand = await _load_brand()
+    if brand is None:
+        return RedirectResponse(url="/stitch/welcome.html", status_code=307)
     return RedirectResponse(url="/stitch/index.html", status_code=307)
 
 
