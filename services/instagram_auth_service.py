@@ -92,9 +92,14 @@ class InstagramAuthService:
     # ── Step 4: Instagram Business Account 조회 ──
 
     async def fetch_instagram_account(self, access_token: str) -> dict:
-        """연결된 Instagram Business Account 정보를 자동으로 조회."""
+        """연결된 Instagram Business Account 정보를 자동으로 조회.
+        
+        [명시적 가정]
+        현재 구현은 사용자-페이지 당 IG 비즈니스 계정 1개 사용을 가정합니다.
+        여러 계정이 발견되더라도 첫 번째 계정을 선택하여 반환합니다.
+        (멀티 계정 선택 UI 확장은 추후 과제)
+        """
         async with httpx.AsyncClient() as client:
-            # 1) 사용자의 페이지 목록 조회 (직접적인 fields 쿼리 사용)
             resp = await client.get(
                 f"{self.BASE_URL}/me/accounts",
                 params={
@@ -103,33 +108,67 @@ class InstagramAuthService:
                 }
             )
             resp.raise_for_status()
-            pages_data = resp.json().get("data", [])
+            
+            # API 응답 구조 검증(데이터 누락 방지)
+            resp_json = resp.json()
+            if "data" not in resp_json:
+                logger.error("Facebook 페이지 목록 응답에 'data' 필드가 없음: %s", resp_json)
+                raise ValueError("Facebook 페이지 목록을 가져오는 데 실패했습니다 (data 필드 누락).")
+                
+            pages_data = resp_json.get("data", [])
+            found_accounts = []
 
-            # 2) 모든 페이지를 순회하며 인스타그램 연결 확인
+            # 1) 가능한 모든 IG 계정 후보군 수집
             for page in pages_data:
-                p_id = page["id"]
-                p_name = page.get("name", "알 수 없음")
+                p_id = page.get("id")
+                p_name = page.get("name", "(이름 없는 페이지)")
                 ig_info = page.get("instagram_business_account")
                 
-                if ig_info:
-                    ig_id = ig_info["id"]
-                    # 인스타그램 username 추가 조회
-                    usr_resp = await client.get(
-                        f"{self.BASE_URL}/{ig_id}",
-                        params={"fields": "username", "access_token": access_token}
-                    )
-                    username = usr_resp.json().get("username", "instagram_user")
-                    
-                    logger.info("Instagram 계정 발견: @%s (via %s)", username, p_name)
-                    return {
-                        "instagram_account_id": ig_id,
-                        "instagram_username": username,
+                if ig_info and "id" in ig_info:
+                    found_accounts.append({
                         "facebook_page_id": p_id,
                         "facebook_page_name": p_name,
-                    }
+                        "instagram_account_id": ig_info["id"]
+                    })
 
-            # 아무것도 못 찾은 경우 UI에서 수동 입력을 유도하기 위해 에러 발생
-            raise ValueError("연결된 Instagram 비즈니스 계정을 자동으로 찾을 수 없습니다. 수동 연결을 이용해 주세요.")
+            if not found_accounts:
+                raise ValueError("연결된 Instagram 비즈니스 계정을 자동으로 찾을 수 없습니다. 수동 연결을 이용해 주세요.")
+
+            # 2) 계정이 여러 개일 경우 명시적 로깅
+            if len(found_accounts) > 1:
+                logger.warning(
+                    "여러 개의 Instagram 비즈니스 계정(%d개)이 발견되었습니다. 첫 번째 계정을 선택합니다. 목록: %s",
+                    len(found_accounts), found_accounts
+                )
+            
+            # 3) 첫 번째 계정 선택 및 username 조회
+            selected = found_accounts[0]
+            ig_id = selected["instagram_account_id"]
+            p_name = selected["facebook_page_name"]
+            p_id = selected["facebook_page_id"]
+
+            usr_resp = await client.get(
+                f"{self.BASE_URL}/{ig_id}",
+                params={"fields": "username", "access_token": access_token}
+            )
+            
+            # username 반환 실패 예외 처리 (silent pass 방지)
+            if usr_resp.status_code != 200:
+                logger.error("IG username 조회 실패 (HTTP %d): %s", usr_resp.status_code, usr_resp.text)
+                raise ValueError(f"인스타그램 사용자명 조회 실패: {usr_resp.text}")
+                
+            username = usr_resp.json().get("username")
+            if not username:
+                logger.error("IG username 응답에 username 필드가 없습니다: %s", usr_resp.text)
+                raise ValueError("인스타그램 응답에 사용자명(username)이 포함되어 있지 않습니다.")
+            
+            logger.info("Instagram 계정 최종 선택됨: @%s (via Facebook 페이지 '%s')", username, p_name)
+            return {
+                "instagram_account_id": ig_id,
+                "instagram_username": username,
+                "facebook_page_id": p_id,
+                "facebook_page_name": p_name,
+            }
 
     async def fetch_instagram_account_manually(self, access_token: str, instagram_id: str) -> dict:
         """입력받은 ID를 통해 인스타그램 계정 정보를 직접 확인."""
