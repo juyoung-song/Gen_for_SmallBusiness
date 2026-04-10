@@ -103,8 +103,40 @@ class InstagramService:
                 raise ValueError(f"Meta 서버 거부: {err_text}")
                 
             creation_id = res_media.json().get("id")
-            
-            # 4. 최종 게시 (Publish)
+
+            # 4. 미디어 처리 상태 폴링 (FINISHED 될 때까지 대기)
+            # Meta 가 image_url 을 비동기로 내려받아 처리하므로, 곧바로
+            # publish 를 호출하면 code=9007 "Media ID is not available" 발생.
+            # /{creation_id}?fields=status_code 로 상태를 폴링해야 함.
+            yield f"⏳ {target_str} 미디어를 Meta 서버가 처리할 때까지 잠시 기다리는 중..."
+            status_url = f"https://graph.facebook.com/v19.0/{creation_id}"
+            max_wait_seconds = 30
+            poll_interval = 1.5
+            waited = 0.0
+            final_status = None
+            while waited < max_wait_seconds:
+                status_resp = requests.get(
+                    status_url,
+                    params={"fields": "status_code", "access_token": access_token},
+                )
+                if status_resp.status_code != 200:
+                    logger.error(f"미디어 상태 조회 실패: {status_resp.text}")
+                    raise ValueError(f"미디어 상태 조회 실패: {status_resp.text}")
+                final_status = status_resp.json().get("status_code")
+                logger.info(f"미디어 상태 조회: {final_status} (경과 {waited:.1f}s)")
+                if final_status == "FINISHED":
+                    break
+                if final_status in ("ERROR", "EXPIRED"):
+                    raise ValueError(f"Meta 미디어 처리 실패 (status={final_status})")
+                time.sleep(poll_interval)
+                waited += poll_interval
+
+            if final_status != "FINISHED":
+                raise ValueError(
+                    f"{target_str} 미디어 준비 시간 초과 ({max_wait_seconds}s). 잠시 후 다시 시도해주세요."
+                )
+
+            # 5. 최종 게시 (Publish)
             yield f"🚀 거의 다 되었습니다! {target_str}를 최종 발행합니다!"
             publish_url = f"https://graph.facebook.com/v19.0/{ig_id}/media_publish"
             publish_payload = {
