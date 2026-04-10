@@ -10,6 +10,7 @@
 from models.base import Base, TimestampMixin
 from models.brand_image import BrandImage
 from models.generated_upload import GeneratedUpload
+from models.instagram_connection import InstagramConnection
 from models.product import Product
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "BrandImage",
     "Product",
     "GeneratedUpload",
+    "InstagramConnection",
 ]
