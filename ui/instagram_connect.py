@@ -4,21 +4,14 @@
 사이드바에 독립적으로 렌더링되는 '플러그인' 형태입니다.
 """
 
-import asyncio
 import logging
 from uuid import uuid4
 
 import streamlit as st
 
+from utils.async_runner import run_async
+
 logger = logging.getLogger(__name__)
-
-
-def _run_async(coro):
-    """Streamlit 환경에서 비동기 코루틴을 안전하게 실행."""
-    try:
-        return asyncio.get_event_loop().run_until_complete(coro)
-    except RuntimeError:
-        return asyncio.run(coro)
 
 
 def render_instagram_connection(settings, brand_config):
@@ -59,15 +52,15 @@ def render_instagram_connection(settings, brand_config):
                     code = query_params["code"]
 
                     # code → short token
-                    short_token = _run_async(auth_svc.exchange_code_for_token(code))
+                    short_token = run_async(auth_svc.exchange_code_for_token(code))
                     # short → long-lived token (60일)
-                    long_token, expires_in = _run_async(auth_svc.exchange_for_long_lived_token(short_token))
+                    long_token, expires_in = run_async(auth_svc.exchange_for_long_lived_token(short_token))
                     
                     try:
                         # 1) IG 비즈니스 계정 정보 자동 조회 시도
-                        ig_info = _run_async(auth_svc.fetch_instagram_account(long_token))
+                        ig_info = run_async(auth_svc.fetch_instagram_account(long_token))
                         # 2) DB에 암호화 저장
-                        _run_async(auth_svc.save_connection(brand_config.id, long_token, expires_in, ig_info))
+                        run_async(auth_svc.save_connection(brand_config.id, long_token, expires_in, ig_info))
                         
                         st.success(f"✅ @{ig_info['instagram_username']} 계정이 연결되었습니다!")
                         st.query_params.clear()
@@ -94,7 +87,7 @@ def render_instagram_connection(settings, brand_config):
         st.query_params.clear()
 
     # ── 현재 연결 상태 조회 ──
-    connection = _run_async(auth_svc.get_connection(brand_config.id))
+    connection = run_async(auth_svc.get_connection(brand_config.id))
 
     # ── 사이드바 UI 렌더링 ──
     with st.sidebar:
@@ -115,7 +108,7 @@ def render_instagram_connection(settings, brand_config):
                     st.markdown(f'<meta http-equiv="refresh" content="0;url={oauth_url}">', unsafe_allow_html=True)
             with col2:
                 if st.button("❌ 해제", key="ig_disconnect", use_container_width=True):
-                    _run_async(auth_svc.revoke_connection(brand_config.id))
+                    run_async(auth_svc.revoke_connection(brand_config.id))
                     st.rerun()
         else:
             # 미연결 상태
@@ -140,8 +133,8 @@ def render_instagram_connection(settings, brand_config):
                         try:
                             token, exp = st.session_state.pending_ig_token
                             with st.spinner("정보 확인 중..."):
-                                ig_info = _run_async(auth_svc.fetch_instagram_account_manually(token, manual_id))
-                                _run_async(auth_svc.save_connection(brand_config.id, token, exp, ig_info))
+                                ig_info = run_async(auth_svc.fetch_instagram_account_manually(token, manual_id))
+                                run_async(auth_svc.save_connection(brand_config.id, token, exp, ig_info))
                             
                             del st.session_state.pending_ig_token
                             st.success(f"✅ @{ig_info['instagram_username']} 연결 완료!")
