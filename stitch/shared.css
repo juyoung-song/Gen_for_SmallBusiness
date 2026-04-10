@@ -694,6 +694,10 @@ nav {
   border-top: 0;
 }
 
+.settings-row--stack {
+  display: block;
+}
+
 .settings-copy {
   min-width: 0;
   flex: 1;
@@ -762,6 +766,24 @@ nav {
   color: #302719;
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.settings-action {
+  min-width: 7rem;
+  flex: 1 1 9rem;
+}
+
+.settings-inline-note {
+  margin: 0.75rem 0 0;
+  color: #877c68;
+  font-size: 0.76rem;
+  line-height: 1.55;
 }
 
 .result-section {
@@ -921,6 +943,12 @@ nav {
   color: #6f4b0a;
   font-size: 0.78rem;
   line-height: 1.55;
+}
+
+.upload-note a {
+  color: #954a25;
+  font-weight: 800;
+  text-decoration: underline;
 }
 
 .story-option {

@@ -205,6 +205,150 @@
       .slice(0, 20) || "brewgram";
   }
 
+  function getInstagramSummary(bootstrapLike) {
+    return (
+      bootstrapLike?.instagram || {
+        oauth_available: false,
+        connected: false,
+        expired: false,
+        upload_ready: false,
+        connection_source: "none",
+        username: null,
+        page_name: null,
+        expires_at: null,
+      }
+    );
+  }
+
+  function instagramStatusLabel(summary) {
+    if (summary.connected && summary.username) {
+      return `@${summary.username}`;
+    }
+    if (summary.connected) {
+      return "연결됨";
+    }
+    if (summary.expired) {
+      return "재연결 필요";
+    }
+    if (summary.connection_source === "env") {
+      return "관리자 계정 준비";
+    }
+    if (summary.oauth_available) {
+      return "미연결";
+    }
+    return "설정 필요";
+  }
+
+  function instagramStatusCopy(summary, onboardingCompleted = true) {
+    if (!onboardingCompleted) {
+      return "브랜드 온보딩을 먼저 완료해야 사장님 계정을 연결할 수 있습니다.";
+    }
+    if (summary.connected) {
+      const handle = summary.username ? `@${summary.username}` : "연결된 계정";
+      return `${handle} 계정이 연결되어 있습니다. 이후 자동 업로드 기능이 붙으면 이 계정으로 바로 게시됩니다.`;
+    }
+    if (summary.expired) {
+      return "이전 연결이 만료되었습니다. 다시 연결하면 이후 업로드 흐름에 그대로 이어붙일 수 있습니다.";
+    }
+    if (summary.connection_source === "env") {
+      return "현재는 관리자 고정 계정 업로드 환경만 준비되어 있습니다. 사장님 계정을 직접 연결하려면 Meta OAuth 설정이 필요합니다.";
+    }
+    if (summary.oauth_available) {
+      return "사장님 본인 계정을 한 번만 연결해두면 이후 피드/스토리 업로드를 자연스럽게 이어붙일 수 있습니다.";
+    }
+    return "Meta OAuth 환경 설정이 아직 없어 개인 계정 연결 기능을 켤 수 없습니다.";
+  }
+
+  function instagramSettingsNote(summary, onboardingCompleted = true) {
+    if (!onboardingCompleted) {
+      return "브랜드 정보를 저장한 뒤 계정을 연결하면 결과 화면의 업로드 버튼과 자연스럽게 이어집니다.";
+    }
+    if (summary.connected) {
+      return "계정 연결은 완료되었습니다. 자동 업로드 API만 붙이면 지금 배치된 업로드 버튼이 이 계정을 바로 사용합니다.";
+    }
+    if (summary.expired) {
+      return "만료 후에는 다시 연결만 하면 됩니다. 저장된 UI 흐름이나 생성 결과는 그대로 유지됩니다.";
+    }
+    if (summary.oauth_available) {
+      return "이 화면이 계정 연결을 관리하는 유일한 진입점입니다. 홈과 결과 화면은 상태 요약과 연결 유도만 담당합니다.";
+    }
+    return "현재 환경에서는 개인 계정 연결이 비활성화되어 있습니다.";
+  }
+
+  function instagramGuideCopy(summary) {
+    if (summary.connected) {
+      const handle = summary.username ? `@${summary.username}` : "연결된 계정";
+      return `${handle} 계정이 연결되어 있어요. 자동 업로드 API만 붙이면 지금 업로드 버튼이 바로 이 계정으로 이어집니다.`;
+    }
+    if (summary.expired) {
+      return "이전 인스타그램 연결이 만료되었습니다. 설정에서 다시 연결해두면 이후 자동 업로드 흐름을 자연스럽게 붙일 수 있습니다.";
+    }
+    if (summary.connection_source === "env") {
+      return "현재는 관리자 고정 계정 업로드 환경만 준비되어 있습니다. 사장님 계정 직접 연결은 설정에서 관리합니다.";
+    }
+    if (summary.oauth_available) {
+      return "자동 업로드 기능은 아직 연결 전이지만, 설정에서 인스타그램 계정을 미리 연결해둘 수 있습니다.";
+    }
+    return "자동 업로드는 다음 단계에서 연결합니다. 지금은 저장 버튼과 인스타그램 미리보기 중심으로 결과를 점검하면 됩니다.";
+  }
+
+  function buildUploadPlaceholder(summary, kind) {
+    const target = kind === "story" ? "스토리" : "피드";
+    if (summary.expired) {
+      return {
+        tone: "neutral",
+        html: `이전 인스타그램 연결이 만료되었습니다. <a href="${PATHS.settings}">설정에서 다시 연결</a>한 뒤 ${target} 업로드를 이어갈 수 있습니다.`,
+        status: "인스타그램 연결이 만료되어 다시 연결이 필요합니다.",
+      };
+    }
+    if (!summary.upload_ready) {
+      return {
+        tone: "neutral",
+        html: `자동 ${target} 업로드를 쓰려면 먼저 인스타그램 계정을 연결해주세요. <a href="${PATHS.settings}">설정에서 연결하기</a>`,
+        status: "인스타그램 계정을 먼저 연결해야 합니다.",
+      };
+    }
+    if (summary.connected) {
+      const handle = summary.username ? `@${escapeHtml(summary.username)}` : "연결된 계정";
+      return {
+        tone: "neutral",
+        html: `${handle} 계정 연결은 완료되었습니다. 자동 ${target} 업로드 API 연결만 남아 있어 지금은 저장 후 직접 업로드해 주세요.`,
+        status: `${target} 자동 업로드 API는 아직 연결되지 않았습니다.`,
+      };
+    }
+    return {
+      tone: "neutral",
+      html: `현재는 관리자 고정 계정 업로드 환경만 준비되어 있습니다. 사장님 계정으로 쓰려면 <a href="${PATHS.settings}">설정에서 연결</a>해 주세요.`,
+      status: `${target} 업로드는 아직 개인 계정 연결 전입니다.`,
+    };
+  }
+
+  function consumeInstagramFeedback() {
+    const params = new URLSearchParams(window.location.search);
+    const flag = params.get("ig");
+    if (!flag) return null;
+
+    const message = params.get("ig_message");
+    window.history.replaceState({}, "", PATHS.settings);
+
+    if (flag === "connected") {
+      return {
+        tone: "success",
+        message: "인스타그램 계정 연결이 완료되었습니다.",
+      };
+    }
+    if (flag === "cancelled") {
+      return {
+        tone: "neutral",
+        message: "인스타그램 계정 연결이 취소되었습니다.",
+      };
+    }
+    return {
+      tone: "error",
+      message: message || "인스타그램 계정 연결 중 오류가 발생했습니다.",
+    };
+  }
+
   function productThumb(productName) {
     const name = String(productName || "").toLowerCase();
     if (/(coffee|커피|아메리카노|라떼|에스프레소)/.test(name)) return "☕";
@@ -607,6 +751,7 @@
     );
     const state = readState();
     const brand = lastBootstrap?.brand;
+    const instagram = getInstagramSummary(lastBootstrap);
     const brandName = brand?.brand_name || state.onboarding.brandName || "우리 가게";
     const handle = parseInstagramHandle(state.onboarding.instagramUrl, brandName);
     const previewCaption =
@@ -725,8 +870,7 @@
     }
 
     if (preferenceUploadEnabled && uploadNote) {
-      uploadNote.innerHTML =
-        "피드/스토리 업로드 버튼은 먼저 UI만 제공됩니다. 지금은 저장 후 직접 인스타그램에 업로드해 주세요.";
+      uploadNote.innerHTML = buildUploadPlaceholder(instagram, "feed").html;
       uploadNote.className = "upload-note";
       uploadNote.classList.remove("hidden");
     }
@@ -766,6 +910,7 @@
     const metricReferences = selectOne("#home-metric-references");
     const statusList = selectOne("#home-status-list");
     const guideCopy = selectOne("#home-guide-copy");
+    const instagram = getInstagramSummary(bootstrap);
 
     const recentCount = state.history.length;
     if (metricHistory) metricHistory.textContent = `${recentCount}건`;
@@ -829,9 +974,7 @@
     }
 
     if (guideCopy) {
-      guideCopy.textContent = bootstrap?.instagram_ready
-        ? "인스타그램 연동 상태는 확인되지만, 자동 업로드는 아직 UI만 먼저 구성했습니다. 캡션과 스토리 이미지를 만든 뒤 직접 올려주세요."
-        : "자동 업로드는 다음 단계에서 연결합니다. 지금은 저장 버튼과 인스타그램 미리보기 중심으로 결과를 점검하면 됩니다.";
+      guideCopy.textContent = instagramGuideCopy(instagram);
     }
 
     renderHistoryList(selectOne("#home-recent-list"), state.history.slice(0, 3), {
@@ -883,6 +1026,12 @@
     const notifyToggle = selectOne("#settings-notify-toggle");
     const uploadToggle = selectOne("#settings-upload-toggle");
     const statusNode = selectOne("#settings-status");
+    const instagramCopyNode = selectOne("#settings-instagram-copy");
+    const instagramNode = selectOne("#settings-instagram-status");
+    const instagramNoteNode = selectOne("#settings-instagram-note");
+    const instagramConnectButton = selectOne("#settings-instagram-connect");
+    const instagramReconnectButton = selectOne("#settings-instagram-reconnect");
+    const instagramDisconnectButton = selectOne("#settings-instagram-disconnect");
 
     if (toneSelect) toneSelect.value = state.preferences.defaultTone;
     if (styleSelect) styleSelect.value = state.preferences.defaultStyle;
@@ -919,13 +1068,42 @@
       setStatus(statusNode, "업로드 안내 표시 상태를 저장했습니다.", "success");
     });
 
-    try {
-      const bootstrap = await api("/bootstrap");
-      lastBootstrap = bootstrap;
+    const feedback = consumeInstagramFeedback();
+
+    const applyInstagramSettings = (instagram, bootstrap) => {
+      const onboardingCompleted = Boolean(bootstrap?.onboarding_completed);
+      if (instagramNode) {
+        instagramNode.textContent = instagramStatusLabel(instagram);
+      }
+      if (instagramCopyNode) {
+        instagramCopyNode.textContent = instagramStatusCopy(instagram, onboardingCompleted);
+      }
+      if (instagramNoteNode) {
+        instagramNoteNode.textContent = instagramSettingsNote(instagram, onboardingCompleted);
+      }
+
+      const canConnect = onboardingCompleted && instagram.oauth_available && !instagram.connected && !instagram.expired;
+      const canReconnect = onboardingCompleted && instagram.oauth_available && (instagram.connected || instagram.expired);
+      const canDisconnect = onboardingCompleted && (instagram.connected || instagram.expired);
+
+      instagramConnectButton?.classList.toggle("hidden", !canConnect);
+      instagramReconnectButton?.classList.toggle("hidden", !canReconnect);
+      instagramDisconnectButton?.classList.toggle("hidden", !canDisconnect);
+    };
+
+    const loadSettingsStatus = async () => {
+      const [bootstrap, instagram] = await Promise.all([
+        api("/bootstrap"),
+        api("/instagram/status"),
+      ]);
+      lastBootstrap = {
+        ...bootstrap,
+        instagram,
+        instagram_ready: instagram.upload_ready,
+      };
       const brand = bootstrap.brand;
       const brandNameNode = selectOne("#settings-brand-name");
       const brandSubNode = selectOne("#settings-brand-sub");
-      const instagramNode = selectOne("#settings-instagram-status");
       const apiNode = selectOne("#settings-api-status");
       const backendNode = selectOne("#settings-image-backend");
 
@@ -937,14 +1115,50 @@
           ? `${brand.brand_color || "대표 컬러 미설정"} · ${brand.brand_atmosphere || "분위기 미설정"}`
           : "온보딩이 아직 완료되지 않았습니다.";
       }
-      if (instagramNode) {
-        instagramNode.textContent = bootstrap.instagram_ready ? "준비 완료" : "연동 전";
-      }
       if (apiNode) {
         apiNode.textContent = bootstrap.api_ready ? "사용 가능" : "확인 필요";
       }
       if (backendNode) {
         backendNode.textContent = bootstrap.image_backend_kind || "미확인";
+      }
+      applyInstagramSettings(instagram, bootstrap);
+      return { bootstrap, instagram };
+    };
+
+    instagramConnectButton?.addEventListener("click", async () => {
+      try {
+        setStatus(statusNode, "Meta 인증 페이지로 이동하는 중입니다.", "loading");
+        const response = await api("/instagram/connect-url", { method: "POST" });
+        window.location.assign(response.url);
+      } catch (error) {
+        setStatus(statusNode, error.message, "error");
+      }
+    });
+
+    instagramReconnectButton?.addEventListener("click", async () => {
+      try {
+        setStatus(statusNode, "Meta 인증 페이지로 다시 이동합니다.", "loading");
+        const response = await api("/instagram/connect-url", { method: "POST" });
+        window.location.assign(response.url);
+      } catch (error) {
+        setStatus(statusNode, error.message, "error");
+      }
+    });
+
+    instagramDisconnectButton?.addEventListener("click", async () => {
+      try {
+        await api("/instagram/disconnect", { method: "POST" });
+        await loadSettingsStatus();
+        setStatus(statusNode, "인스타그램 계정 연결을 해제했습니다.", "success");
+      } catch (error) {
+        setStatus(statusNode, error.message, "error");
+      }
+    });
+
+    try {
+      await loadSettingsStatus();
+      if (feedback) {
+        setStatus(statusNode, feedback.message, feedback.tone);
       }
     } catch (error) {
       setStatus(statusNode, error.message, "error");
@@ -1186,24 +1400,24 @@
 
     uploadFeedButton?.addEventListener("click", () => {
       updateLastHistory({ uploadFeedStatus: "placeholder" });
+      const nextNote = buildUploadPlaceholder(getInstagramSummary(lastBootstrap), "feed");
       if (uploadNote) {
-        uploadNote.textContent =
-          "피드 업로드 UI는 준비되었지만, 자동 업로드 연결은 아직 붙지 않았습니다. 지금은 이미지와 캡션을 저장해 직접 업로드해 주세요.";
+        uploadNote.innerHTML = nextNote.html;
         uploadNote.className = "upload-note";
         uploadNote.classList.remove("hidden");
       }
-      setStatus(bootstrapStatus, "피드 업로드 기능은 곧 연결됩니다. 지금은 저장 후 직접 업로드해 주세요.", "neutral");
+      setStatus(bootstrapStatus, nextNote.status, nextNote.tone);
     });
 
     uploadStoryButton?.addEventListener("click", () => {
       updateLastHistory({ uploadStoryStatus: "placeholder" });
+      const nextNote = buildUploadPlaceholder(getInstagramSummary(lastBootstrap), "story");
       if (uploadNote) {
-        uploadNote.textContent =
-          "스토리 업로드 버튼은 먼저 UI만 제공됩니다. 스토리 이미지를 저장한 뒤 직접 인스타그램에 업로드해 주세요.";
+        uploadNote.innerHTML = nextNote.html;
         uploadNote.className = "upload-note";
         uploadNote.classList.remove("hidden");
       }
-      setStatus(bootstrapStatus, "스토리 업로드 기능은 아직 연결되지 않았습니다.", "neutral");
+      setStatus(bootstrapStatus, nextNote.status, nextNote.tone);
     });
 
     selectOne("#create-back")?.addEventListener("click", () => {

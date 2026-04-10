@@ -26,6 +26,7 @@ dependencies = [
     # ── Onboarding (Phase 2 Step 2.1) ──
     # 인스타 프로필 헤드리스 캡처에 사용. subprocess 로 browser-use CLI 호출.
     "browser-use[cli]>=0.12.6",
+    "cryptography>=46.0.0",
 ]
 
 [dependency-groups]

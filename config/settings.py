@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     FREEIMAGE_API_KEY: str = "6d207e02198a847aa98d0a2a901485a5"
     META_ACCESS_TOKEN: str = ""
     INSTAGRAM_ACCOUNT_ID: str = ""
+    META_APP_ID: str = ""
+    META_APP_SECRET: str = ""
+    META_REDIRECT_URI: str = ""
+    TOKEN_ENCRYPTION_KEY: str = ""
 
     # ── Application ──
     APP_ENV: str = "development"
@@ -135,6 +139,16 @@ class Settings(BaseSettings):
         """인스타그램 업로드 준비 여부 (Meta Graph + FreeImage)."""
         return bool(
             self.META_ACCESS_TOKEN and self.INSTAGRAM_ACCOUNT_ID
+        )
+
+    @property
+    def is_instagram_oauth_configured(self) -> bool:
+        """개인 계정 OAuth 연결 기능을 켤 수 있는지 여부."""
+        return bool(
+            self.META_APP_ID
+            and self.META_APP_SECRET
+            and self.META_REDIRECT_URI
+            and self.TOKEN_ENCRYPTION_KEY
         )
 
 

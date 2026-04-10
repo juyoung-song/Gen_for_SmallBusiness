@@ -11,8 +11,11 @@ import binascii
 import logging
 import re
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlencode
+from uuid import UUID, uuid4
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -30,6 +33,7 @@ from pydantic import BaseModel, Field
 
 from config.database import AsyncSessionLocal, init_db
 from config.settings import get_settings, setup_logging
+from models.brand_image import BrandImage
 from schemas.image_schema import ImageGenerationRequest
 from schemas.instagram_schema import (
     CaptionGenerationRequest,
@@ -39,6 +43,7 @@ from schemas.text_schema import TextGenerationRequest
 from services.brand_image_service import BrandImageService
 from services.caption_service import CaptionService
 from services.image_service import ImageService, ImageServiceError
+from services.instagram_auth_service import InstagramAuthService
 from services.onboarding_service import (
     BrandImageDraft,
     GPTVisionAnalyzer,
@@ -56,6 +61,7 @@ ONBOARDING_DIR = DATA_DIR / "onboarding" / "mobile"
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+PENDING_INSTAGRAM_STATES: dict[str, tuple[UUID, datetime]] = {}
 
 
 @asynccontextmanager
@@ -84,12 +90,24 @@ class MobileBrandSummary(BaseModel):
     content: str = ""
 
 
+class MobileInstagramSummary(BaseModel):
+    oauth_available: bool
+    connected: bool
+    expired: bool = False
+    upload_ready: bool
+    connection_source: Literal["oauth", "env", "none"] = "none"
+    username: str | None = None
+    page_name: str | None = None
+    expires_at: datetime | None = None
+
+
 class MobileBootstrapResponse(BaseModel):
     onboarding_completed: bool
     brand: MobileBrandSummary | None = None
     image_backend_kind: str
     api_ready: bool
     instagram_ready: bool
+    instagram: "MobileInstagramSummary"
     product_count: int = 0
     published_reference_count: int = 0
 
@@ -143,6 +161,14 @@ class MobileStoryRequest(BaseModel):
 
 class MobileStoryResponse(BaseModel):
     image_data_url: str
+
+
+class MobileInstagramConnectResponse(BaseModel):
+    url: str
+
+
+class MobileSimpleStatusResponse(BaseModel):
+    status: Literal["ok"]
 
 
 _DATA_URL_RE = re.compile(r"^data:(?P<mime>[\w/+.-]+);base64,(?P<data>.+)$")
@@ -291,6 +317,90 @@ async def _load_brand_prompt() -> str:
     return "\n".join(prefix_lines) + ("\n\n" if prefix_lines else "") + brand.content
 
 
+def _prune_pending_instagram_states() -> None:
+    now = datetime.now(timezone.utc)
+    expired = [
+        state
+        for state, (_, expires_at) in PENDING_INSTAGRAM_STATES.items()
+        if expires_at <= now
+    ]
+    for state in expired:
+        PENDING_INSTAGRAM_STATES.pop(state, None)
+
+
+def _issue_instagram_state(brand_image_id: UUID) -> str:
+    _prune_pending_instagram_states()
+    state = uuid4().hex
+    PENDING_INSTAGRAM_STATES[state] = (
+        brand_image_id,
+        datetime.now(timezone.utc) + timedelta(minutes=10),
+    )
+    return state
+
+
+def _consume_instagram_state(state: str) -> UUID | None:
+    _prune_pending_instagram_states()
+    brand_image_id, _ = PENDING_INSTAGRAM_STATES.pop(state, (None, None))
+    return brand_image_id
+
+
+async def _load_brand() -> BrandImage | None:
+    async with AsyncSessionLocal() as session:
+        return await BrandImageService(session).get_for_user("default")
+
+
+async def _load_instagram_summary(brand: BrandImage | None) -> MobileInstagramSummary:
+    oauth_available = settings.is_instagram_oauth_configured
+
+    if brand is not None:
+        connection = await InstagramAuthService(settings).get_connection(brand.id)
+        if connection is not None and connection.is_active:
+            expires_at = connection.token_expires_at
+            if expires_at is not None and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            expired = bool(
+                expires_at and expires_at <= datetime.now(timezone.utc)
+            )
+            if not expired:
+                return MobileInstagramSummary(
+                    oauth_available=oauth_available,
+                    connected=True,
+                    expired=False,
+                    upload_ready=True,
+                    connection_source="oauth",
+                    username=connection.instagram_username,
+                    page_name=connection.facebook_page_name,
+                    expires_at=expires_at,
+                )
+            return MobileInstagramSummary(
+                oauth_available=oauth_available,
+                connected=False,
+                expired=True,
+                upload_ready=settings.is_instagram_ready,
+                connection_source="env" if settings.is_instagram_ready else "none",
+                username=connection.instagram_username,
+                page_name=connection.facebook_page_name,
+                expires_at=expires_at,
+            )
+
+    if settings.is_instagram_ready:
+        return MobileInstagramSummary(
+            oauth_available=oauth_available,
+            connected=False,
+            expired=False,
+            upload_ready=True,
+            connection_source="env",
+        )
+
+    return MobileInstagramSummary(
+        oauth_available=oauth_available,
+        connected=False,
+        expired=False,
+        upload_ready=False,
+        connection_source="none",
+    )
+
+
 async def _load_bootstrap() -> MobileBootstrapResponse:
     async with AsyncSessionLocal() as session:
         brand_service = BrandImageService(session)
@@ -300,13 +410,15 @@ async def _load_bootstrap() -> MobileBootstrapResponse:
         brand = await brand_service.get_for_user("default")
         products = await product_service.list_all()
         uploads = await upload_service.list_published()
+    instagram = await _load_instagram_summary(brand)
 
     return MobileBootstrapResponse(
         onboarding_completed=brand is not None,
         brand=_serialize_brand(brand) if brand is not None else None,
         image_backend_kind=settings.IMAGE_BACKEND_KIND.value,
         api_ready=settings.is_api_ready,
-        instagram_ready=settings.is_instagram_ready,
+        instagram_ready=instagram.upload_ready,
+        instagram=instagram,
         product_count=len(products),
         published_reference_count=len(uploads),
     )
@@ -320,6 +432,102 @@ async def health() -> dict:
 @app.get("/api/mobile/bootstrap", response_model=MobileBootstrapResponse)
 async def mobile_bootstrap() -> MobileBootstrapResponse:
     return await _load_bootstrap()
+
+
+@app.get("/api/mobile/instagram/status", response_model=MobileInstagramSummary)
+async def mobile_instagram_status() -> MobileInstagramSummary:
+    brand = await _load_brand()
+    return await _load_instagram_summary(brand)
+
+
+@app.post(
+    "/api/mobile/instagram/connect-url",
+    response_model=MobileInstagramConnectResponse,
+)
+async def mobile_instagram_connect_url() -> MobileInstagramConnectResponse:
+    if not settings.is_instagram_oauth_configured:
+        raise HTTPException(
+            status_code=503,
+            detail="Meta OAuth 설정이 아직 준비되지 않았습니다.",
+        )
+
+    brand = await _load_brand()
+    if brand is None:
+        raise HTTPException(
+            status_code=409,
+            detail="브랜드 온보딩을 먼저 완료해야 인스타그램 계정을 연결할 수 있습니다.",
+        )
+
+    state = _issue_instagram_state(brand.id)
+    url = InstagramAuthService(settings).generate_oauth_url(state)
+    return MobileInstagramConnectResponse(url=url)
+
+
+@app.post(
+    "/api/mobile/instagram/disconnect",
+    response_model=MobileSimpleStatusResponse,
+)
+async def mobile_instagram_disconnect() -> MobileSimpleStatusResponse:
+    brand = await _load_brand()
+    if brand is None:
+        raise HTTPException(
+            status_code=409,
+            detail="브랜드 온보딩을 먼저 완료해야 연결을 관리할 수 있습니다.",
+        )
+
+    await InstagramAuthService(settings).revoke_connection(brand.id)
+    return MobileSimpleStatusResponse(status="ok")
+
+
+@app.get("/api/mobile/instagram/callback")
+async def mobile_instagram_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+) -> RedirectResponse:
+    base_url = "/stitch/settings.html"
+
+    if error:
+        return RedirectResponse(
+            url=f"{base_url}?{urlencode({'ig': 'cancelled'})}",
+            status_code=307,
+        )
+    if not code or not state:
+        return RedirectResponse(
+            url=f"{base_url}?{urlencode({'ig': 'error', 'ig_message': '인증 응답이 올바르지 않습니다.'})}",
+            status_code=307,
+        )
+
+    brand_image_id = _consume_instagram_state(state)
+    if brand_image_id is None:
+        return RedirectResponse(
+            url=f"{base_url}?{urlencode({'ig': 'error', 'ig_message': '연결 세션이 만료되어 다시 시도해야 합니다.'})}",
+            status_code=307,
+        )
+
+    auth_service = InstagramAuthService(settings)
+    try:
+        short_token = await auth_service.exchange_code_for_token(code)
+        long_token, expires_in = await auth_service.exchange_for_long_lived_token(
+            short_token
+        )
+        instagram_info = await auth_service.fetch_instagram_account(long_token)
+        await auth_service.save_connection(
+            brand_image_id=brand_image_id,
+            access_token=long_token,
+            expires_in=expires_in,
+            instagram_info=instagram_info,
+        )
+        return RedirectResponse(
+            url=f"{base_url}?{urlencode({'ig': 'connected'})}",
+            status_code=307,
+        )
+    except Exception as exc:  # pragma: no cover - external OAuth integration
+        logger.exception("인스타그램 OAuth 콜백 처리 실패")
+        return RedirectResponse(
+            url=f"{base_url}?{urlencode({'ig': 'error', 'ig_message': str(exc)[:180]})}",
+            status_code=307,
+        )
 
 
 @app.post("/api/mobile/onboarding/complete", response_model=MobileOnboardingResponse)

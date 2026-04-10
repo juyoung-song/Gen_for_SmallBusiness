@@ -30,6 +30,7 @@ async def db_session() -> AsyncSession:
     import models.brand_image  # noqa: F401
     import models.product  # noqa: F401
     import models.generated_upload  # noqa: F401
+    import models.instagram_connection  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -6,6 +6,9 @@ import httpx
 import pytest
 from fastapi import HTTPException
 from openai import APITimeoutError
+from types import SimpleNamespace
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import mobile_app
 from schemas.instagram_schema import CaptionGenerationResponse
@@ -100,3 +103,56 @@ class TestMobileCaption:
 
         assert response.caption == "따뜻한 식감이 오래 남는 식빵 한 장"
         assert response.hashtags == "#식빵 #베이커리"
+
+
+class TestInstagramSummary:
+    async def test_reports_connected_oauth_account(self, monkeypatch):
+        brand = SimpleNamespace(id=uuid4())
+        future_expiry = datetime.now(timezone.utc) + timedelta(days=30)
+
+        async def fake_get_connection(self, _brand_id):
+            return SimpleNamespace(
+                is_active=True,
+                instagram_username="bakery_owner",
+                facebook_page_name="Bakery Page",
+                token_expires_at=future_expiry,
+            )
+
+        monkeypatch.setattr(mobile_app.settings, "META_APP_ID", "app-id")
+        monkeypatch.setattr(mobile_app.settings, "META_APP_SECRET", "secret")
+        monkeypatch.setattr(mobile_app.settings, "META_REDIRECT_URI", "https://example.com/callback")
+        monkeypatch.setattr(mobile_app.settings, "TOKEN_ENCRYPTION_KEY", "token-key")
+        monkeypatch.setattr(
+            mobile_app.InstagramAuthService,
+            "get_connection",
+            fake_get_connection,
+        )
+
+        summary = await mobile_app._load_instagram_summary(brand)
+
+        assert summary.connected is True
+        assert summary.upload_ready is True
+        assert summary.connection_source == "oauth"
+        assert summary.username == "bakery_owner"
+
+    async def test_falls_back_to_env_upload_state(self, monkeypatch):
+        async def fake_get_connection(self, _brand_id):
+            return None
+
+        monkeypatch.setattr(mobile_app.settings, "META_ACCESS_TOKEN", "fallback-token")
+        monkeypatch.setattr(mobile_app.settings, "INSTAGRAM_ACCOUNT_ID", "1784")
+        monkeypatch.setattr(mobile_app.settings, "META_APP_ID", "")
+        monkeypatch.setattr(mobile_app.settings, "META_APP_SECRET", "")
+        monkeypatch.setattr(mobile_app.settings, "META_REDIRECT_URI", "")
+        monkeypatch.setattr(mobile_app.settings, "TOKEN_ENCRYPTION_KEY", "")
+        monkeypatch.setattr(
+            mobile_app.InstagramAuthService,
+            "get_connection",
+            fake_get_connection,
+        )
+
+        summary = await mobile_app._load_instagram_summary(None)
+
+        assert summary.connected is False
+        assert summary.upload_ready is True
+        assert summary.connection_source == "env"
