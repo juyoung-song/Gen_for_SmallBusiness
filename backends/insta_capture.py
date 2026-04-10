@@ -35,7 +35,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CLI_COMMAND: tuple[str, ...] = ("uv", "run", "browser-use")
+_DEFAULT_CLI_COMMAND: tuple[str, ...] = ("browser-use",)
 
 # 캡처 간 스크롤 양 (px). viewport 1080 보다 약간 작게 → 그리드 행 경계 약간 겹침.
 _SCROLL_AMOUNT_PX = 900
