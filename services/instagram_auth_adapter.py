@@ -4,10 +4,10 @@
 롤백 시 이 파일만 제거하면 기존 동작으로 원복됩니다.
 """
 
-import asyncio
 import logging
 
 from config.settings import Settings
+from utils.async_runner import run_async
 from utils.crypto import decrypt_token
 
 logger = logging.getLogger(__name__)
@@ -30,13 +30,7 @@ def apply_user_token(settings: Settings, brand_config) -> bool:
     from services.instagram_auth_service import InstagramAuthService
 
     auth_svc = InstagramAuthService(settings)
-
-    try:
-        conn = asyncio.get_event_loop().run_until_complete(
-            auth_svc.get_connection(brand_config.id)
-        )
-    except RuntimeError:
-        conn = asyncio.run(auth_svc.get_connection(brand_config.id))
+    conn = run_async(auth_svc.get_connection(brand_config.id))
 
     if not conn or not conn.is_active:
         # OAuth 연결이 없으면 기존 .env 토큰 사용 시도 (하위 호환)
