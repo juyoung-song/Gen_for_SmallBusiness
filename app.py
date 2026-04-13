@@ -21,9 +21,8 @@ from ui.reference_gallery import render_reference_gallery
 from ui.sidebar import render_sidebar_settings
 from schemas.image_schema import ImageGenerationRequest
 from schemas.text_schema import TextGenerationRequest
-from services.brand_image_service import BrandImageService
+from services.brand_service import BrandService
 from services.image_service import ImageService, ImageServiceError
-from services.product_service import ProductService
 from services.text_service import TextService, TextServiceError
 from services.upload_service import UploadService
 from utils.async_runner import run_async
@@ -169,40 +168,30 @@ for key, default in _DEFAULT_STATE.items():
 
 
 # ══════════════════════════════════════════════
-# 온보딩 라우팅 + brand_image 본문 로드 (Phase 2 Step 2.1 + Step A)
+# 온보딩 라우팅 + brand 본문 로드
 # ══════════════════════════════════════════════
-# brand_image 가 DB 에 없으면 온보딩 화면만 렌더하고 조기 return.
-# 존재하면 본문(content) + 구조화 필드(brand_name, brand_color)를 읽어
-# 하나의 brand_prompt 문자열로 합쳐 session_state 에 캐시한다.
-# 이후 광고 생성 시 request.brand_prompt 로 주입된다 (design.md §2.3).
+# Brand 가 DB 에 없으면 온보딩 화면만 렌더하고 조기 return.
+# 존재하면 style_prompt + name/color 프리픽스를 합쳐 session_state 에 캐시한다.
+# 이후 광고 생성 시 request.brand_prompt 로 주입된다.
 async def _load_brand():
-    """온보딩된 BrandImage 객체를 통째 반환 (없으면 None).
-
-    OAuth 이식: 이전에는 brand_prompt 문자열만 반환했지만, Instagram OAuth
-    통합이 `brand_config.id` (== BrandImage.id: UUID) 를 필요로 하므로
-    객체 자체를 돌려주고 호출부에서 prompt 와 id 를 각각 꺼내 쓴다.
-    """
+    """온보딩된 Brand 객체를 통째 반환 (없으면 None)."""
     async with AsyncSessionLocal() as session:
-        service = BrandImageService(session)
-        brand = await service.get_for_user("default")
-        return brand
+        service = BrandService(session)
+        return await service.get_first()
 
 
 def _compose_brand_prompt(
-    *, content: str, brand_name: str | None, brand_color: str | None
+    *, style_prompt: str, brand_name: str | None, brand_color: str | None
 ) -> str:
-    """구조화 필드 (brand_name/brand_color) 를 content 앞에 프리픽스로 합친다.
-
-    Song 이식 방안 B — 별도 파라미터 없이 brand_prompt 하나로 모두 전달.
-    """
+    """구조화 필드 (name/color_hex) 를 style_prompt 앞에 프리픽스로 합친다."""
     prefix_lines: list[str] = []
     if brand_name:
         prefix_lines.append(f"브랜드 이름: {brand_name}")
     if brand_color:
         prefix_lines.append(f"브랜드 대표 색상: {brand_color}")
     if not prefix_lines:
-        return content
-    return "\n".join(prefix_lines) + "\n\n" + content
+        return style_prompt
+    return "\n".join(prefix_lines) + "\n\n" + style_prompt
 
 
 _loaded_brand = run_async(_load_brand())
@@ -210,23 +199,14 @@ if _loaded_brand is None:
     render_onboarding_screen(settings)
     st.stop()
 
-# 이후 _run_*_generation 이 읽어쓸 수 있도록 session_state 에 저장
 st.session_state.brand_prompt = _compose_brand_prompt(
-    content=_loaded_brand.content,
-    brand_name=_loaded_brand.brand_name,
-    brand_color=_loaded_brand.brand_color,
+    style_prompt=_loaded_brand.style_prompt,
+    brand_name=_loaded_brand.name,
+    brand_color=_loaded_brand.color_hex,
 )
 
-# Instagram OAuth 이식: 사이드바 render 와 업로드 가드가 BrandImage 를
-# `brand_config` 인자로 받는다 (duck typing — `.id: UUID` 만 필요).
-# 옵션 1 결정: docs/instagram_oauth_won_integration_notes.md 참고.
-_brand_image = _loaded_brand
-
-# 사이드바 인스타 연결 UI — render_sidebar_settings(IMAGE_BACKEND_KIND enum)
-# 블록 아래에 추가됨. onboarded 이후에만 렌더되므로 이 지점에서 호출한다.
-# META_APP_ID / META_APP_SECRET 미설정 시 내부에서 조기 return → 기존 .env 경로만
-# 쓰는 환경에선 완전 no-op.
-render_instagram_connection(settings, brand_config=_brand_image)
+# 사이드바 인스타 연결 UI — Brand 를 넘긴다.
+render_instagram_connection(settings, brand=_loaded_brand)
 
 
 # ══════════════════════════════════════════════
@@ -253,7 +233,7 @@ TONE_STYLE_DISPLAY_MAP = {
 # ══════════════════════════════════════════════
 # 인스타그램 피드 미리보기/업로드 컴포넌트
 # ══════════════════════════════════════════════
-def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, caption_data, key_suffix: str, brand_config=None):
+def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, caption_data, key_suffix: str, brand=None):
     st.markdown("---")
     st.markdown("### 📱 인스타그램 피드 미리보기")
     st.caption("실제로 인스타그램에 올라가면 폰에서 이렇게 보입니다.")
@@ -306,7 +286,7 @@ def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, c
                 from services.instagram_auth_adapter import apply_user_token
                 from services.instagram_service import InstagramService
 
-                if not apply_user_token(settings, brand_config):
+                if not apply_user_token(settings, brand):
                     st.warning(
                         "⚠️ 인스타그램 연결이 필요합니다. "
                         "왼쪽 사이드바에서 계정을 먼저 연결해주세요."
@@ -329,8 +309,9 @@ def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, c
                         if status_msg == "DONE":
                             progress_container.empty()
                             status_bar_container.empty()
-                            # Step 2.4 — 게시 성공 시 generated_upload 저장
+                            # 게시 성공 시 generated_uploads 에 레코드 저장
                             _persist_generated_upload(
+                                kind="feed",
                                 caption=f"{edited_caption}\n\n{edited_tags}",
                                 post_id=ig_svc.last_post_id,
                                 posted_at=ig_svc.last_posted_at,
@@ -349,7 +330,7 @@ def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, c
 # ══════════════════════════════════════════════
 # 인스타그램 스토리 미리보기/업로드 컴포넌트
 # ══════════════════════════════════════════════
-def render_instagram_story_preview_and_upload(product_name: str, image_bytes: bytes, story_copies: list[str], key_suffix: str, brand_config=None):
+def render_instagram_story_preview_and_upload(product_name: str, image_bytes: bytes, story_copies: list[str], key_suffix: str, brand=None):
     st.markdown("---")
     st.markdown("### 📱 인스타그램 스토리 미리보기")
     st.caption("9:16 세로형 포맷으로, 블러 배경과 함께 세련되게 합성된 스토리 화면입니다.")
@@ -404,7 +385,7 @@ def render_instagram_story_preview_and_upload(product_name: str, image_bytes: by
             from services.instagram_auth_adapter import apply_user_token
             from services.instagram_service import InstagramService
 
-            if not apply_user_token(settings, brand_config):
+            if not apply_user_token(settings, brand):
                 st.warning(
                     "⚠️ 인스타그램 연결이 필요합니다. "
                     "왼쪽 사이드바에서 계정을 먼저 연결해주세요."
@@ -452,44 +433,35 @@ def _stash_generated_image(image_bytes: bytes) -> None:
 
 def _persist_generated_upload(
     *,
+    kind: str,  # "feed" or "story"
     caption: str,
     post_id: str | None,
     posted_at,
 ) -> None:
-    """인스타 게시 성공 시 generated_upload 테이블에 레코드 추가.
+    """인스타 게시 성공 시 generated_uploads 레코드 추가.
 
-    Step 2.4 — 광고 생성/업로드 흐름을 통해 축적된 session_state 값(current_product_id,
-    current_generated_image_path, ad_purpose 의 카테고리) 을 꺼내서 저장.
+    docs/schema.md §3.6 — generation_output_id 기반.
+    session_state.current_generation_output_id 는 2c-2-ii 의 생성 플로우가 저장한다.
     """
     from uuid import UUID
 
-    product_id_str = st.session_state.get("current_product_id")
-    image_path = st.session_state.get("current_generated_image_path")
-    if not product_id_str or not image_path:
-        logger_msg = "generated_upload 저장 스킵 — product_id 또는 image_path 누락"
+    output_id_str = st.session_state.get("current_generation_output_id")
+    if not output_id_str:
         import logging
-        logging.getLogger(__name__).warning(logger_msg)
+        logging.getLogger(__name__).warning(
+            "generated_upload 저장 스킵 — current_generation_output_id 누락"
+        )
         return
 
-    goal_text = st.session_state.get("ad_purpose", "")
-    # "카테고리 · 자유텍스트" → 분리
-    if " · " in goal_text:
-        goal_category, goal_freeform = goal_text.split(" · ", 1)
-    else:
-        goal_category = goal_text
-        goal_freeform = ""
-
-    product_uuid = UUID(product_id_str)
+    output_uuid = UUID(output_id_str)
 
     async def _save():
         async with AsyncSessionLocal() as session:
             upload_service = UploadService(session)
             upload = await upload_service.create(
-                product_id=product_uuid,
-                image_path=image_path,
+                generation_output_id=output_uuid,
+                kind=kind,
                 caption=caption,
-                goal_category=goal_category,
-                goal_freeform=goal_freeform,
             )
             if post_id is not None and posted_at is not None:
                 await upload_service.mark_posted(
@@ -963,7 +935,7 @@ with tab_create:
                 image_bytes=img_res.get("image_data"),
                 caption_data=st.session_state.caption_result,
                 key_suffix="new_create",
-                brand_config=_brand_image,
+                brand=_loaded_brand,
             )
 
         if st.session_state.get("show_story_ui"):
@@ -973,7 +945,7 @@ with tab_create:
                     image_bytes=img_res.get("image_data"),
                     story_copies=txt_res["story_copies"],
                     key_suffix="new_create",
-                    brand_config=_brand_image,
+                    brand=_loaded_brand,
                 )
             else:
                 st.warning("⚠️ 이번 생성 결과에는 스토리용 카피가 포함되어 있지 않습니다. 다시 생성을 시도해주세요.")
