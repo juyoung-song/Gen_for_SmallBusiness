@@ -1,10 +1,10 @@
 """GeneratedUpload CRUD 서비스.
 
-design.md §4.4 / §4.5 / §6 기준:
-- create(): 생성 결과를 staging 상태로 저장 (instagram_post_id=None)
+docs/schema.md §3.6 기준:
+- create(): 업로드 시도 레코드 생성 (instagram_post_id=None)
 - mark_posted(): 게시 성공 시 instagram_post_id + posted_at 갱신
-- list_published(): 인스타 게시 완료된 것만 (참조 이미지 풀)
-- list_for_product(): 특정 상품의 모든 결과물
+- list_published(): 인스타 게시 완료된 것만 (참조 이미지 풀 — reference gallery 소스)
+- list_for_generation(): 특정 generation 의 업로드 이력 (feed/story 둘 다)
 """
 
 from datetime import datetime
@@ -14,30 +14,32 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.generated_upload import GeneratedUpload
+from models.generation import Generation
+from models.generation_output import GenerationOutput
 
 
 class UploadService:
-    """GeneratedUpload CRUD 서비스."""
-
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
     async def create(
         self,
         *,
-        product_id: UUID,
-        image_path: str,
-        caption: str,
-        goal_category: str,
-        goal_freeform: str = "",
+        generation_output_id: UUID,
+        kind: str,
+        caption: str = "",
     ) -> GeneratedUpload:
-        """생성 결과를 staging 상태로 저장 (인스타 메타 없음)."""
+        """업로드 시도 레코드 생성.
+
+        kind 는 'feed' 또는 'story'. 스토리는 caption 이 빈 문자열.
+        """
+        if kind not in {"feed", "story"}:
+            raise ValueError(f"지원하지 않는 upload kind: {kind}")
+
         upload = GeneratedUpload(
-            product_id=product_id,
-            image_path=image_path,
+            generation_output_id=generation_output_id,
+            kind=kind,
             caption=caption,
-            goal_category=goal_category,
-            goal_freeform=goal_freeform,
         )
         self.session.add(upload)
         await self.session.commit()
@@ -51,10 +53,6 @@ class UploadService:
         instagram_post_id: str,
         posted_at: datetime,
     ) -> GeneratedUpload:
-        """게시 성공 시 인스타 메타데이터 갱신.
-
-        존재하지 않는 upload_id 면 ValueError.
-        """
         upload = await self.session.get(GeneratedUpload, upload_id)
         if upload is None:
             raise ValueError(f"GeneratedUpload {upload_id} 가 존재하지 않습니다.")
@@ -65,22 +63,39 @@ class UploadService:
         await self.session.refresh(upload)
         return upload
 
-    async def list_published(self) -> list[GeneratedUpload]:
-        """인스타 게시 완료된 항목만 (참조 이미지 풀)."""
-        result = await self.session.execute(
-            select(GeneratedUpload)
+    async def list_published(
+        self, brand_id: UUID | None = None
+    ) -> list[tuple[GeneratedUpload, GenerationOutput]]:
+        """인스타 게시 완료된 업로드 + 원본 GenerationOutput 쌍 목록.
+
+        reference gallery 에서 이미지 경로(`GenerationOutput.content_path`) 와
+        캡션(`GeneratedUpload.caption`) 을 함께 표시해야 해서 tuple 로 반환.
+
+        brand_id 주어지면 해당 브랜드의 업로드만. (generation → brand 조인)
+        """
+        stmt = (
+            select(GeneratedUpload, GenerationOutput)
+            .join(GenerationOutput, GenerationOutput.id == GeneratedUpload.generation_output_id)
             .where(GeneratedUpload.instagram_post_id.is_not(None))
             .order_by(GeneratedUpload.posted_at.desc())
         )
-        return list(result.scalars().all())
+        if brand_id is not None:
+            stmt = stmt.join(
+                Generation, Generation.id == GenerationOutput.generation_id
+            ).where(Generation.brand_id == brand_id)
 
-    async def list_for_product(
-        self, product_id: UUID
+        result = await self.session.execute(stmt)
+        return [(u, o) for u, o in result.all()]
+
+    async def list_for_generation(
+        self, generation_id: UUID
     ) -> list[GeneratedUpload]:
-        """특정 상품의 모든 결과물 (게시 여부 무관)."""
-        result = await self.session.execute(
+        """특정 generation 의 업로드 이력 (feed/story 둘 다 포함)."""
+        stmt = (
             select(GeneratedUpload)
-            .where(GeneratedUpload.product_id == product_id)
+            .join(GenerationOutput, GenerationOutput.id == GeneratedUpload.generation_output_id)
+            .where(GenerationOutput.generation_id == generation_id)
             .order_by(GeneratedUpload.created_at)
         )
+        result = await self.session.execute(stmt)
         return list(result.scalars().all())
