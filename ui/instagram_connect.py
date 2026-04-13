@@ -14,17 +14,17 @@ from utils.async_runner import run_async
 logger = logging.getLogger(__name__)
 
 
-def render_instagram_connection(settings, brand_config):
+def render_instagram_connection(settings, brand):
     """사이드바에 인스타그램 연결 상태를 표시하고 연결/해제 기능을 제공.
 
     Args:
         settings: 앱 전역 설정 객체
-        brand_config: 온보딩된 브랜드 설정 (None이면 렌더링 안 함)
+        brand: 온보딩된 브랜드 설정 (None이면 렌더링 안 함)
 
     Returns:
         InstagramConnection 인스턴스 또는 None
     """
-    if not brand_config:
+    if not brand:
         return None
 
     # OAuth 앱 설정이 안 되어 있으면 UI를 표시하지 않음
@@ -60,7 +60,7 @@ def render_instagram_connection(settings, brand_config):
                         # 1) IG 비즈니스 계정 정보 자동 조회 시도
                         ig_info = run_async(auth_svc.fetch_instagram_account(long_token))
                         # 2) DB에 암호화 저장
-                        run_async(auth_svc.save_connection(brand_config.id, long_token, expires_in, ig_info))
+                        run_async(auth_svc.save_connection(brand.id, long_token, expires_in, ig_info))
                         
                         st.success(f"✅ @{ig_info['instagram_username']} 계정이 연결되었습니다!")
                         st.query_params.clear()
@@ -87,7 +87,7 @@ def render_instagram_connection(settings, brand_config):
         st.query_params.clear()
 
     # ── 현재 연결 상태 조회 ──
-    connection = run_async(auth_svc.get_connection(brand_config.id))
+    connection = run_async(auth_svc.get_connection(brand.id))
 
     # ── 사이드바 UI 렌더링 ──
     with st.sidebar:
@@ -95,8 +95,8 @@ def render_instagram_connection(settings, brand_config):
         st.markdown("#### 📷 인스타그램 계정")
 
         if connection and connection.is_active:
-            # 연결된 상태
-            username = connection.instagram_username or "연결됨"
+            # 연결된 상태 — username 은 Brand 에 저장됨
+            username = brand.instagram_username or "연결됨"
             st.success(f"✅ @{username} 연결됨")
 
             col1, col2 = st.columns(2)
@@ -108,7 +108,7 @@ def render_instagram_connection(settings, brand_config):
                     st.markdown(f'<meta http-equiv="refresh" content="0;url={oauth_url}">', unsafe_allow_html=True)
             with col2:
                 if st.button("❌ 해제", key="ig_disconnect", use_container_width=True):
-                    run_async(auth_svc.revoke_connection(brand_config.id))
+                    run_async(auth_svc.revoke_connection(brand.id))
                     st.rerun()
         else:
             # 미연결 상태
@@ -134,7 +134,7 @@ def render_instagram_connection(settings, brand_config):
                             token, exp = st.session_state.pending_ig_token
                             with st.spinner("정보 확인 중..."):
                                 ig_info = run_async(auth_svc.fetch_instagram_account_manually(token, manual_id))
-                                run_async(auth_svc.save_connection(brand_config.id, token, exp, ig_info))
+                                run_async(auth_svc.save_connection(brand.id, token, exp, ig_info))
                             
                             del st.session_state.pending_ig_token
                             st.success(f"✅ @{ig_info['instagram_username']} 연결 완료!")

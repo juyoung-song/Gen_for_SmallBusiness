@@ -36,9 +36,7 @@ class InstagramConnectionResponse(BaseModel):
     """인스타그램 연결 상태 응답 스키마."""
 
     id: UUID
-    brand_config_id: UUID
-    instagram_account_id: str
-    instagram_username: Optional[str] = None
+    brand_id: UUID
     facebook_page_name: Optional[str] = None
     is_active: bool
     token_expires_at: Optional[datetime] = None
