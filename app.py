@@ -476,6 +476,32 @@ def _persist_generated_upload(
     run_async(_save())
 
 
+def _prepare_reference(source_output_id: str | None) -> tuple[str | None, str]:
+    """참조 GenerationOutput 을 ReferenceImage 로 upsert 하고 (ref_id, composition_prompt) 반환.
+
+    생성 버튼 직후 호출. 이미 분석된 참조라면 기존 레코드 재사용 → 0 딜레이.
+    새 참조면 GPT Vision 구도 분석 → 3~8초 (생성 소요시간에 묻힘).
+    """
+    if not source_output_id:
+        return None, ""
+
+    from uuid import UUID
+    from services.reference_service import ReferenceAnalyzer, ReferenceImageService
+
+    analyzer = ReferenceAnalyzer(settings)
+
+    async def _upsert() -> tuple[str, str]:
+        async with AsyncSessionLocal() as session:
+            svc = ReferenceImageService(session)
+            ref = await svc.upsert_by_source_output(
+                source_output_id=UUID(source_output_id),
+                analyzer=analyzer,
+            )
+            return str(ref.id), ref.composition_prompt
+
+    return run_async(_upsert())
+
+
 def _save_generation_record(
     *,
     text_result: dict | None,
@@ -523,10 +549,10 @@ def _save_generation_record(
     if not outputs:
         return
 
-    # 참조 이미지 ID — 현재는 reference_selected_ids 가 GenerationOutput.id 셋이지만
-    # Generation 레벨의 단일 FK 는 첫 번째 선택만 반영 (MVP).
-    reference_image_id = None  # 현재는 reference_images 테이블에 레코드가 자동 생성되지 않음.
-    # ↑ 구도 분석이 들어오면 reference_images INSERT 흐름이 생김. 지금은 None 유지.
+    # 참조 이미지 FK — _prepare_reference 가 session_state 에 이미 id 를 넣어둠 (MVP 단일 참조).
+    from uuid import UUID as _UUID
+    _ref_id_str = st.session_state.get("current_reference_image_id")
+    reference_image_id = _UUID(_ref_id_str) if _ref_id_str else None
 
     async def _save() -> None:
         async with AsyncSessionLocal() as session:
@@ -585,6 +611,12 @@ def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_st
         "image_data": image_data, "reference_image_paths": reference_image_paths or [], "type": "홍보 사진"
     }
     try:
+        # 참조 이미지 구도 분석 (선택 시에만, 재사용 있으면 캐시 히트 → 즉시)
+        ref_id, composition_prompt = _prepare_reference(
+            st.session_state.get("current_reference_source_output_id")
+        )
+        st.session_state.current_reference_image_id = ref_id
+
         with st.spinner("🖼️ 상품과 어울리는 예쁜 사진을 그리고 있어요... (약 10~20초 정도 걸립니다)"):
             request = ImageGenerationRequest(
                 product_name=name,
@@ -595,7 +627,7 @@ def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_st
                 reference_image_paths=reference_image_paths or [],
                 brand_prompt=st.session_state.get("brand_prompt", ""),
                 is_new_product=st.session_state.get("is_new_product", False),
-                reference_analysis="",  # TODO: DB 에서 참조 이미지 분석 텍스트 가져오기
+                reference_analysis=composition_prompt,
             )
             response = image_service.generate_ad_image(request)
 
@@ -618,6 +650,13 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
     brand = st.session_state.get("brand_prompt", "")
     is_new = st.session_state.get("is_new_product", False)
     try:
+        # 참조 이미지 구도 분석 (선택 시에만). 분석 결과는 이미지 프롬프트에만 주입,
+        # 텍스트 생성에는 영향 없음 (brand 톤과 섞이면 안 됨).
+        ref_id, composition_prompt = _prepare_reference(
+            st.session_state.get("current_reference_source_output_id")
+        )
+        st.session_state.current_reference_image_id = ref_id
+
         with st.spinner("💬 [1단계] 사장님을 대신해 멋진 홍보 글을 먼저 작성하고 있어요..."):
             req_t = TextGenerationRequest(
                 product_name=name,
@@ -627,7 +666,7 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
                 image_data=image_data,
                 brand_prompt=brand,
                 is_new_product=is_new,
-                reference_analysis="",  # TODO
+                reference_analysis="",  # 텍스트에는 구도 주입 안 함
             )
             res_t = text_service.generate_ad_copy(req_t)
             st.session_state.text_result = res_t.model_dump()
@@ -644,7 +683,7 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
                 reference_image_paths=reference_image_paths or [],
                 brand_prompt=brand,
                 is_new_product=is_new,
-                reference_analysis="",  # TODO
+                reference_analysis=composition_prompt,
             )
             res_i = image_service.generate_ad_image(req_i)
             _stash_generated_image(res_i.image_data)
@@ -792,9 +831,9 @@ with tab_create:
                     list(TONE_STYLE_DISPLAY_MAP.keys()),
                 )
 
-    # 4. 참조 이미지 갤러리 (Phase 2 Step 2.2)
+    # 4. 참조 이미지 갤러리 — 기존 게시물만 참조 가능 (docs/schema.md §3.2)
     with st.expander("🖼️ 이전 광고를 참고할까요? (선택)", expanded=False):
-        selected_reference_paths: list[str] = render_reference_gallery()
+        selected_reference_paths, selected_reference_output_ids = render_reference_gallery()
 
     st.write("")
     
@@ -858,6 +897,11 @@ with tab_create:
                 image_data = Path(existing_raw_image_path).read_bytes()
             else:
                 image_data = None
+
+        # 참조 이미지 — 첫 번째 선택만 Generation 에 FK 로 연결 (MVP 단일 참조)
+        st.session_state.current_reference_source_output_id = (
+            selected_reference_output_ids[0] if selected_reference_output_ids else None
+        )
 
         # 2. 로직 분기 (이미지 생성 시 참조 이미지 갤러리 선택 결과도 전달)
         if generation_type == "글 + 이미지 함께 만들기":

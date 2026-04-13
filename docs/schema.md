@@ -71,12 +71,18 @@
 |------|------|------|------|
 | `id` | UUID | PK | |
 | `brand_id` | UUID | FK → brands.id | |
-| `path` | str | NOT NULL | |
-| `composition_prompt` | text | NOT NULL | 카메라 앵글/프레이밍/배치 전용 |
+| `source_output_id` | UUID | FK → generation_outputs.id, **UNIQUE** | 참조 원천 — MVP 는 기존 게시물만 참조 가능. UNIQUE 로 재사용 보장. |
+| `path` | str | NOT NULL | `source_output.content_path` 복제 (분석·재참조 편의) |
+| `composition_prompt` | text | NOT NULL | 카메라 앵글/프레이밍/배치 전용 (ReferenceAnalyzer 가 생성) |
 | `created_at` | datetime | NOT NULL | |
 
 **의도적 누락 컬럼**:
 - `color_palette`, `mood`, `tone`, `style_hint` — **없음**. 실수로 브랜드 톤을 섞어 쓰는 여지를 DB 스키마가 원천 차단.
+
+**생성 경로**:
+- UI 의 reference gallery 에서 기존 게시물을 선택 → `_prepare_reference()` → `ReferenceImageService.upsert_by_source_output()`
+- 같은 `source_output_id` 가 이미 있으면 재분석 없이 재사용 (UNIQUE 제약)
+- 없으면 `ReferenceAnalyzer` (GPT Vision, 구도 전용 system prompt) 로 `composition_prompt` 생성 후 INSERT
 
 **시스템 프롬프트 분리**:
 - 구도 분석 system prompt 는 `brands.style_prompt` 생성용 system prompt 와 **물리적으로 다른 파일**. 색·톤 단어가 출력에 섞이지 않도록 유도.

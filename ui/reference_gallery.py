@@ -26,11 +26,12 @@ _GALLERY_COLS = 3
 _MAX_DISPLAY = 24
 
 
-def render_reference_gallery() -> list[str]:
-    """참조 이미지 갤러리를 렌더링하고 선택된 파일 경로들을 반환한다.
+def render_reference_gallery() -> tuple[list[str], list[str]]:
+    """참조 이미지 갤러리를 렌더링.
 
     Returns:
-        선택된 GenerationOutput 의 content_path 리스트 (빈 리스트 가능).
+        (content_paths, output_ids) — 선택된 GenerationOutput 의 경로 리스트와 id 리스트.
+        현재 MVP 는 첫 번째 선택만 실제로 사용되지만, UI 는 다중 선택을 허용한다.
     """
     if "reference_selected_ids" not in st.session_state:
         st.session_state.reference_selected_ids = set()
@@ -42,7 +43,7 @@ def render_reference_gallery() -> list[str]:
             "🎨 아직 올린 광고가 없어요. 광고를 몇 번 만들고 인스타에 올리면 "
             "여기에 모여서 다음 광고의 참조로 쓸 수 있어요."
         )
-        return []
+        return [], []
 
     st.caption(
         f"이전에 올린 광고 중 비슷한 톤으로 가고 싶은 걸 골라주세요 (선택, 다중 가능). "
@@ -62,17 +63,18 @@ def render_reference_gallery() -> list[str]:
 
     st.session_state.reference_selected_ids = selected_ids
 
-    # 선택된 output id → content_path
-    selected_paths = [
-        o.content_path
-        for _, o in pairs
-        if str(o.id) in selected_ids and o.content_path
-    ]
+    # 선택된 output id → (content_path, output_id)
+    selected_paths: list[str] = []
+    selected_output_ids: list[str] = []
+    for _, o in pairs:
+        if str(o.id) in selected_ids and o.content_path:
+            selected_paths.append(o.content_path)
+            selected_output_ids.append(str(o.id))
 
     if selected_paths:
         st.success(f"✅ 참조 이미지 {len(selected_paths)}장 선택됨")
 
-    return selected_paths
+    return selected_paths, selected_output_ids
 
 
 def _render_gallery_card(
