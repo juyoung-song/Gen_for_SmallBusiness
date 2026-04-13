@@ -18,7 +18,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol
 
-from openai import OpenAI
+from langfuse.openai import OpenAI  # Langfuse auto-trace wrapper
 
 from config.settings import Settings
 from models.brand import Brand

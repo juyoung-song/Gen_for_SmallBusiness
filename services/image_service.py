@@ -21,9 +21,9 @@ from openai import (
     APITimeoutError,
     AuthenticationError,
     BadRequestError,
-    OpenAI,
     RateLimitError,
 )
+from langfuse.openai import OpenAI  # Langfuse auto-trace wrapper
 from PIL import Image, ImageDraw
 
 from backends.registry import select_image_backend

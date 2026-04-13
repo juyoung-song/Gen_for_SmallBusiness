@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     META_REDIRECT_URI: str = "http://localhost:8501/"
     TOKEN_ENCRYPTION_KEY: str = ""  # Fernet 32-byte urlsafe base64; utils/crypto.generate_fernet_key()
 
+    # ── Langfuse (LLM Observability) ──
+    LANGFUSE_PUBLIC_KEY: str = ""
+    LANGFUSE_SECRET_KEY: str = ""
+    LANGFUSE_HOST: str = "https://cloud.langfuse.com"
+
     # ── Application ──
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"

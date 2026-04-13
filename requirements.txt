@@ -4,6 +4,9 @@ streamlit>=1.30
 # === AI ===
 openai>=1.40
 
+# === Observability (LLM trace) ===
+langfuse>=2.50
+
 # === 설정 · 검증 ===
 pydantic>=2.0
 pydantic-settings>=2.0
