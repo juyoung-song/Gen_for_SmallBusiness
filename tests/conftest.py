@@ -27,10 +27,12 @@ async def db_session() -> AsyncSession:
 
     # 모든 모델을 import 해서 metadata 에 등록
     # (신규 모델 추가 시 이 블록에 import 추가)
-    import models.brand_image  # noqa: F401
+    import models.brand  # noqa: F401
     import models.generated_upload  # noqa: F401
+    import models.generation  # noqa: F401
+    import models.generation_output  # noqa: F401
     import models.instagram_connection  # noqa: F401
-    import models.product  # noqa: F401
+    import models.reference_image  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

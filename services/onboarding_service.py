@@ -1,13 +1,11 @@
-"""온보딩 서비스 — brand_image 자동 생성 파이프라인.
+"""온보딩 서비스 — brand 자동 생성 파이프라인.
 
-design.md §3 흐름:
-  1. 사용자 자유 텍스트 + 인스타 프로필 URL 입력
+docs/schema.md §3.1, docs/onboarding.md 흐름:
+  1. 사용자 입력 (이름/로고/컬러 + 추구미 URL + 가게 설명 + 가게 분위기)
   2. 인스타 캡처 (InstaCaptureBackend)
-  3. GPT Vision 분석 → brand_image 초안 생성 (BrandImageDraft)
+  3. GPT Vision 분석 → style_prompt 초안 생성 (BrandDraft)
   4. 사용자 검수 화면에서 초안 수정 가능
-  5. 확정 → BrandImageService 를 통해 DB 저장
-
-본 서비스는 (2)~(3), (5) 를 담당한다. UI 라우팅과 (4) 검수 화면은 ui/onboarding.py.
+  5. 확정 → BrandService 로 Brand DB 저장
 
 외부 의존성(InstaCaptureBackend, GPT Vision)은 생성자로 주입받아 테스트 가능하게 한다.
 """
@@ -23,8 +21,8 @@ from typing import Protocol
 from openai import OpenAI
 
 from config.settings import Settings
-from models.brand_image import BrandImage
-from services.brand_image_service import BrandImageService
+from models.brand import Brand
+from services.brand_service import BrandService
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +61,18 @@ def build_vision_analysis_prompt(user_freetext: str) -> str:
         "- 이미지가 카페/베이커리/디저트와 관련된 브랜드라면, 그 브랜드의 시각 정보를\n"
         "  그대로 신뢰하세요.\n"
         "\n"
+        "## 브랜드 시각 자산 연출 방침 (필수)\n"
+        "- 이 브랜드의 홍보 이미지는 **반드시** 브랜드 로고 또는 브랜드 이름이\n"
+        "  머그컵·접시·포장지·종이봉투·냅킨·간판·메뉴판 같은 카페/베이커리 소품에\n"
+        "  직접 각인·인쇄·레터링 형태로 담기는 방식으로 연출되어야 합니다.\n"
+        "- 로고가 있으면 로고를, 로고가 없으면 브랜드 이름(타이포그래피)을 소품에\n"
+        "  새겨 넣으세요. 공중에 떠 있는 워터마크나 화면 전체에 덮이는 큰 로고가\n"
+        "  아니라, 실제로 가게에서 쓰일 법한 소품 표면에 자연스럽게 녹아 있어야 합니다.\n"
+        "- 이 방침은 선호가 아니라 **무조건 따라야 하는 강제 규칙** 입니다. 생성되는\n"
+        "  브랜드 설명 본문 안에 '머그컵·접시·포장 등 브랜드 소품에 로고/이름을\n"
+        "  각인하는 연출을 항상 적용한다' 라는 취지의 문장이 명시적으로 포함되어야\n"
+        "  합니다.\n"
+        "\n"
         "## 사용자가 작성한 자유 텍스트 (보조 단서)\n"
         f'"""\n{user_freetext}\n"""\n'
         "\n"
@@ -80,6 +90,9 @@ def build_vision_analysis_prompt(user_freetext: str) -> str:
         "   - 브랜드 무드와 분위기\n"
         "   - 주요 색감과 톤 (참고 이미지의 색을 본 그대로 — 단, 카페/베이커리에 어울리게 적용)\n"
         "   - 사진 스타일 (자연광/조명/구도/피사체 거리/소품 배치)\n"
+        "   - **브랜드 시각 자산 연출 방침**: 머그컵·접시·포장·냅킨·간판 같은 소품에\n"
+        "     브랜드 로고 또는 이름을 각인/인쇄/레터링 형태로 반드시 담는다는 규칙을\n"
+        "     본문 안에 명시적인 한국어 문장으로 포함.\n"
         "   - 타깃 고객\n"
         "   - 회피해야 할 요소 (이 브랜드 톤에 어울리지 않는 것)\n"
         "\n"
@@ -94,28 +107,23 @@ def build_vision_analysis_prompt(user_freetext: str) -> str:
 # 도메인 객체
 # ──────────────────────────────────────────────
 @dataclass(frozen=True)
-class BrandImageDraft:
-    """GPT Vision 이 생성한 brand_image 초안.
+class BrandDraft:
+    """GPT Vision 이 생성한 style_prompt 초안.
 
-    사용자 검수 화면에서 `with_edited_content()` 로 content 만 수정 가능.
-    source_* 는 추적성 보장을 위해 불변.
-
-    Song 이식 필드 (brand_name / brand_color / brand_atmosphere / brand_logo_path):
-        온보딩 1단계 입력 섹션에서 수집된 구조화 필드. 모두 선택.
-        기존 호출 호환을 위해 기본값 None 또는 빈 문자열.
+    사용자 검수 화면에서 `with_edited_style_prompt()` 로 style_prompt 만 수정 가능.
+    나머지 필드는 입력 박제 — 추적성 보장을 위해 불변.
     """
 
-    content: str
-    source_freetext: str
-    source_reference_url: str
-    source_screenshots: list[str]
-    brand_name: str | None = None
-    brand_color: str | None = None
-    brand_atmosphere: str | None = None
-    brand_logo_path: str | None = None
+    name: str
+    color_hex: str
+    logo_path: str | None
+    input_instagram_url: str
+    input_description: str
+    input_mood: str
+    style_prompt: str
 
-    def with_edited_content(self, new_content: str) -> "BrandImageDraft":
-        return replace(self, content=new_content)
+    def with_edited_style_prompt(self, new_prompt: str) -> "BrandDraft":
+        return replace(self, style_prompt=new_prompt)
 
 
 # ──────────────────────────────────────────────
@@ -137,7 +145,7 @@ class _VisionAnalyzerProto(Protocol):
 # OpenAI GPT Vision 분석기 (실제 구현)
 # ──────────────────────────────────────────────
 class GPTVisionAnalyzer:
-    """OpenAI Vision API (gpt-4o-mini) 기반 분석기."""
+    """OpenAI Vision API 기반 분석기."""
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -150,7 +158,7 @@ class GPTVisionAnalyzer:
         return self._client
 
     def analyze(self, freetext: str, image_paths: list[Path]) -> str:
-        """사용자 자유 텍스트 + 이미지들을 종합한 brand_image 본문을 반환."""
+        """사용자 자유 텍스트 + 이미지들을 종합한 style_prompt 본문을 반환."""
         system_prompt = build_vision_analysis_prompt(freetext)
 
         content_parts: list[dict] = [
@@ -189,92 +197,82 @@ class OnboardingService:
         capture_backend: _CaptureBackendProto,
         vision_analyzer: _VisionAnalyzerProto,
         onboarding_dir: Path,
-        brand_image_service: BrandImageService | None = None,
+        brand_service: BrandService | None = None,
     ) -> None:
         self.capture_backend = capture_backend
         self.vision_analyzer = vision_analyzer
         self.onboarding_dir = Path(onboarding_dir)
-        self.brand_image_service = brand_image_service
+        self.brand_service = brand_service
 
     async def generate_draft(
         self,
-        freetext: str,
-        instagram_url: str,
-        brand_name: str | None = None,
-        brand_color: str | None = None,
-        brand_atmosphere: str | None = None,
-        brand_logo_path: str | None = None,
-    ) -> BrandImageDraft:
-        """1) 캡처 → 2) Vision 분석 → BrandImageDraft 반환.
+        *,
+        name: str,
+        color_hex: str,
+        logo_path: str | None,
+        input_instagram_url: str,
+        input_description: str,
+        input_mood: str,
+    ) -> BrandDraft:
+        """1) 캡처 → 2) Vision 분석 → BrandDraft 반환.
 
         DB 저장은 하지 않는다. 사용자 검수 후 finalize() 를 호출해야 저장됨.
-
-        Song 이식 — 구조화된 브랜드 입력(brand_name/color/atmosphere)은
-        GPT Vision 에 더 나은 컨텍스트를 주기 위해 freetext 앞부분에 머지된다.
-        brand_logo_path 는 Vision 분석에는 쓰이지 않고 Draft 에 그대로 보존된다.
         """
-        logger.info("온보딩 캡처 시작: %s", instagram_url)
+        logger.info("온보딩 캡처 시작: %s", input_instagram_url)
         captured = self.capture_backend.capture_profile(
-            url=instagram_url,
+            url=input_instagram_url,
             out_dir=self.onboarding_dir,
             count=2,
         )
         logger.info("캡처 완료 (%d장). Vision 분석 시작.", len(captured))
 
         merged_freetext = _merge_structured_inputs_into_freetext(
-            freetext=freetext,
-            brand_name=brand_name,
-            brand_color=brand_color,
-            brand_atmosphere=brand_atmosphere,
+            description=input_description,
+            name=name,
+            color_hex=color_hex,
+            mood=input_mood,
         )
 
-        content = self.vision_analyzer.analyze(
+        style_prompt = self.vision_analyzer.analyze(
             freetext=merged_freetext,
             image_paths=captured,
         )
-        logger.info("Vision 분석 완료 (%d chars)", len(content))
+        logger.info("Vision 분석 완료 (%d chars)", len(style_prompt))
 
-        return BrandImageDraft(
-            content=content,
-            source_freetext=freetext,
-            source_reference_url=instagram_url,
-            source_screenshots=[str(p) for p in captured],
-            brand_name=brand_name,
-            brand_color=brand_color,
-            brand_atmosphere=brand_atmosphere,
-            brand_logo_path=brand_logo_path,
+        return BrandDraft(
+            name=name,
+            color_hex=color_hex,
+            logo_path=logo_path,
+            input_instagram_url=input_instagram_url,
+            input_description=input_description,
+            input_mood=input_mood,
+            style_prompt=style_prompt,
         )
 
-    async def finalize(
-        self,
-        draft: BrandImageDraft,
-        user_id: str = "default",
-    ) -> BrandImage:
-        """검수를 마친 draft 를 BrandImage 로 DB 저장."""
-        if self.brand_image_service is None:
+    async def finalize(self, draft: BrandDraft) -> Brand:
+        """검수를 마친 draft 를 Brand 로 DB 저장."""
+        if self.brand_service is None:
             raise RuntimeError(
-                "OnboardingService 에 brand_image_service 가 주입되지 않았습니다. "
+                "OnboardingService 에 brand_service 가 주입되지 않았습니다. "
                 "finalize() 호출 전에 설정해주세요."
             )
-        return await self.brand_image_service.create(
-            user_id=user_id,
-            content=draft.content,
-            source_freetext=draft.source_freetext,
-            source_reference_url=draft.source_reference_url,
-            source_screenshots=draft.source_screenshots,
-            brand_name=draft.brand_name,
-            brand_color=draft.brand_color,
-            brand_atmosphere=draft.brand_atmosphere,
-            brand_logo_path=draft.brand_logo_path,
+        return await self.brand_service.create(
+            name=draft.name,
+            color_hex=draft.color_hex,
+            logo_path=draft.logo_path,
+            input_instagram_url=draft.input_instagram_url,
+            input_description=draft.input_description,
+            input_mood=draft.input_mood,
+            style_prompt=draft.style_prompt,
         )
 
 
 def _merge_structured_inputs_into_freetext(
     *,
-    freetext: str,
-    brand_name: str | None,
-    brand_color: str | None,
-    brand_atmosphere: str | None,
+    description: str,
+    name: str,
+    color_hex: str,
+    mood: str,
 ) -> str:
     """Vision 분석용 freetext 에 구조화 입력을 앞부분에 프리픽스로 추가.
 
@@ -282,15 +280,15 @@ def _merge_structured_inputs_into_freetext(
     자연스럽게 녹이기 위한 어댑터.
     """
     prefix_lines: list[str] = []
-    if brand_name:
-        prefix_lines.append(f"브랜드 이름: {brand_name}")
-    if brand_color:
-        prefix_lines.append(f"브랜드 대표 색상: {brand_color}")
-    if brand_atmosphere:
-        prefix_lines.append(f"브랜드 분위기: {brand_atmosphere}")
+    if name:
+        prefix_lines.append(f"브랜드 이름: {name}")
+    if color_hex:
+        prefix_lines.append(f"브랜드 대표 색상: {color_hex}")
+    if mood:
+        prefix_lines.append(f"브랜드 분위기: {mood}")
 
     if not prefix_lines:
-        return freetext
+        return description
 
     prefix = "\n".join(prefix_lines)
-    return f"{prefix}\n\n{freetext}"
+    return f"{prefix}\n\n{description}"
