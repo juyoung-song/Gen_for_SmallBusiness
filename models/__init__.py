@@ -14,6 +14,7 @@ from models.brand import Brand
 from models.generated_upload import GeneratedUpload
 from models.generation import Generation
 from models.generation_output import GenerationOutput
+from models.instagram_connection import InstagramConnection
 from models.reference_image import ReferenceImage
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     "ReferenceImage",
     "Generation",
     "GenerationOutput",
+    "InstagramConnection",
     "GeneratedUpload",
 ]
