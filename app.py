@@ -939,7 +939,7 @@ with tab_create:
         st.session_state.image_result = None
         st.session_state.caption_result = None
         st.session_state.error_message = None
-    st.session_state.error_exception = None
+        st.session_state.error_exception = None
 
         name = product_name.strip()
 
