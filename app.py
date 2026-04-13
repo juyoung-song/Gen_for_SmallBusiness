@@ -579,6 +579,40 @@ def _save_generation_record(
     run_async(_save())
 
 
+def _langfuse_trace_span(name: str):
+    """Langfuse 루트 span 컨텍스트 매니저.
+
+    - Langfuse 가 비활성(키 미설정 / import 실패) 인 경우 nullcontext 로 폴백.
+    - span 안에서 langfuse.openai 로 래핑된 OpenAI 호출은 자동으로 같은 trace 에 귀속.
+    - 블록 안에서 get_current_trace_id() 를 호출해 trace_id 를 꺼내 session_state 에 캐시.
+    """
+    import contextlib
+    import logging
+
+    try:
+        from langfuse import get_client
+        client = get_client()
+        # no-op 클라이언트(키 미설정)면 start_as_current_observation 이 동작해도
+        # trace 는 생성되지 않음. 그래도 컨텍스트는 OK.
+        return client.start_as_current_observation(name=name, as_type="span")
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger(__name__).warning("Langfuse span 시작 실패 → 추적 없이 진행: %s", e)
+        return contextlib.nullcontext()
+
+
+def _capture_langfuse_trace_id() -> None:
+    """현재 활성 span 의 trace_id 를 session_state 에 보관.
+
+    _save_generation_record 가 읽어 Generation.langfuse_trace_id 로 저장.
+    """
+    try:
+        from langfuse import get_client
+        tid = get_client().get_current_trace_id()
+        st.session_state._pending_langfuse_trace_id = tid
+    except Exception:  # noqa: BLE001
+        st.session_state._pending_langfuse_trace_id = None
+
+
 def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone_name: str, image_data: bytes = None) -> None:
     st.session_state.error_message = None
     st.session_state.last_request = {
@@ -586,18 +620,20 @@ def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone
         "image_data": image_data, "type": "홍보 글"
     }
     try:
-        with st.spinner("💬 사장님을 대신해 멋진 홍보 글을 작성하고 있어요. 잠시만 기다려주세요..."):
-            request = TextGenerationRequest(
-                product_name=name,
-                description=desc,
-                style=tone_val,
-                goal=goal,
-                image_data=image_data,
-                brand_prompt=st.session_state.get("brand_prompt", ""),
-                is_new_product=st.session_state.get("is_new_product", False),
-                reference_analysis="",  # TODO: DB 에서 참조 이미지 분석 텍스트 가져오기
-            )
-            response = text_service.generate_ad_copy(request)
+        with _langfuse_trace_span("generation.text_only"):
+            with st.spinner("💬 사장님을 대신해 멋진 홍보 글을 작성하고 있어요. 잠시만 기다려주세요..."):
+                request = TextGenerationRequest(
+                    product_name=name,
+                    description=desc,
+                    style=tone_val,
+                    goal=goal,
+                    image_data=image_data,
+                    brand_prompt=st.session_state.get("brand_prompt", ""),
+                    is_new_product=st.session_state.get("is_new_product", False),
+                    reference_analysis="",  # 텍스트 단독 생성은 구도 주입 없음
+                )
+                response = text_service.generate_ad_copy(request)
+            _capture_langfuse_trace_id()
         st.session_state.text_result = response.model_dump()
         # Generation + 텍스트 outputs 저장 (이미지 없음)
         _save_generation_record(text_result=response.model_dump(), image_bytes=None)
@@ -611,25 +647,28 @@ def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_st
         "image_data": image_data, "reference_image_paths": reference_image_paths or [], "type": "홍보 사진"
     }
     try:
-        # 참조 이미지 구도 분석 (선택 시에만, 재사용 있으면 캐시 히트 → 즉시)
+        # 참조 이미지 구도 분석 (선택 시에만, 재사용 있으면 캐시 히트 → 즉시).
+        # 이 호출은 생성 trace 바깥에서 실행 — 별도 trace 로 남아도 됨.
         ref_id, composition_prompt = _prepare_reference(
             st.session_state.get("current_reference_source_output_id")
         )
         st.session_state.current_reference_image_id = ref_id
 
-        with st.spinner("🖼️ 상품과 어울리는 예쁜 사진을 그리고 있어요... (약 10~20초 정도 걸립니다)"):
-            request = ImageGenerationRequest(
-                product_name=name,
-                description=desc,
-                goal=goal,
-                style=style_val,
-                image_data=image_data,
-                reference_image_paths=reference_image_paths or [],
-                brand_prompt=st.session_state.get("brand_prompt", ""),
-                is_new_product=st.session_state.get("is_new_product", False),
-                reference_analysis=composition_prompt,
-            )
-            response = image_service.generate_ad_image(request)
+        with _langfuse_trace_span("generation.image_only"):
+            with st.spinner("🖼️ 상품과 어울리는 예쁜 사진을 그리고 있어요... (약 10~20초 정도 걸립니다)"):
+                request = ImageGenerationRequest(
+                    product_name=name,
+                    description=desc,
+                    goal=goal,
+                    style=style_val,
+                    image_data=image_data,
+                    reference_image_paths=reference_image_paths or [],
+                    brand_prompt=st.session_state.get("brand_prompt", ""),
+                    is_new_product=st.session_state.get("is_new_product", False),
+                    reference_analysis=composition_prompt,
+                )
+                response = image_service.generate_ad_image(request)
+            _capture_langfuse_trace_id()
 
         _stash_generated_image(response.image_data)
         st.session_state.image_result = response.model_dump()
@@ -657,37 +696,39 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
         )
         st.session_state.current_reference_image_id = ref_id
 
-        with st.spinner("💬 [1단계] 사장님을 대신해 멋진 홍보 글을 먼저 작성하고 있어요..."):
-            req_t = TextGenerationRequest(
-                product_name=name,
-                description=desc,
-                style=tone_val,
-                goal=goal,
-                image_data=image_data,
-                brand_prompt=brand,
-                is_new_product=is_new,
-                reference_analysis="",  # 텍스트에는 구도 주입 안 함
-            )
-            res_t = text_service.generate_ad_copy(req_t)
-            st.session_state.text_result = res_t.model_dump()
+        with _langfuse_trace_span("generation.combined"):
+            with st.spinner("💬 [1단계] 사장님을 대신해 멋진 홍보 글을 먼저 작성하고 있어요..."):
+                req_t = TextGenerationRequest(
+                    product_name=name,
+                    description=desc,
+                    style=tone_val,
+                    goal=goal,
+                    image_data=image_data,
+                    brand_prompt=brand,
+                    is_new_product=is_new,
+                    reference_analysis="",  # 텍스트에는 구도 주입 안 함
+                )
+                res_t = text_service.generate_ad_copy(req_t)
+                st.session_state.text_result = res_t.model_dump()
 
-        with st.spinner("🖼️ [2단계] 작성된 글과 어울리는 예쁜 홍보 사진을 알아서 그리고 있어요... (약 10~20초)"):
-            hint_copy = res_t.ad_copies[0] if res_t.ad_copies else ""
-            req_i = ImageGenerationRequest(
-                product_name=name,
-                description=desc,
-                goal=goal,
-                style=style_val,
-                prompt=hint_copy,
-                image_data=image_data,
-                reference_image_paths=reference_image_paths or [],
-                brand_prompt=brand,
-                is_new_product=is_new,
-                reference_analysis=composition_prompt,
-            )
-            res_i = image_service.generate_ad_image(req_i)
-            _stash_generated_image(res_i.image_data)
-            st.session_state.image_result = res_i.model_dump()
+            with st.spinner("🖼️ [2단계] 작성된 글과 어울리는 예쁜 홍보 사진을 알아서 그리고 있어요... (약 10~20초)"):
+                hint_copy = res_t.ad_copies[0] if res_t.ad_copies else ""
+                req_i = ImageGenerationRequest(
+                    product_name=name,
+                    description=desc,
+                    goal=goal,
+                    style=style_val,
+                    prompt=hint_copy,
+                    image_data=image_data,
+                    reference_image_paths=reference_image_paths or [],
+                    brand_prompt=brand,
+                    is_new_product=is_new,
+                    reference_analysis=composition_prompt,
+                )
+                res_i = image_service.generate_ad_image(req_i)
+                _stash_generated_image(res_i.image_data)
+                st.session_state.image_result = res_i.model_dump()
+            _capture_langfuse_trace_id()
         # Generation + (image + 텍스트들) outputs 저장
         _save_generation_record(
             text_result=res_t.model_dump() if res_t else None,
