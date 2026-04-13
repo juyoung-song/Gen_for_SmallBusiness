@@ -5,19 +5,23 @@
 2. 본 파일에 import + __all__ 등재
 3. `tests/conftest.py` 의 import 블록에도 한 줄 추가 (Base.metadata 등록을 위해)
 4. `config/database.py` `init_db()` 에도 동일하게 import 추가
+
+스키마 정의는 docs/schema.md 가 단일 진실 원천.
 """
 
 from models.base import Base, TimestampMixin
-from models.brand_image import BrandImage
+from models.brand import Brand
 from models.generated_upload import GeneratedUpload
-from models.instagram_connection import InstagramConnection
-from models.product import Product
+from models.generation import Generation
+from models.generation_output import GenerationOutput
+from models.reference_image import ReferenceImage
 
 __all__ = [
     "Base",
     "TimestampMixin",
-    "BrandImage",
-    "Product",
+    "Brand",
+    "ReferenceImage",
+    "Generation",
+    "GenerationOutput",
     "GeneratedUpload",
-    "InstagramConnection",
 ]
