@@ -43,13 +43,20 @@ def apply_user_token(settings: Settings, brand: Brand | None) -> bool:
 
     try:
         decrypted_token = decrypt_token(conn.access_token, settings.TOKEN_ENCRYPTION_KEY)
-        settings.META_ACCESS_TOKEN = decrypted_token
-        settings.INSTAGRAM_ACCOUNT_ID = brand.instagram_account_id
-        logger.info(
-            "사용자 OAuth 토큰 주입 완료 (ig_user=@%s)",
-            brand.instagram_username,
-        )
-        return True
     except Exception as e:
-        logger.error("토큰 복호화 실패: %s", e)
-        return False
+        # 복호화 실패는 대개 TOKEN_ENCRYPTION_KEY 불일치 / 손상된 토큰. silent False 는
+        # "연결 필요" UX 로 귀결돼 진짜 원인을 숨김. 명시적으로 예외 전파.
+        logger.exception("OAuth 토큰 복호화 실패 (brand_id=%s)", brand.id)
+        raise RuntimeError(
+            "OAuth 토큰 복호화에 실패했습니다. TOKEN_ENCRYPTION_KEY 가 "
+            "초기 연결 시점과 동일한지 확인하세요. "
+            f"(원인: {type(e).__name__}: {e})"
+        ) from e
+
+    settings.META_ACCESS_TOKEN = decrypted_token
+    settings.INSTAGRAM_ACCOUNT_ID = brand.instagram_account_id
+    logger.info(
+        "사용자 OAuth 토큰 주입 완료 (ig_user=@%s)",
+        brand.instagram_username,
+    )
+    return True

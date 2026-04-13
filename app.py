@@ -8,10 +8,13 @@ API 연동 및 데이터베이스(히스토리) 완성:
 """
 
 import asyncio
+import logging
 import os
 from pathlib import Path
 
 import streamlit as st
+
+logger = logging.getLogger(__name__)
 
 from config.database import AsyncSessionLocal, init_db
 from config.settings import get_settings, setup_logging
@@ -160,6 +163,7 @@ _DEFAULT_STATE: dict = {
     "story_result": None, # 스토리용 합성 이미지 바이너리
     "story_text": "", # 선택된 스토리 카피
     "error_message": None,
+    "error_exception": None,
     "last_request": None,
     "history_captions": {},
 }
@@ -328,7 +332,10 @@ def render_instagram_preview_and_upload(product_name: str, image_bytes: bytes, c
                             progress_container.info(f"📡 {status_msg}")
                             status_bar_container.progress(min(idx, 1.0))  # S-2
                 except Exception as e:
-                    st.error(f"❌ 업로드 중 문제가 발생했습니다: {e}")
+                    logger.exception("인스타 피드 업로드 실패")
+                    st.error(f"❌ 업로드 중 문제가 발생했습니다 ({type(e).__name__}): {e}")
+                    with st.expander("🔍 기술 상세 (디버깅)", expanded=False):
+                        st.exception(e)
 
 # ══════════════════════════════════════════════
 # 인스타그램 스토리 미리보기/업로드 컴포넌트
@@ -418,7 +425,10 @@ def render_instagram_story_preview_and_upload(product_name: str, image_bytes: by
                         progress_container.info(f"📡 {status_msg}")
                         status_bar_container.progress(min(idx, 1.0))  # S-2
             except Exception as e:
-                st.error(f"❌ 스토리 업로드 중 오류 발생: {e}")
+                logger.exception("인스타 스토리 업로드 실패")
+                st.error(f"❌ 스토리 업로드 중 오류 발생 ({type(e).__name__}): {e}")
+                with st.expander("🔍 기술 상세 (디버깅)", expanded=False):
+                    st.exception(e)
 
 # ══════════════════════════════════════════════
 # 공통 헬퍼 — 업무 실행 함수
@@ -450,11 +460,12 @@ def _persist_generated_upload(
 
     output_id_str = st.session_state.get("current_generation_output_id")
     if not output_id_str:
-        import logging
-        logging.getLogger(__name__).warning(
-            "generated_upload 저장 스킵 — current_generation_output_id 누락"
+        # 이 시점엔 Generation 저장이 선행되어 image output 이 있어야 정상.
+        # 없다는 건 텍스트 전용 생성이었거나 저장이 실패했다는 뜻 — 업로드 차단.
+        raise RuntimeError(
+            "current_generation_output_id 가 없습니다. "
+            "이미지 생성부터 먼저 수행해야 인스타 게시가 가능합니다."
         )
-        return
 
     output_uuid = UUID(output_id_str)
 
@@ -473,7 +484,13 @@ def _persist_generated_upload(
                     posted_at=posted_at,
                 )
 
-    run_async(_save())
+    try:
+        run_async(_save())
+    except Exception:
+        logger.exception(
+            "generated_upload 저장 실패 (output_id=%s, kind=%s)", output_id_str, kind
+        )
+        raise
 
 
 def _prepare_reference(source_output_id: str | None) -> tuple[str | None, str]:
@@ -481,6 +498,9 @@ def _prepare_reference(source_output_id: str | None) -> tuple[str | None, str]:
 
     생성 버튼 직후 호출. 이미 분석된 참조라면 기존 레코드 재사용 → 0 딜레이.
     새 참조면 GPT Vision 구도 분석 → 3~8초 (생성 소요시간에 묻힘).
+
+    실패 시 예외를 그대로 위로 전파 — 참조를 선택했는데 반영 안 된 채 생성이 진행되면
+    거짓 UX 이기 때문. 호출자 (_run_*_generation) 의 상위 except 가 UI 에 표시.
     """
     if not source_output_id:
         return None, ""
@@ -499,7 +519,11 @@ def _prepare_reference(source_output_id: str | None) -> tuple[str | None, str]:
             )
             return str(ref.id), ref.composition_prompt
 
-    return run_async(_upsert())
+    try:
+        return run_async(_upsert())
+    except Exception:
+        logger.exception("참조 이미지 구도 분석 실패 (source_output_id=%s)", source_output_id)
+        raise
 
 
 def _save_generation_record(
@@ -580,7 +604,14 @@ def _save_generation_record(
             st.session_state.current_generation_output_id = image_output_id
             st.session_state.current_generation_id = str(gen.id)
 
-    run_async(_save())
+    try:
+        run_async(_save())
+    except Exception:
+        # 저장 실패 시 이전 값이 남아 엉뚱한 업로드가 뒤따르지 않게 세션 키를 파괴.
+        st.session_state.current_generation_output_id = None
+        st.session_state.current_generation_id = None
+        logger.exception("Generation 저장 실패")
+        raise
 
 
 def _langfuse_trace_span(name: str):
@@ -619,6 +650,7 @@ def _capture_langfuse_trace_id() -> None:
 
 def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone_name: str, image_data: bytes = None) -> None:
     st.session_state.error_message = None
+    st.session_state.error_exception = None
     st.session_state.last_request = {
         "product_name": name, "description": desc, "goal": goal, "text_tone": tone_val, "ui_text_tone": ui_tone_name,
         "image_data": image_data, "type": "홍보 글"
@@ -642,10 +674,16 @@ def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone
         # Generation + 텍스트 outputs 저장 (이미지 없음)
         _save_generation_record(text_result=response.model_dump(), image_bytes=None)
     except Exception as e:
-        st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
+        logger.exception("생성 플로우 실패")
+        st.session_state.error_message = (
+            f"❌ 문제가 발생했습니다. 다시 시도해주세요.\n"
+            f"(타입: {type(e).__name__} / 상세: {e})"
+        )
+        st.session_state.error_exception = e
 
 def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_style_name: str, image_data: bytes = None, reference_image_paths: list[str] | None = None) -> None:
     st.session_state.error_message = None
+    st.session_state.error_exception = None
     st.session_state.last_request = {
         "product_name": name, "description": desc, "goal": goal, "image_style": style_val, "ui_image_style": ui_style_name,
         "image_data": image_data, "reference_image_paths": reference_image_paths or [], "type": "홍보 사진"
@@ -679,10 +717,16 @@ def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_st
         # Generation + image output 저장
         _save_generation_record(text_result=None, image_bytes=response.image_data)
     except Exception as e:
-        st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
+        logger.exception("생성 플로우 실패")
+        st.session_state.error_message = (
+            f"❌ 문제가 발생했습니다. 다시 시도해주세요.\n"
+            f"(타입: {type(e).__name__} / 상세: {e})"
+        )
+        st.session_state.error_exception = e
 
 def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, style_val: str, ui_tone_name: str, ui_style_name: str, image_data: bytes = None, reference_image_paths: list[str] | None = None) -> None:
     st.session_state.error_message = None
+    st.session_state.error_exception = None
     st.session_state.last_request = {
         "product_name": name, "description": desc, "goal": goal, "text_tone": tone_val, "image_style": style_val,
         "ui_text_tone": ui_tone_name, "ui_image_style": ui_style_name, "image_data": image_data,
@@ -739,7 +783,12 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
             image_bytes=res_i.image_data if res_i else None,
         )
     except Exception as e:
-        st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
+        logger.exception("생성 플로우 실패")
+        st.session_state.error_message = (
+            f"❌ 문제가 발생했습니다. 다시 시도해주세요.\n"
+            f"(타입: {type(e).__name__} / 상세: {e})"
+        )
+        st.session_state.error_exception = e
 
 # ══════════════════════════════════════════════
 # 헤더 / 탭 레이아웃
@@ -890,6 +939,7 @@ with tab_create:
         st.session_state.image_result = None
         st.session_state.caption_result = None
         st.session_state.error_message = None
+    st.session_state.error_exception = None
 
         name = product_name.strip()
 
@@ -967,8 +1017,13 @@ with tab_create:
         st.rerun()
 
     # 4. 결과 섹션 렌더링
-    if st.session_state.error_message: 
+    if st.session_state.error_message:
         st.error(st.session_state.error_message)
+        # 디버깅용: 예외 객체가 있으면 traceback 까지 expander 로 노출
+        exc = st.session_state.get("error_exception")
+        if exc is not None:
+            with st.expander("🔍 기술 상세 (디버깅)", expanded=False):
+                st.exception(exc)
 
     if st.session_state.get("text_result") or st.session_state.get("image_result"):
         st.markdown("---")
