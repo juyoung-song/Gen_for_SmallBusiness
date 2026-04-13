@@ -22,6 +22,7 @@ from ui.sidebar import render_sidebar_settings
 from schemas.image_schema import ImageGenerationRequest
 from schemas.text_schema import TextGenerationRequest
 from services.brand_service import BrandService
+from services.generation_service import GenerationService, OutputSpec
 from services.image_service import ImageService, ImageServiceError
 from services.text_service import TextService, TextServiceError
 from services.upload_service import UploadService
@@ -204,6 +205,8 @@ st.session_state.brand_prompt = _compose_brand_prompt(
     brand_name=_loaded_brand.name,
     brand_color=_loaded_brand.color_hex,
 )
+# _save_generation_record 가 꺼내쓸 수 있도록 Brand 객체 자체도 보관
+st.session_state._current_brand = _loaded_brand
 
 # 사이드바 인스타 연결 UI — Brand 를 넘긴다.
 render_instagram_connection(settings, brand=_loaded_brand)
@@ -473,6 +476,83 @@ def _persist_generated_upload(
     run_async(_save())
 
 
+def _save_generation_record(
+    *,
+    text_result: dict | None,
+    image_bytes: bytes | None,
+) -> None:
+    """_run_*_generation 끝에 호출. Generation + GenerationOutput N개 INSERT.
+
+    - 이미지가 있으면 staging 에 저장한 경로를 content_path 로 사용
+    - 텍스트는 ad_copies/promo_sentences/story_copies 를 각각 kind 로 분리
+    - 이미지 output 의 id 를 session_state.current_generation_output_id 에 저장
+      (이후 인스타 게시 성공 시 _persist_generated_upload 가 읽음)
+    """
+    req = st.session_state.get("last_request") or {}
+    product_name = req.get("product_name") or ""
+    product_description = req.get("description") or ""
+    goal = req.get("goal") or ""
+    # 톤/스타일 — 결합 생성은 text_tone, 텍스트 전용은 text_tone, 이미지 전용은 image_style
+    tone = req.get("text_tone") or req.get("image_style") or "기본"
+    is_new_product = st.session_state.get("is_new_product", False)
+
+    brand = st.session_state.get("_current_brand")
+    if brand is None:
+        # 방어적 — 온보딩 후에만 호출되므로 이론상 항상 있어야 함
+        return
+
+    # 이미지 저장
+    image_path: str | None = None
+    if image_bytes:
+        image_path = st.session_state.get("current_generated_image_path")
+
+    # 상품 원본 이미지 경로 (신상품 모드에서 staging 된 것)
+    product_image_path = st.session_state.get("current_product_image_path")
+
+    outputs: list[OutputSpec] = []
+    if image_path:
+        outputs.append(OutputSpec(kind="image", content_path=image_path))
+    if text_result:
+        for c in text_result.get("ad_copies", []) or []:
+            outputs.append(OutputSpec(kind="ad_copy", content_text=c))
+        for c in text_result.get("promo_sentences", []) or []:
+            outputs.append(OutputSpec(kind="promo_sentence", content_text=c))
+        for c in text_result.get("story_copies", []) or []:
+            outputs.append(OutputSpec(kind="story_copy", content_text=c))
+
+    if not outputs:
+        return
+
+    # 참조 이미지 ID — 현재는 reference_selected_ids 가 GenerationOutput.id 셋이지만
+    # Generation 레벨의 단일 FK 는 첫 번째 선택만 반영 (MVP).
+    reference_image_id = None  # 현재는 reference_images 테이블에 레코드가 자동 생성되지 않음.
+    # ↑ 구도 분석이 들어오면 reference_images INSERT 흐름이 생김. 지금은 None 유지.
+
+    async def _save() -> None:
+        async with AsyncSessionLocal() as session:
+            svc = GenerationService(session)
+            gen = await svc.create_with_outputs(
+                brand_id=brand.id,
+                reference_image_id=reference_image_id,
+                product_name=product_name,
+                product_description=product_description,
+                product_image_path=product_image_path,
+                goal=goal,
+                tone=tone,
+                is_new_product=is_new_product,
+                outputs=outputs,
+                langfuse_trace_id=st.session_state.get("_pending_langfuse_trace_id"),
+            )
+            # 이미지 output 의 id 를 session_state 에 보관 (업로드 시 FK 로 사용)
+            for o in gen.outputs:
+                if o.kind == "image":
+                    st.session_state.current_generation_output_id = str(o.id)
+                    break
+            st.session_state.current_generation_id = str(gen.id)
+
+    run_async(_save())
+
+
 def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone_name: str, image_data: bytes = None) -> None:
     st.session_state.error_message = None
     st.session_state.last_request = {
@@ -492,9 +572,9 @@ def _run_text_generation(name: str, desc: str, goal: str, tone_val: str, ui_tone
                 reference_analysis="",  # TODO: DB 에서 참조 이미지 분석 텍스트 가져오기
             )
             response = text_service.generate_ad_copy(request)
-        # Step 2.5: legacy HistoryService 호출 제거.
-        # 텍스트 전용 생성은 DB 에 기록되지 않는다. 이미지+인스타 게시 후 generated_upload 에만 저장.
         st.session_state.text_result = response.model_dump()
+        # Generation + 텍스트 outputs 저장 (이미지 없음)
+        _save_generation_record(text_result=response.model_dump(), image_bytes=None)
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
 
@@ -519,9 +599,10 @@ def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_st
             )
             response = image_service.generate_ad_image(request)
 
-        # Step 2.4 — 생성 결과를 staging 에 저장해 인스타 게시 후 generated_upload 에 경로 기록
         _stash_generated_image(response.image_data)
         st.session_state.image_result = response.model_dump()
+        # Generation + image output 저장
+        _save_generation_record(text_result=None, image_bytes=response.image_data)
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
 
@@ -566,10 +647,13 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
                 reference_analysis="",  # TODO
             )
             res_i = image_service.generate_ad_image(req_i)
-            # Step 2.4 — 생성 결과를 staging 에 저장
             _stash_generated_image(res_i.image_data)
             st.session_state.image_result = res_i.model_dump()
-        # Step 2.5: legacy HistoryService 호출 제거. 기록은 인스타 게시 후 generated_upload 에만.
+        # Generation + (image + 텍스트들) outputs 저장
+        _save_generation_record(
+            text_result=res_t.model_dump() if res_t else None,
+            image_bytes=res_i.image_data if res_i else None,
+        )
     except Exception as e:
         st.session_state.error_message = f"❌ 문제가 발생했습니다. 다시 시도해주세요. (상세: {e})"
 
@@ -605,11 +689,11 @@ with tab_create:
             help="체크하면 이 상품이 DB 에 새로 등록되어, 다음부터는 드롭다운에서 바로 선택할 수 있어요.",
         )
 
-        # 기존 상품 목록 조회 (드롭다운 또는 안내용)
+        # 기존 상품군 목록 조회 (드롭다운용) — product_name 으로 distinct
         async def _load_products():
-            from services.product_service import ProductService
             async with AsyncSessionLocal() as session:
-                return await ProductService(session).list_all()
+                svc = GenerationService(session)
+                return await svc.list_products(_loaded_brand.id)
         existing_products = run_async(_load_products())
 
         selected_product = None
@@ -645,7 +729,7 @@ with tab_create:
                 )
             else:
                 product_options = {
-                    f"{p.name} — {p.description[:30]}": p
+                    f"{p.product_name} — {p.product_description[:30]} · {p.generation_count}회 생성": p
                     for p in existing_products
                 }
                 selected_label = st.selectbox(
@@ -655,9 +739,9 @@ with tab_create:
                 )
                 selected_product = product_options.get(selected_label)
                 if selected_product is not None:
-                    product_name = selected_product.name
-                    product_description = selected_product.description
-                    existing_raw_image_path = selected_product.raw_image_path
+                    product_name = selected_product.product_name
+                    product_description = selected_product.product_description
+                    existing_raw_image_path = selected_product.product_image_path
 
     # 2. 생성 타입 섹션
     with st.container(border=True):
@@ -760,29 +844,16 @@ with tab_create:
 
         desc_payload = st.session_state.product_description
 
-        # Phase 2 Step 2.3 — raw 이미지 추출 + 신상품 등록
+        # 신상품 모드: 업로드 이미지를 staging 에 저장 → product_image_path 로 기록
         if is_new_product:
-            # (1) 업로드 파일 즉시 staging 저장 (design.md §4.4 하이브리드)
             uploaded_bytes = product_image.getvalue()
             ext = Path(product_image.name).suffix.lower() or ".jpg"
             staged_path = save_to_staging(uploaded_bytes, extension=ext)
-
-            # (2) Product 테이블에 INSERT (동기 — MVP. 백그라운드화는 Step 2.5)
-            async def _register_product():
-                async with AsyncSessionLocal() as session:
-                    return await ProductService(session).create(
-                        name=name,
-                        description=desc_payload,
-                        raw_image_path=str(staged_path),
-                    )
-            new_product = run_async(_register_product())
-
-            # Step 2.4 — 인스타 게시 시점에 쓸 수 있도록 session 에 product id 저장
-            st.session_state.current_product_id = str(new_product.id)
+            st.session_state.current_product_image_path = str(staged_path)
             image_data = uploaded_bytes
         else:
-            # 기존 상품 — DB 의 raw_image_path 에서 바이트 로드
-            st.session_state.current_product_id = str(selected_product.id)
+            # 기존 상품 — 최근 Generation 의 product_image_path 에서 바이트 로드
+            st.session_state.current_product_image_path = existing_raw_image_path
             if existing_raw_image_path and Path(existing_raw_image_path).exists():
                 image_data = Path(existing_raw_image_path).read_bytes()
             else:
@@ -956,50 +1027,49 @@ with tab_archive:
     st.markdown("### 🗂️ 예전에 만든 홍보물 보관함")
     st.caption("지금까지 사장님이 만드셨던 모든 홍보 글과 사진들이 날아가지 않고 이곳에 안전하게 보관되어 있습니다.")
 
-    # Step 2.5 — legacy HistoryService 제거. 아카이브는 이제 generated_upload 기반.
-    # 인스타에 실제로 게시된 항목만 표시 (list_published).
-
-    async def _fetch_uploads_and_products():
-        """게시된 업로드와 관련 상품을 한 번에 조회."""
+    # 아카이브: 인스타에 실제로 게시된 업로드 목록 (GeneratedUpload + GenerationOutput 조인)
+    async def _fetch_published():
         async with AsyncSessionLocal() as session:
-            uploads = await UploadService(session).list_published()
-            products = await ProductService(session).list_all()
-        products_by_id = {p.id: p for p in products}
-        return uploads, products_by_id
+            pairs = await UploadService(session).list_published(brand_id=_loaded_brand.id)
+            # Generation 도 같이 필요 (product_name / goal 표시용)
+            from services.generation_service import GenerationService as _GS
+            svc = _GS(session)
+            result = []
+            for upload, output in pairs:
+                gen = await svc.get_with_outputs(output.generation_id)
+                if gen is not None:
+                    result.append((upload, output, gen))
+            return result
 
-    uploads, products_by_id = run_async(_fetch_uploads_and_products())
+    items = run_async(_fetch_published())
 
-    if not uploads:
+    if not items:
         st.info(
             "아직 인스타그램에 올린 홍보물이 없습니다. "
             "'✨ 새로 만들기' 탭에서 우리 가게의 첫 번째 게시물을 만들어보세요!"
         )
     else:
-        for upload in uploads:
-            product = products_by_id.get(upload.product_id)
-            product_name = product.name if product else "알 수 없는 상품"
-
+        for upload, output, gen in items:
             posted_str = ""
             if upload.posted_at is not None:
                 posted_str = upload.posted_at.strftime("%Y년 %m월 %d일 %H:%M")
 
             title = (
-                f"📸 {product_name} — {upload.goal_category}"
+                f"📸 {gen.product_name} — {gen.goal} ({upload.kind})"
                 + (f" · {posted_str}" if posted_str else "")
             )
 
             with st.expander(title):
                 col_img, col_text = st.columns([1, 1.5])
                 with col_img:
-                    if Path(upload.image_path).exists():
-                        st.image(upload.image_path, width="stretch")
+                    if output.content_path and Path(output.content_path).exists():
+                        st.image(output.content_path, width="stretch")
                     else:
-                        st.warning(f"❓ 이미지 파일 누락: {upload.image_path}")
+                        st.warning(f"❓ 이미지 파일 누락: {output.content_path}")
                 with col_text:
-                    st.markdown(f"**상품:** {product_name}")
-                    st.markdown(f"**광고 목적:** {upload.goal_category}")
-                    if upload.goal_freeform:
-                        st.markdown(f"**자유 텍스트:** {upload.goal_freeform}")
+                    st.markdown(f"**상품:** {gen.product_name}")
+                    st.markdown(f"**광고 목적:** {gen.goal}")
+                    st.markdown(f"**업로드 종류:** {upload.kind}")
                     st.markdown("**올라간 캡션**")
                     st.code(upload.caption, language="plaintext")
                     if upload.instagram_post_id:
