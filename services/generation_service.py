@@ -89,7 +89,9 @@ class GenerationService:
             )
 
         await self.session.commit()
-        await self.session.refresh(generation)
+        # outputs relationship 을 함께 로드해서 호출자가 즉시 gen.outputs 를
+        # lazy-load 예외 없이 사용할 수 있게 한다.
+        await self.session.refresh(generation, attribute_names=["outputs"])
         return generation
 
     async def mark_failed(self, generation_id: UUID, error_message: str) -> None:

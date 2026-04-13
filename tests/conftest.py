@@ -44,3 +44,36 @@ async def db_session() -> AsyncSession:
         yield session
 
     await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def brand_factory(db_session):
+    """Brand 생성 헬퍼. 필요한 최소 필드만 기본값 채워 반환."""
+    from models.brand import Brand
+
+    async def _create(
+        *,
+        name: str = "구름 베이커리",
+        color_hex: str = "#5562EA",
+        logo_path: str | None = None,
+        style_prompt: str = "이 브랜드는 따뜻한 베이커리입니다.",
+        instagram_account_id: str | None = None,
+        instagram_username: str | None = None,
+    ) -> Brand:
+        brand = Brand(
+            name=name,
+            color_hex=color_hex,
+            logo_path=logo_path,
+            input_instagram_url="https://instagram.com/ref",
+            input_description="작은 동네 베이커리",
+            input_mood="따뜻하고 단정한",
+            style_prompt=style_prompt,
+            instagram_account_id=instagram_account_id,
+            instagram_username=instagram_username,
+        )
+        db_session.add(brand)
+        await db_session.commit()
+        await db_session.refresh(brand)
+        return brand
+
+    return _create

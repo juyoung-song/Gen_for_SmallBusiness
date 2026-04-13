@@ -570,10 +570,14 @@ def _save_generation_record(
                 langfuse_trace_id=st.session_state.get("_pending_langfuse_trace_id"),
             )
             # 이미지 output 의 id 를 session_state 에 보관 (업로드 시 FK 로 사용)
+            # 텍스트 전용 생성이면 image output 이 없으므로 이전 값이 남아서 엉뚱한
+            # 이미지가 업로드되지 않도록 명시적으로 None 리셋.
+            image_output_id: str | None = None
             for o in gen.outputs:
                 if o.kind == "image":
-                    st.session_state.current_generation_output_id = str(o.id)
+                    image_output_id = str(o.id)
                     break
+            st.session_state.current_generation_output_id = image_output_id
             st.session_state.current_generation_id = str(gen.id)
 
     run_async(_save())
@@ -1072,7 +1076,7 @@ with tab_create:
                                 style=req_info.get("text_tone", "기본"),
                                 brand_prompt=st.session_state.get("brand_prompt", ""),
                                 is_new_product=st.session_state.get("is_new_product", False),
-                                reference_analysis="",  # TODO
+                                reference_analysis="",  # 캡션엔 구도 주입 금지 (정책)
                             )
                             st.session_state.caption_result = cap_svc.generate_caption(req)
                             st.session_state.show_story_ui = False
