@@ -44,6 +44,27 @@
 - `response_format="b64_json"` 파라미터 **제거** — `gpt-image-1*` 계열은 해당 파라미터를 받지 않음. API 는 항상 b64_json 반환.
 - Streamlit 직접 실행 시 `logo_gen_exp` 패키지 import 불가 문제 → `app_logo_lab.py` 상단에서 프로젝트 루트를 `sys.path` 에 삽입.
 
+### 8. edit 프롬프트 재설계 (사이클 7)
+- 초기엔 "background texture / decoration" 변경을 허용으로 명시 → `들쭉날쭉`, `g만 크게` 같은 입력에 배경 웨이브·식물 등 장식이 생김.
+- 재설계: **pure white 배경 강제 + 장식 전면 금지 + 타이포 조정(자간·굵기·기울기·개별 글자 크기)만 허용**.
+- 테스트도 기존 "decoration 허용 키워드 포함" → "금지 키워드 포함" 으로 의미 반전.
+
+### 9. Streamlit 4모드 확정
+- `🧠 AI 모델 (gpt-image-1-mini generate)`
+- `🔤 PIL 폰트 렌더링`
+- `🎨 PIL + AI 변형 (edit, 가드 O)` — 가드(배경 금지 등) 포함
+- `🔥 Raw (PIL 베이스 + 내 프롬프트만, 가드 X)` — A/B 비교용
+- Langfuse span 이름 분리: `logo.autogenerate` / `logo.pil_plus_ai_edit` / `logo.raw_edit`
+
+### 10. 실험 최종 결론
+- **production 이식 대상: PIL 폰트 렌더링만.**
+- 사유:
+  - 한/영 글자 정확도 100% 보장 (gpt-image-1 도 실수 있음)
+  - 결정적 / 비용 0 / 오프라인 가능
+  - 배경 순백 완벽 보장
+- AI 모드들은 실험 폴더에 아카이브로 유지. 향후 CP15+ 에서 이미지 백엔드를 `gpt-image-1-mini` 로 전환하고 **multi-input 으로 상품 사진 + 로고 동시 주입** 할 때 재도입 검토.
+- 이식 경로: `logo_gen_exp/pil_renderer.py` → `services/logo_service.py`, 폰트는 `assets/fonts/LXGWWenKaiKR-Medium.ttf` 로 이동.
+
 ### 5. 프롬프트 설계 원칙 (실험 시작 시점)
 - 언어 분기: 한글 문자 포함 여부로 영문 / 한글(Hangul) 분기 (`re.search(r"[\uAC00-\uD7A3]", name)`).
 - 공통 규칙:

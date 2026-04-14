@@ -14,9 +14,11 @@ DEFAULT_SIZE = "1024x1024"
 
 
 class ImageClientProtocol(Protocol):
-    """로고 생성에 필요한 최소 인터페이스."""
+    """로고 생성·편집에 필요한 최소 인터페이스."""
 
     def generate_png(self, *, prompt: str, size: str) -> bytes: ...
+
+    def edit_png(self, *, image: bytes, prompt: str, size: str) -> bytes: ...
 
 
 class LogoGenerator:

@@ -7,81 +7,78 @@
 - [x] `.gitignore` 에 `logo_gen_exp/samples/` 추가
 
 ## 사이클 1: 프롬프트 순수 함수 (TDD)
-
-### RED
-- [x] `tests/__init__.py`
-- [x] `tests/test_prompts.py`
-  - [x] `test_includes_brand_name`
-  - [x] `test_includes_color_hex`
-  - [x] `test_english_name_uses_rounded_sans_serif`
-  - [x] `test_korean_name_flags_hangul`
-  - [x] `test_mixed_name_detected_as_korean`
-  - [x] `test_forbids_illustrations_and_shadows`
-  - [x] `test_mentions_mug_plate_printing_context`
-- [x] pytest 모두 실패 확인 (prompts.py 미존재)
-
-### GREEN
-- [x] `prompts.py` — `build_logo_generation_prompt(name, color_hex)` 최소 구현
-- [x] pytest 전부 통과 (12/12)
-
-### REFACTOR
-- [x] `_is_hangul(s)` 헬퍼 분리
-- [x] 언어별 폰트 상수 분리 (ENGLISH_FONT, KOREAN_FONT)
-- [x] 금지 규칙 상수 (FORBIDDEN_ELEMENTS)
-- [x] pytest 여전히 통과
+- [x] RED / GREEN / REFACTOR
+- [x] pytest 12/12
 
 ## 사이클 2: LogoGenerator (Fake 주입)
+- [x] RED / GREEN / REFACTOR
+- [x] pytest 4/4
 
-### RED
-- [x] `tests/test_generator.py`
-  - [x] `FakeImageClient` 정의
-  - [x] `test_returns_bytes_from_client`
-  - [x] `test_prompt_includes_name_and_color`
-  - [x] `test_default_size_1024`
-  - [x] `test_client_called_exactly_once`
-- [x] pytest 실패 확인
+## 사이클 3: OpenAIImageClient (실제 어댑터 + Langfuse)
+- [x] `generate_png`
+- [x] `edit_png` (사이클 6에서 추가)
+- [x] `span_name` 파라미터화 (사이클 11)
+- [x] Langfuse `start_as_current_observation` 래핑, 키 미설정 시 nullcontext 폴백
+- [x] `last_trace_id` UI 노출
 
-### GREEN
-- [x] `generator.py` — `ImageClientProtocol`, `LogoGenerator(client)` 구현
-- [x] pytest 통과 (16/16)
+## 사이클 4: PIL 폰트 렌더링
+- [x] RED: `tests/test_pil_renderer.py`
+- [x] GREEN: `pil_renderer.py::render_wordmark`
+- [x] LXGW WenKai KR 6종 번들
+- [x] Streamlit 🔤 PIL 모드
+- [x] pytest 9/9
 
-### REFACTOR
-- [x] 기본 size 상수 `DEFAULT_SIZE = "1024x1024"`
+## 사이클 5: build_edit_prompt
+- [x] RED / GREEN
+- [x] 빈·공백 입력 거부
+- [x] pytest 추가 케이스 통과
 
-## 사이클 3: OpenAIImageClient (실제 어댑터)
+## 사이클 6: PilPlusAiEditor (Fake 주입)
+- [x] RED: `tests/test_pil_plus_ai.py`
+- [x] GREEN: `pil_plus_ai.py` + ImageClientProtocol.edit_png 확장
+- [x] Streamlit 🎨 PIL+AI 변형 모드
 
-- [x] `openai_client.py`
-  - [x] `OpenAIImageClient(api_key, model="gpt-image-1-mini")`
-  - [x] `generate_png(prompt, size) -> bytes`
-  - [x] Langfuse `start_as_current_observation(name="logo.autogenerate", as_type="span")` 래핑
-  - [x] span metadata 에 prompt / size / model 기록
-  - [x] 키 미설정 시 nullcontext 폴백
-  - [x] `last_trace_id` 속성으로 UI 에서 trace_id 표시 가능
-- [ ] 수동 스모크 (Streamlit 실행 시 검증) — 📱 단계
+## 사이클 7: edit 프롬프트 재설계
+- [x] 배경/장식 전면 금지 테스트 갱신
+- [x] `_EDIT_PRESERVATION_CLAUSE` / `_EDIT_ALLOWED_SCOPE` 재작성
+- [x] pure white 강제 + 타이포 조정만 허용
 
-## Streamlit 실험 페이지
-
-- [x] `app_logo_lab.py`
-  - [x] 입력 폼 (이름 / 색상 / 선택: 프롬프트 오버라이드)
-  - [x] 생성 버튼
-  - [x] 결과 영역 (st.image + 사용 프롬프트 표시 + trace_id)
-  - [x] `samples/` 저장 로직 (timestamp+uuid 파일명 + 메타데이터 JSON)
-  - [x] 최근 12개 히스토리 썸네일
+## 사이클 11: Raw 모드
+- [x] `edit_png(span_name=...)` 파라미터화
+- [x] Streamlit 🔥 Raw 모드 (시스템 가드 없이 사용자 프롬프트 그대로)
+- [x] Langfuse span 이름 분리: `logo.autogenerate` / `logo.pil_plus_ai_edit` / `logo.raw_edit`
 
 ## 📱 실사용 테스트
 
-- [ ] `streamlit run logo_gen_exp/app_logo_lab.py` 기동 OK
-- [ ] 영문명 생성 — 품질 OK
-- [ ] 한글명 생성 — 한글 오탈자 없음
-- [ ] 혼합명 생성
-- [ ] 색상이 글자에 올바르게 반영
-- [ ] 배경 순백 / 일러스트 없음
-- [ ] 머그컵·접시 인쇄 적합성 육안 OK
-- [ ] Langfuse 에서 `logo.autogenerate` trace 관찰 (input/output 포함)
-- [ ] `samples/` 폴더에 결과 자동 저장됨
+### 1차 (AI 모드, gpt-image-1-mini)
+- [x] Streamlit 기동
+- [x] OpenAI API 호출 성공
+- [x] 로고 생성 + samples 저장
 
-## 통합 준비
+### 2차 (PIL 모드)
+- [x] 한글/영문/혼합 이름 정확 렌더
+- [x] 색상 반영 / 순백 배경
 
-- [ ] 최종 프롬프트 문안 확정
-- [ ] `services/logo_service.py` 이식 계획 메모
-- [ ] `OnboardingService.finalize` 통합 지점 결정
+### 3차 (Edit / Raw 모드) — 일부만 확인
+- [ ] `g만 크게`, `들쭉날쭉` 등 변형 지시 결과 품질 — **사유**: PIL 채택 결정으로 본 실험 범위 축소
+- [ ] Langfuse trace 관찰 — CP15+ 이미지 전환 시 재검증 예정
+
+## 실험 결론 (production 이식 여부)
+
+- [x] **채택**: PIL 폰트 렌더링 (`pil_renderer.py::render_wordmark`)
+  - 근거: 결정적·비용 0·한글 정확·배경 순백 완벽 보장
+- [x] **비채택**: gpt-image-1-mini (generate / edit / raw edit)
+  - 근거: 배경 장식 오염, 제어 어려움, 비용 발생
+  - 보류: CP15+ 이미지 백엔드 전환 시 multi-input 으로 재도입 검토
+
+## 다음 단계 (별도 CP)
+
+- [ ] **CP14**: `services/logo_service.py` 이식
+  - [ ] 폰트 이동: `logo_gen_exp/LXGWWenKaiKR-Medium.ttf` + `OFL.txt` → `assets/fonts/`
+  - [ ] `render_wordmark` + `LogoAutoGenerator` 신설
+  - [ ] `BrandDraft.with_logo_path` 추가
+  - [ ] `OnboardingService.finalize` 통합 — `logo_path is None` 이면 자동 생성
+  - [ ] `ui/onboarding.py` `_persist_draft` 에 `LogoAutoGenerator` 주입
+  - [ ] 테스트 이식
+  - [ ] 📱 실사용 스모크
+- [ ] **CP15+**: 이미지 생성 백엔드 `gpt-image-1-mini` 로 전환, multi-input 로고 주입

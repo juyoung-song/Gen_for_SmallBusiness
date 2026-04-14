@@ -39,6 +39,61 @@ def _is_hangul(s: str) -> bool:
     return bool(_HANGUL_PATTERN.search(s))
 
 
+# ─────────────────────────────────────────────────────────────
+# edit 모드 전용 (PIL 로 렌더한 베이스 로고를 AI 로 변형)
+# ─────────────────────────────────────────────────────────────
+_EDIT_PRESERVATION_CLAUSE = (
+    "STRICT PRESERVATION (must keep):\n"
+    "- The exact same letters and spelling of the existing wordmark.\n"
+    "- Do NOT add, remove, or change any letter, number, or symbol.\n"
+    "- Keep the text color solid and consistent (no gradients).\n"
+    "- Background MUST remain pure white (#FFFFFF) — "
+    "no textures, patterns, gradients, borders, or fills of any kind."
+)
+
+_EDIT_ALLOWED_SCOPE = (
+    "ALLOWED CHANGES (typographic refinement ONLY — no background, no decoration):\n"
+    "- Letter spacing (tighter / wider)\n"
+    "- Letter weight (thinner / bolder)\n"
+    "- Slant or italic style\n"
+    "- Relative size of individual letters within the wordmark "
+    "(per-letter size adjustment is allowed, e.g. making one letter bigger)\n"
+    "- Overall position and scale of the wordmark within the canvas\n"
+    "- Subtle stroke flourishes on the letters themselves\n"
+    "\n"
+    "FORBIDDEN (never produce these):\n"
+    "- Any background texture, pattern, gradient, color fill, or border.\n"
+    "- Any illustration, icon, plant, leaf, star, frame, or ornament.\n"
+    "- Shadows, glows, 3D effects, bevels, or outlines around letters."
+)
+
+_EDIT_FOOTER = (
+    "Output: square 1:1 image on pure white background (#FFFFFF). "
+    "Only the wordmark text is visible; no other visual elements. "
+    "The text must remain perfectly readable without distortion."
+)
+
+
+def build_edit_prompt(*, user_instruction: str) -> str:
+    """PIL+AI edit 모드 전용 프롬프트 빌더.
+
+    사용자 자유 지시에 "글자 보존" 가드를 둘러 모델이 장식/배경만 변형하도록 유도.
+    빈 문자열 / 공백만 있는 입력은 ValueError 로 거부.
+    """
+    stripped = user_instruction.strip() if user_instruction else ""
+    if not stripped:
+        raise ValueError("edit 프롬프트가 비어 있습니다. user_instruction 을 제공하세요.")
+
+    return (
+        "You are editing a minimalist typographic wordmark logo.\n\n"
+        f"{_EDIT_PRESERVATION_CLAUSE}\n\n"
+        f"{_EDIT_ALLOWED_SCOPE}\n\n"
+        "USER INSTRUCTION (apply within the allowed scope above):\n"
+        f"{user_instruction}\n\n"
+        f"{_EDIT_FOOTER}"
+    )
+
+
 def build_logo_generation_prompt(*, name: str, color_hex: str) -> str:
     """브랜드 이름·색상 → 이미지 모델용 로고 생성 프롬프트.
 
