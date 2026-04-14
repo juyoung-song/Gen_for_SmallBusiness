@@ -144,6 +144,7 @@ class ImageService:
 
         try:
             translation = self.client.chat.completions.create(
+                name="image.translate_ko_to_en",  # Langfuse observation 이름
                 model=self.settings.TEXT_MODEL,
                 messages=[
                     {

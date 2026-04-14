@@ -179,6 +179,7 @@ class GPTVisionAnalyzer:
             )
 
         response = self.client.chat.completions.create(
+            name="onboarding.vision_brand_style",  # Langfuse observation 이름
             model=self.settings.TEXT_MODEL,
             messages=[{"role": "user", "content": content_parts}],
             timeout=self.settings.TEXT_TIMEOUT,

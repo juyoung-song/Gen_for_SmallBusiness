@@ -75,6 +75,7 @@ class ReferenceAnalyzer:
         b64 = base64.b64encode(image_path.read_bytes()).decode("utf-8")
 
         response = self.client.chat.completions.create(
+            name="reference.vision_composition",  # Langfuse observation 이름
             model=self.settings.TEXT_MODEL,
             messages=[{
                 "role": "user",

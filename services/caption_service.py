@@ -109,6 +109,7 @@ class CaptionService:
         )
 
         response = self.client.chat.completions.create(
+            name="caption.generate",  # Langfuse observation 이름
             model=self.settings.TEXT_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
