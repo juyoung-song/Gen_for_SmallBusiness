@@ -33,25 +33,24 @@ from pydantic import BaseModel, Field
 
 from config.database import AsyncSessionLocal, init_db
 from config.settings import get_settings, setup_logging
-from models.brand_image import BrandImage
+from models.brand import Brand
 from schemas.image_schema import ImageGenerationRequest
 from schemas.instagram_schema import (
     CaptionGenerationRequest,
     CaptionGenerationResponse,
 )
 from schemas.text_schema import TextGenerationRequest
-from services.brand_image_service import BrandImageService
+from services.brand_service import BrandService
 from services.caption_service import CaptionService
+from services.generation_service import GenerationService, OutputSpec
 from services.image_service import ImageService, ImageServiceError
-from services.instagram_auth_adapter import apply_user_token_async
+from services.instagram_auth_adapter import apply_user_token
 from services.instagram_auth_service import InstagramAuthService
 from services.instagram_service import InstagramService
 from services.onboarding_service import (
-    BrandImageDraft,
     GPTVisionAnalyzer,
     _merge_structured_inputs_into_freetext,
 )
-from services.product_service import ProductService
 from services.text_service import TextService, TextServiceError
 from services.upload_service import UploadService
 from utils.staging_storage import save_to_brand_assets, save_to_staging
@@ -147,6 +146,8 @@ class MobileGenerateResponse(BaseModel):
     text_result: dict | None = None
     image_data_url: str | None = None
     revised_prompt: str | None = None
+    generation_id: UUID | None = None
+    generation_output_id: UUID | None = None
 
 
 class MobileCaptionRequest(BaseModel):
@@ -186,11 +187,13 @@ class MobileFeedUploadRequest(BaseModel):
     goal: str = "일반 홍보"
     caption: str = ""
     image_data_url: str
+    generation_output_id: UUID | None = None
 
 
 class MobileStoryUploadRequest(BaseModel):
     image_data_url: str
     caption: str = ""
+    generation_output_id: UUID | None = None
 
 
 class MobileUploadResponse(BaseModel):
@@ -302,14 +305,14 @@ def _relative_data_url(path_str: str | None) -> str | None:
     return f"/mobile-assets/{rel.as_posix()}"
 
 
-def _serialize_brand(brand) -> MobileBrandSummary:
+def _serialize_brand(brand: Brand) -> MobileBrandSummary:
     return MobileBrandSummary(
         exists=True,
-        brand_name=brand.brand_name,
-        brand_color=brand.brand_color,
-        brand_atmosphere=brand.brand_atmosphere,
-        brand_logo_url=_relative_data_url(brand.brand_logo_path),
-        content=brand.content,
+        brand_name=brand.name,
+        brand_color=brand.color_hex,
+        brand_atmosphere=brand.input_mood,
+        brand_logo_url=_relative_data_url(brand.logo_path),
+        content=brand.style_prompt,
     )
 
 
@@ -342,18 +345,20 @@ def _compose_manual_brand_content(
     return "\n\n".join(lines)
 
 
+def _build_brand_prompt(brand: Brand) -> str:
+    prefix_lines: list[str] = []
+    if brand.name:
+        prefix_lines.append(f"브랜드 이름: {brand.name}")
+    if brand.color_hex:
+        prefix_lines.append(f"브랜드 대표 색상: {brand.color_hex}")
+    return "\n".join(prefix_lines) + ("\n\n" if prefix_lines else "") + brand.style_prompt
+
+
 async def _load_brand_prompt() -> str:
-    async with AsyncSessionLocal() as session:
-        brand = await BrandImageService(session).get_for_user("default")
+    brand = await _load_brand()
     if brand is None:
         raise HTTPException(status_code=409, detail="온보딩이 아직 완료되지 않았습니다.")
-
-    prefix_lines: list[str] = []
-    if brand.brand_name:
-        prefix_lines.append(f"브랜드 이름: {brand.brand_name}")
-    if brand.brand_color:
-        prefix_lines.append(f"브랜드 대표 색상: {brand.brand_color}")
-    return "\n".join(prefix_lines) + ("\n\n" if prefix_lines else "") + brand.content
+    return _build_brand_prompt(brand)
 
 
 def _prune_pending_instagram_states() -> None:
@@ -368,13 +373,13 @@ def _prune_pending_instagram_states() -> None:
 
 
 def _issue_instagram_state(
-    brand_image_id: UUID,
+    brand_id: UUID,
     source: Literal["settings", "onboarding"],
 ) -> str:
     _prune_pending_instagram_states()
     state = uuid4().hex
     PENDING_INSTAGRAM_STATES[state] = (
-        brand_image_id,
+        brand_id,
         source,
         datetime.now(timezone.utc) + timedelta(minutes=10),
     )
@@ -385,23 +390,28 @@ def _consume_instagram_state(
     state: str,
 ) -> tuple[UUID | None, Literal["settings", "onboarding"]]:
     _prune_pending_instagram_states()
-    brand_image_id, source, _ = PENDING_INSTAGRAM_STATES.pop(
+    brand_id, source, _ = PENDING_INSTAGRAM_STATES.pop(
         state,
         (None, "settings", None),
     )
-    return brand_image_id, source
+    return brand_id, source
 
 
-async def _load_brand() -> BrandImage | None:
+async def _load_brand() -> Brand | None:
     async with AsyncSessionLocal() as session:
-        return await BrandImageService(session).get_for_user("default")
+        return await BrandService(session).get_first()
 
 
-async def _load_instagram_summary(brand: BrandImage | None) -> MobileInstagramSummary:
+async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary:
     oauth_available = settings.is_instagram_oauth_configured
 
     if brand is not None:
         connection = await InstagramAuthService(settings).get_connection(brand.id)
+        username = getattr(brand, "instagram_username", None) or getattr(
+            connection,
+            "instagram_username",
+            None,
+        )
         if connection is not None and connection.is_active:
             expires_at = connection.token_expires_at
             if expires_at is not None and expires_at.tzinfo is None:
@@ -417,7 +427,7 @@ async def _load_instagram_summary(brand: BrandImage | None) -> MobileInstagramSu
                     expired=False,
                     upload_ready=True,
                     connection_source="oauth",
-                    username=connection.instagram_username,
+                    username=username,
                     page_name=connection.facebook_page_name,
                     expires_at=expires_at,
                 )
@@ -428,7 +438,7 @@ async def _load_instagram_summary(brand: BrandImage | None) -> MobileInstagramSu
                 expired=True,
                 upload_ready=settings.is_instagram_ready,
                 connection_source="env" if settings.is_instagram_ready else "none",
-                username=connection.instagram_username,
+                username=username,
                 page_name=connection.facebook_page_name,
                 expires_at=expires_at,
             )
@@ -455,13 +465,13 @@ async def _load_instagram_summary(brand: BrandImage | None) -> MobileInstagramSu
 
 async def _load_bootstrap() -> MobileBootstrapResponse:
     async with AsyncSessionLocal() as session:
-        brand_service = BrandImageService(session)
-        product_service = ProductService(session)
+        brand_service = BrandService(session)
+        generation_service = GenerationService(session)
         upload_service = UploadService(session)
 
-        brand = await brand_service.get_for_user("default")
-        products = await product_service.list_all()
-        uploads = await upload_service.list_published()
+        brand = await brand_service.get_first()
+        products = await generation_service.list_products(brand.id) if brand else []
+        uploads = await upload_service.list_published(brand_id=brand.id) if brand else []
     instagram = await _load_instagram_summary(brand)
 
     return MobileBootstrapResponse(
@@ -474,14 +484,6 @@ async def _load_bootstrap() -> MobileBootstrapResponse:
         product_count=len(products),
         published_reference_count=len(uploads),
     )
-
-
-def _split_goal(goal: str) -> tuple[str, str]:
-    cleaned = goal.strip()
-    if " · " in cleaned:
-        goal_category, goal_freeform = cleaned.split(" · ", 1)
-        return goal_category.strip(), goal_freeform.strip()
-    return cleaned or "일반 홍보", ""
 
 
 def _consume_upload_generator(
@@ -501,7 +503,12 @@ def _consume_upload_generator(
     return service.last_post_id, service.last_posted_at
 
 
-async def _resolve_upload_context() -> tuple[BrandImage, object]:
+async def apply_user_token_async(upload_settings, brand: Brand) -> bool:
+    """동기 어댑터를 async FastAPI 경로에서 사용할 수 있게 감싼다."""
+    return await run_in_threadpool(apply_user_token, upload_settings, brand)
+
+
+async def _resolve_upload_context() -> tuple[Brand, object]:
     brand = await _load_brand()
     if brand is None:
         raise HTTPException(
@@ -510,7 +517,10 @@ async def _resolve_upload_context() -> tuple[BrandImage, object]:
         )
 
     upload_settings = settings.model_copy(deep=True)
-    upload_ready = await apply_user_token_async(upload_settings, brand)
+    try:
+        upload_ready = await apply_user_token_async(upload_settings, brand)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     if not upload_ready:
         raise HTTPException(
             status_code=409,
@@ -519,24 +529,60 @@ async def _resolve_upload_context() -> tuple[BrandImage, object]:
     return brand, upload_settings
 
 
-async def _find_or_create_product_for_upload(
+async def _save_generation_outputs(
     *,
+    brand: Brand,
     product_name: str,
     description: str,
-    raw_image_path: str,
-) -> object:
+    goal: str,
+    tone: str,
+    text_result: dict | None,
+    image_bytes: bytes | None,
+) -> tuple[UUID | None, UUID | None]:
+    outputs: list[OutputSpec] = []
+    if image_bytes:
+        saved_path = save_to_staging(image_bytes, extension=".png")
+        outputs.append(OutputSpec(kind="image", content_path=str(saved_path)))
+    if text_result:
+        for copy in text_result.get("ad_copies", []) or []:
+            outputs.append(OutputSpec(kind="ad_copy", content_text=copy))
+        for sentence in text_result.get("promo_sentences", []) or []:
+            outputs.append(OutputSpec(kind="promo_sentence", content_text=sentence))
+        for copy in text_result.get("story_copies", []) or []:
+            outputs.append(OutputSpec(kind="story_copy", content_text=copy))
+
+    if not outputs:
+        return None, None
+
     async with AsyncSessionLocal() as session:
-        product_service = ProductService(session)
-        existing = await product_service.find_by_name(product_name)
-        normalized_description = description.strip()
-        for product in reversed(existing):
-            if product.description.strip() == normalized_description:
-                return product
-        return await product_service.create(
-            name=product_name,
-            description=description,
-            raw_image_path=raw_image_path,
+        generation_service = GenerationService(session)
+        generation = await generation_service.create_with_outputs(
+            brand_id=brand.id,
+            reference_image_id=None,
+            product_name=product_name,
+            product_description=description,
+            product_image_path=None,
+            goal=goal,
+            tone=tone,
+            is_new_product=False,
+            outputs=outputs,
         )
+    image_output_id = next(
+        (output.id for output in generation.outputs if output.kind == "image"),
+        None,
+    )
+    return generation.id, image_output_id
+
+
+def _require_generation_output_id(
+    generation_output_id: UUID | None,
+) -> UUID:
+    if generation_output_id is None:
+        raise HTTPException(
+            status_code=409,
+            detail="광고 이미지를 다시 생성한 뒤 업로드를 시도해주세요.",
+        )
+    return generation_output_id
 
 
 @app.get("/health")
@@ -608,9 +654,9 @@ async def mobile_instagram_callback(
     error: str | None = None,
 ) -> RedirectResponse:
     base_url = "/stitch/settings.html"
-    brand_image_id: UUID | None = None
+    brand_id: UUID | None = None
     if state:
-        brand_image_id, source = _consume_instagram_state(state)
+        brand_id, source = _consume_instagram_state(state)
         base_url = (
             "/stitch/onboarding-instagram.html"
             if source == "onboarding"
@@ -628,7 +674,7 @@ async def mobile_instagram_callback(
             status_code=307,
         )
 
-    if brand_image_id is None:
+    if brand_id is None:
         return RedirectResponse(
             url=f"{base_url}?{urlencode({'ig': 'error', 'ig_message': '연결 세션이 만료되어 다시 시도해야 합니다.'})}",
             status_code=307,
@@ -642,10 +688,10 @@ async def mobile_instagram_callback(
         )
         instagram_info = await auth_service.fetch_instagram_account(long_token)
         await auth_service.save_connection(
-            brand_image_id=brand_image_id,
+            brand_id=brand_id,
             access_token=long_token,
             expires_in=expires_in,
-            instagram_info=instagram_info,
+            ig_info=instagram_info,
         )
         return RedirectResponse(
             url=f"{base_url}?{urlencode({'ig': 'connected'})}",
@@ -663,11 +709,16 @@ async def mobile_instagram_callback(
 async def complete_onboarding(
     payload: MobileOnboardingRequest,
 ) -> MobileOnboardingResponse:
-    warnings: list[str] = []
-
     async with AsyncSessionLocal() as session:
-        brand_service = BrandImageService(session)
-        existing = await brand_service.get_for_user("default")
+        existing = await BrandService(session).get_first()
+    if existing is not None:
+        return MobileOnboardingResponse(
+            status="existing",
+            brand=_serialize_brand(existing),
+            warnings=[],
+        )
+
+    warnings: list[str] = []
 
     brand_name = payload.brand_name.strip()
     brand_color = (payload.brand_color or "").strip()
@@ -717,10 +768,10 @@ async def complete_onboarding(
     if analysis_images and settings.is_api_ready:
         analyzer = GPTVisionAnalyzer(settings)
         merged_freetext = _merge_structured_inputs_into_freetext(
-            freetext=freetext,
-            brand_name=brand_name or None,
-            brand_color=brand_color or None,
-            brand_atmosphere=brand_atmosphere or None,
+            description=freetext,
+            name=brand_name,
+            color_hex=brand_color,
+            mood=brand_atmosphere,
         )
         try:
             content = await run_in_threadpool(
@@ -753,48 +804,20 @@ async def complete_onboarding(
             instagram_url=instagram_url,
         )
 
-    draft = BrandImageDraft(
-        content=content,
-        source_freetext=freetext,
-        source_reference_url=instagram_url,
-        source_screenshots=[str(path) for path in analysis_images],
-        brand_name=brand_name or None,
-        brand_color=brand_color or None,
-        brand_atmosphere=brand_atmosphere or None,
-        brand_logo_path=logo_path,
-    )
-
     async with AsyncSessionLocal() as session:
-        brand_service = BrandImageService(session)
-        if existing is not None:
-            brand_record = await brand_service.update_for_user(
-                user_id="default",
-                content=draft.content,
-                source_freetext=draft.source_freetext,
-                source_reference_url=draft.source_reference_url,
-                source_screenshots=draft.source_screenshots,
-                brand_name=draft.brand_name,
-                brand_color=draft.brand_color,
-                brand_atmosphere=draft.brand_atmosphere,
-                brand_logo_path=draft.brand_logo_path,
-            )
-            status = "updated"
-        else:
-            brand_record = await brand_service.create(
-                user_id="default",
-                content=draft.content,
-                source_freetext=draft.source_freetext,
-                source_reference_url=draft.source_reference_url,
-                source_screenshots=draft.source_screenshots,
-                brand_name=draft.brand_name,
-                brand_color=draft.brand_color,
-                brand_atmosphere=draft.brand_atmosphere,
-                brand_logo_path=draft.brand_logo_path,
-            )
-            status = "created"
+        brand_service = BrandService(session)
+        brand_record = await brand_service.create(
+            name=brand_name,
+            color_hex=brand_color or "#ff7448",
+            logo_path=logo_path,
+            input_instagram_url=instagram_url,
+            input_description=freetext,
+            input_mood=brand_atmosphere,
+            style_prompt=content,
+        )
 
     return MobileOnboardingResponse(
-        status=status,
+        status="created",
         brand=_serialize_brand(brand_record),
         warnings=warnings,
     )
@@ -805,7 +828,10 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
     if not payload.product_name.strip():
         raise HTTPException(status_code=400, detail="상품명을 입력해주세요.")
 
-    brand_prompt = await _load_brand_prompt()
+    brand = await _load_brand()
+    if brand is None:
+        raise HTTPException(status_code=409, detail="온보딩이 아직 완료되지 않았습니다.")
+    brand_prompt = _build_brand_prompt(brand)
 
     reference_bytes: bytes | None = None
     if payload.reference_image is not None:
@@ -818,6 +844,9 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
 
     text_result = None
     image_result = None
+    text_payload: dict | None = None
+    generation_id: UUID | None = None
+    generation_output_id: UUID | None = None
 
     try:
         if payload.generation_type in {"text", "both"}:
@@ -834,6 +863,7 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
                     reference_analysis="",
                 ),
             )
+            text_payload = text_result.model_dump()
 
         if payload.generation_type in {"image", "both"}:
             hint_copy = ""
@@ -854,6 +884,16 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
                     reference_analysis="",
                 ),
             )
+
+        generation_id, generation_output_id = await _save_generation_outputs(
+            brand=brand,
+            product_name=payload.product_name.strip(),
+            description=payload.description.strip(),
+            goal=payload.goal.strip() or "일반 홍보",
+            tone=payload.tone,
+            text_result=text_payload,
+            image_bytes=image_result.image_data if image_result is not None else None,
+        )
     except TextServiceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ImageServiceError as exc:
@@ -861,13 +901,15 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
 
     return MobileGenerateResponse(
         generation_type=payload.generation_type,
-        text_result=text_result.model_dump() if text_result is not None else None,
+        text_result=text_payload,
         image_data_url=(
             _to_data_url(image_result.image_data)
             if image_result is not None
             else None
         ),
         revised_prompt=image_result.revised_prompt if image_result is not None else None,
+        generation_id=generation_id,
+        generation_output_id=generation_output_id,
     )
 
 
@@ -949,16 +991,9 @@ async def mobile_upload_feed(
         raise HTTPException(status_code=400, detail="상품명을 먼저 입력해주세요.")
 
     brand, upload_settings = await _resolve_upload_context()
-    image_bytes, mime = _decode_data_url(payload.image_data_url)
+    image_bytes, _ = _decode_data_url(payload.image_data_url)
     caption = payload.caption.strip()
-    saved_path = save_to_staging(image_bytes, extension=_mime_to_extension(mime))
-    goal_category, goal_freeform = _split_goal(payload.goal)
-
-    product = await _find_or_create_product_for_upload(
-        product_name=payload.product_name.strip(),
-        description=payload.description.strip(),
-        raw_image_path=str(saved_path),
-    )
+    generation_output_id = _require_generation_output_id(payload.generation_output_id)
 
     instagram_service = InstagramService(upload_settings)
     try:
@@ -975,11 +1010,9 @@ async def mobile_upload_feed(
     async with AsyncSessionLocal() as session:
         upload_service = UploadService(session)
         upload = await upload_service.create(
-            product_id=product.id,
-            image_path=str(saved_path),
+            generation_output_id=generation_output_id,
+            kind="feed",
             caption=caption,
-            goal_category=goal_category,
-            goal_freeform=goal_freeform,
         )
         if post_id is not None and posted_at is not None:
             await upload_service.mark_posted(
@@ -1005,6 +1038,7 @@ async def mobile_upload_story(
 ) -> MobileUploadResponse:
     brand, upload_settings = await _resolve_upload_context()
     image_bytes, _ = _decode_data_url(payload.image_data_url)
+    generation_output_id = _require_generation_output_id(payload.generation_output_id)
 
     instagram_service = InstagramService(upload_settings)
     try:
@@ -1018,6 +1052,20 @@ async def mobile_upload_story(
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    async with AsyncSessionLocal() as session:
+        upload_service = UploadService(session)
+        upload = await upload_service.create(
+            generation_output_id=generation_output_id,
+            kind="story",
+            caption=payload.caption.strip(),
+        )
+        if post_id is not None and posted_at is not None:
+            await upload_service.mark_posted(
+                upload_id=upload.id,
+                instagram_post_id=post_id,
+                posted_at=posted_at,
+            )
+
     instagram = await _load_instagram_summary(brand)
     return MobileUploadResponse(
         status="ok",
@@ -1025,6 +1073,7 @@ async def mobile_upload_story(
         instagram_post_id=post_id,
         posted_at=posted_at,
         account_username=instagram.username,
+        generated_upload_id=upload.id,
     )
 
 

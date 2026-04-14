@@ -411,6 +411,8 @@
     const copies = result.text_result?.ad_copies || [];
     return {
       id: `hist_${Date.now()}`,
+      generationId: result.generation_id || null,
+      generationOutputId: result.generation_output_id || null,
       productName: createState.productName.trim(),
       goal: createState.goal,
       generationType: createState.generationType,
@@ -1644,6 +1646,7 @@
             goal: latestState.create.goal,
             caption: buildFeedUploadCaption(lastGenerateResult, lastCaptionResult, latestState),
             image_data_url: lastGenerateResult.image_data_url,
+            generation_output_id: lastGenerateResult.generation_output_id,
           },
         });
         updateLastHistory({ uploadFeedStatus: "posted" });
@@ -1686,6 +1689,7 @@
           body: {
             image_data_url: lastStoryResult.image_data_url,
             caption: lastStoryResult.text || "",
+            generation_output_id: lastGenerateResult?.generation_output_id || null,
           },
         });
         updateLastHistory({ uploadStoryStatus: "posted" });

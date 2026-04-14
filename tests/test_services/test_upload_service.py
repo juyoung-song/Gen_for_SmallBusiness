@@ -1,166 +1,140 @@
-"""GeneratedUploadService 테스트.
+"""UploadService 테스트.
 
-design.md §4.4 / §4.5 / §6 기준:
-- create(): 생성 결과를 staging 상태로 저장 (instagram_post_id=None)
-- mark_posted(): 게시 성공 시 인스타 메타 갱신
-- list_published(): 인스타 게시 완료된 것만 (참조 이미지 풀)
-- list_for_product(): 특정 상품의 모든 결과물 (옵션)
+docs/schema.md §3.6 원칙:
+- generation_output_id 기반
+- kind: feed / story 만 허용
+- list_published 는 (upload, output) 튜플
 """
 
 from datetime import datetime, timezone
-from uuid import uuid4
 
 import pytest
 
-from services.product_service import ProductService
+from services.generation_service import GenerationService, OutputSpec
 from services.upload_service import UploadService
 
 
-class TestUploadService:
-    async def test_create_persists_with_no_instagram_metadata(self, db_session):
-        product_service = ProductService(db_session)
-        upload_service = UploadService(db_session)
+@pytest.fixture
+async def image_output(db_session, brand_factory):
+    """테스트용 GenerationOutput(kind=image) 하나를 만들어 반환."""
+    brand = await brand_factory()
+    gen = await GenerationService(db_session).create_with_outputs(
+        brand_id=brand.id, reference_image_id=None,
+        product_name="p", product_description="d", product_image_path=None,
+        goal="g", tone="기본", is_new_product=False,
+        outputs=[OutputSpec(kind="image", content_path="/tmp/img.png")],
+    )
+    image_out = next(o for o in gen.outputs if o.kind == "image")
+    return brand, gen, image_out
 
-        product = await product_service.create(
-            name="블루베리 치즈케이크",
-            description="...",
-            raw_image_path="data/products/cake.jpg",
+
+class TestCreate:
+    async def test_create_feed_with_caption(self, db_session, image_output):
+        _, _, output = image_output
+        svc = UploadService(db_session)
+        upload = await svc.create(
+            generation_output_id=output.id,
+            kind="feed",
+            caption="본문\n#해시",
         )
-
-        upload = await upload_service.create(
-            product_id=product.id,
-            image_path="data/uploads/result.png",
-            caption="✨ 오늘의 디저트",
-            goal_category="신메뉴 출시",
-            goal_freeform="여름 한정",
-        )
-
-        assert upload.product_id == product.id
-        assert upload.image_path == "data/uploads/result.png"
-        assert upload.caption == "✨ 오늘의 디저트"
-        assert upload.goal_category == "신메뉴 출시"
-        assert upload.goal_freeform == "여름 한정"
+        assert upload.id is not None
+        assert upload.kind == "feed"
+        assert upload.caption == "본문\n#해시"
         assert upload.instagram_post_id is None
-        assert upload.posted_at is None
 
-    async def test_mark_posted_updates_instagram_metadata(self, db_session):
-        product_service = ProductService(db_session)
-        upload_service = UploadService(db_session)
+    async def test_create_story_empty_caption(self, db_session, image_output):
+        _, _, output = image_output
+        svc = UploadService(db_session)
+        upload = await svc.create(generation_output_id=output.id, kind="story")
+        assert upload.kind == "story"
+        assert upload.caption == ""
 
-        product = await product_service.create(
-            name="마들렌", description="...", raw_image_path="data/m.jpg"
-        )
-        upload = await upload_service.create(
-            product_id=product.id,
-            image_path="data/uploads/m.png",
-            caption="...",
-            goal_category="일상·감성",
-            goal_freeform="",
-        )
-
-        posted = datetime(2026, 4, 8, 15, 30, tzinfo=timezone.utc)
-        updated = await upload_service.mark_posted(
-            upload_id=upload.id,
-            instagram_post_id="17841234567890",
-            posted_at=posted,
-        )
-
-        assert updated.instagram_post_id == "17841234567890"
-        assert updated.posted_at is not None
-        # SQLite 는 tzinfo 를 떼버리므로 naive 비교
-        assert updated.posted_at.replace(tzinfo=None) == posted.replace(tzinfo=None)
-
-    async def test_list_published_excludes_unposted(self, db_session):
-        """참조 이미지 풀에는 인스타 게시 완료된 것만 포함된다."""
-        product_service = ProductService(db_session)
-        upload_service = UploadService(db_session)
-
-        product = await product_service.create(
-            name="크루아상", description="...", raw_image_path="data/c.jpg"
-        )
-        # 3개 생성, 그 중 2개만 mark_posted
-        u1 = await upload_service.create(
-            product_id=product.id,
-            image_path="data/u1.png",
-            caption="1",
-            goal_category="신메뉴 출시",
-            goal_freeform="",
-        )
-        u2 = await upload_service.create(
-            product_id=product.id,
-            image_path="data/u2.png",
-            caption="2",
-            goal_category="신메뉴 출시",
-            goal_freeform="",
-        )
-        u3 = await upload_service.create(  # 게시 안 함
-            product_id=product.id,
-            image_path="data/u3.png",
-            caption="3",
-            goal_category="신메뉴 출시",
-            goal_freeform="",
-        )
-
-        await upload_service.mark_posted(
-            upload_id=u1.id,
-            instagram_post_id="post1",
-            posted_at=datetime(2026, 4, 1, tzinfo=timezone.utc),
-        )
-        await upload_service.mark_posted(
-            upload_id=u2.id,
-            instagram_post_id="post2",
-            posted_at=datetime(2026, 4, 2, tzinfo=timezone.utc),
-        )
-
-        published = await upload_service.list_published()
-        assert len(published) == 2
-        captions = {p.caption for p in published}
-        assert captions == {"1", "2"}
-        assert "3" not in captions
-
-    async def test_list_for_product_returns_only_that_product_uploads(
-        self, db_session
-    ):
-        product_service = ProductService(db_session)
-        upload_service = UploadService(db_session)
-
-        product_a = await product_service.create(
-            name="A", description="...", raw_image_path="data/a.jpg"
-        )
-        product_b = await product_service.create(
-            name="B", description="...", raw_image_path="data/b.jpg"
-        )
-
-        await upload_service.create(
-            product_id=product_a.id,
-            image_path="data/a1.png",
-            caption="a1",
-            goal_category="...",
-            goal_freeform="",
-        )
-        await upload_service.create(
-            product_id=product_a.id,
-            image_path="data/a2.png",
-            caption="a2",
-            goal_category="...",
-            goal_freeform="",
-        )
-        await upload_service.create(
-            product_id=product_b.id,
-            image_path="data/b1.png",
-            caption="b1",
-            goal_category="...",
-            goal_freeform="",
-        )
-
-        a_uploads = await upload_service.list_for_product(product_a.id)
-        assert {u.caption for u in a_uploads} == {"a1", "a2"}
-
-    async def test_mark_posted_for_unknown_id_raises(self, db_session):
-        upload_service = UploadService(db_session)
+    async def test_invalid_kind_raises(self, db_session, image_output):
+        _, _, output = image_output
+        svc = UploadService(db_session)
         with pytest.raises(ValueError):
-            await upload_service.mark_posted(
-                upload_id=uuid4(),
-                instagram_post_id="post",
-                posted_at=datetime(2026, 4, 8, tzinfo=timezone.utc),
+            await svc.create(generation_output_id=output.id, kind="reel")
+
+
+class TestMarkPosted:
+    async def test_sets_post_id_and_posted_at(self, db_session, image_output):
+        _, _, output = image_output
+        svc = UploadService(db_session)
+        upload = await svc.create(generation_output_id=output.id, kind="feed")
+        now = datetime.now(timezone.utc)
+        marked = await svc.mark_posted(
+            upload_id=upload.id,
+            instagram_post_id="IG_POST_123",
+            posted_at=now,
+        )
+        assert marked.instagram_post_id == "IG_POST_123"
+        assert marked.posted_at is not None
+
+    async def test_raises_when_upload_missing(self, db_session):
+        import uuid
+        svc = UploadService(db_session)
+        with pytest.raises(ValueError):
+            await svc.mark_posted(
+                upload_id=uuid.uuid4(),
+                instagram_post_id="x",
+                posted_at=datetime.now(timezone.utc),
             )
+
+
+class TestListPublished:
+    async def test_only_published(self, db_session, image_output):
+        _, _, output = image_output
+        svc = UploadService(db_session)
+        u1 = await svc.create(generation_output_id=output.id, kind="feed")
+        u2 = await svc.create(generation_output_id=output.id, kind="story")
+        # u1 만 게시
+        await svc.mark_posted(
+            upload_id=u1.id,
+            instagram_post_id="X",
+            posted_at=datetime.now(timezone.utc),
+        )
+        pairs = await svc.list_published()
+        assert len(pairs) == 1
+        upload, out = pairs[0]
+        assert upload.id == u1.id
+        assert out.id == output.id
+
+    async def test_filters_by_brand(self, db_session, brand_factory):
+        svc_gen_factory = lambda s: GenerationService(s)  # noqa: E731
+        brand_a = await brand_factory(name="A")
+        brand_b = await brand_factory(name="B")
+        # 각 brand 에 generation 1개씩
+        gen_a = await svc_gen_factory(db_session).create_with_outputs(
+            brand_id=brand_a.id, reference_image_id=None,
+            product_name="pa", product_description="d", product_image_path=None,
+            goal="g", tone="기본", is_new_product=False,
+            outputs=[OutputSpec(kind="image", content_path="/tmp/a.png")],
+        )
+        gen_b = await svc_gen_factory(db_session).create_with_outputs(
+            brand_id=brand_b.id, reference_image_id=None,
+            product_name="pb", product_description="d", product_image_path=None,
+            goal="g", tone="기본", is_new_product=False,
+            outputs=[OutputSpec(kind="image", content_path="/tmp/b.png")],
+        )
+        out_a = next(o for o in gen_a.outputs if o.kind == "image")
+        out_b = next(o for o in gen_b.outputs if o.kind == "image")
+
+        usvc = UploadService(db_session)
+        ua = await usvc.create(generation_output_id=out_a.id, kind="feed")
+        ub = await usvc.create(generation_output_id=out_b.id, kind="feed")
+        await usvc.mark_posted(upload_id=ua.id, instagram_post_id="A", posted_at=datetime.now(timezone.utc))
+        await usvc.mark_posted(upload_id=ub.id, instagram_post_id="B", posted_at=datetime.now(timezone.utc))
+
+        a_pairs = await usvc.list_published(brand_id=brand_a.id)
+        assert len(a_pairs) == 1 and a_pairs[0][0].id == ua.id
+
+
+class TestListForGeneration:
+    async def test_returns_uploads_for_generation(self, db_session, image_output):
+        _, gen, output = image_output
+        svc = UploadService(db_session)
+        u1 = await svc.create(generation_output_id=output.id, kind="feed")
+        u2 = await svc.create(generation_output_id=output.id, kind="story")
+        uploads = await svc.list_for_generation(gen.id)
+        ids = {u.id for u in uploads}
+        assert ids == {u1.id, u2.id}

@@ -175,3 +175,8 @@ models/cache/
 *.excalidraw
 .claude/skills/gstack/
 .env.bak
+.env copy
+docs/onboarding.md
+docs/generation.md
+.excalidraw
+.excalidraw

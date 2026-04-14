@@ -56,6 +56,19 @@ class Settings(BaseSettings):
     META_REDIRECT_URI: str = ""
     TOKEN_ENCRYPTION_KEY: str = ""
 
+    # ── Instagram OAuth 2.0 (song 이식) ──
+    # 신규 사용자가 OAuth 로 연결하는 경로. 미설정 시 위의 META_ACCESS_TOKEN /
+    # INSTAGRAM_ACCOUNT_ID fallback 이 사용된다 (services/instagram_auth_adapter).
+    META_APP_ID: str = ""
+    META_APP_SECRET: str = ""
+    META_REDIRECT_URI: str = "http://localhost:8501/"
+    TOKEN_ENCRYPTION_KEY: str = ""  # Fernet 32-byte urlsafe base64; utils/crypto.generate_fernet_key()
+
+    # ── Langfuse (LLM Observability) ──
+    LANGFUSE_PUBLIC_KEY: str = ""
+    LANGFUSE_SECRET_KEY: str = ""
+    LANGFUSE_HOST: str = "https://cloud.langfuse.com"
+
     # ── Application ──
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"

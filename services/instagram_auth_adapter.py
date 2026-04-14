@@ -1,57 +1,62 @@
-"""기존 업로드 서비스와 OAuth 연결 정보를 이어주는 어댑터."""
+"""기존 InstagramService와 신규 OAuth 연결을 이어주는 어댑터.
 
-from __future__ import annotations
+docs/schema.md §3.5 기준:
+- instagram_account_id / instagram_username 은 Brand 쪽에 저장.
+- access_token 은 InstagramConnection 쪽에서 복호화해 settings 에 주입.
+"""
 
-import asyncio
 import logging
-from datetime import datetime, timezone
 
 from config.settings import Settings
-from services.instagram_auth_service import InstagramAuthService
+from models.brand import Brand
+from utils.async_runner import run_async
+from utils.crypto import decrypt_token
 
 logger = logging.getLogger(__name__)
 
 
-async def apply_user_token_async(settings: Settings, brand_image) -> bool:
-    """브랜드별 OAuth 연결을 settings 객체에 주입한다.
+def apply_user_token(settings: Settings, brand: Brand | None) -> bool:
+    """DB에서 사용자의 OAuth 토큰을 꺼내 settings에 주입.
 
-    OAuth 연결이 없으면 기존 .env 기반 고정 계정 설정을 fallback 으로 사용한다.
+    Args:
+        settings: 앱 전역 설정 객체
+        brand: 온보딩된 Brand (None이면 미온보딩)
+
+    Returns:
+        True: 토큰이 준비됨 (업로드 가능)
+        False: 연결 없음 (업로드 불가)
     """
-
-    if not brand_image:
+    if brand is None:
         return False
 
-    auth_service = InstagramAuthService(settings)
-    connection = await auth_service.get_connection(brand_image.id)
-    if not connection or not connection.is_active:
+    if not brand.instagram_account_id:
+        # 온보딩은 했지만 인스타 연결은 아직 안 함 — .env 폴백
         return bool(settings.META_ACCESS_TOKEN and settings.INSTAGRAM_ACCOUNT_ID)
 
-    expires_at = connection.token_expires_at
-    if expires_at is not None and expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at is not None and expires_at <= datetime.now(timezone.utc):
-        logger.info("인스타그램 OAuth 토큰 만료 — .env 업로드 설정으로 폴백")
+    from services.instagram_auth_service import InstagramAuthService
+
+    auth_svc = InstagramAuthService(settings)
+    conn = run_async(auth_svc.get_connection(brand.id))
+
+    if not conn or not conn.is_active:
         return bool(settings.META_ACCESS_TOKEN and settings.INSTAGRAM_ACCOUNT_ID)
 
     try:
-        settings.META_ACCESS_TOKEN = auth_service.decrypt_access_token(connection)
-        settings.INSTAGRAM_ACCOUNT_ID = connection.instagram_account_id
-        logger.info(
-            "브랜드 OAuth 토큰 주입 완료 (ig_user=@%s)",
-            connection.instagram_username,
-        )
-        return True
-    except Exception as exc:  # pragma: no cover - runtime safety
-        logger.error("인스타그램 토큰 복호화 실패: %s", exc)
-        return False
+        decrypted_token = decrypt_token(conn.access_token, settings.TOKEN_ENCRYPTION_KEY)
+    except Exception as e:
+        # 복호화 실패는 대개 TOKEN_ENCRYPTION_KEY 불일치 / 손상된 토큰. silent False 는
+        # "연결 필요" UX 로 귀결돼 진짜 원인을 숨김. 명시적으로 예외 전파.
+        logger.exception("OAuth 토큰 복호화 실패 (brand_id=%s)", brand.id)
+        raise RuntimeError(
+            "OAuth 토큰 복호화에 실패했습니다. TOKEN_ENCRYPTION_KEY 가 "
+            "초기 연결 시점과 동일한지 확인하세요. "
+            f"(원인: {type(e).__name__}: {e})"
+        ) from e
 
-
-def apply_user_token(settings: Settings, brand_image) -> bool:
-    """동기 호출부(Streamlit 등) 호환용 래퍼."""
-
-    try:
-        return asyncio.get_event_loop().run_until_complete(
-            apply_user_token_async(settings, brand_image)
-        )
-    except RuntimeError:
-        return asyncio.run(apply_user_token_async(settings, brand_image))
+    settings.META_ACCESS_TOKEN = decrypted_token
+    settings.INSTAGRAM_ACCOUNT_ID = brand.instagram_account_id
+    logger.info(
+        "사용자 OAuth 토큰 주입 완료 (ig_user=@%s)",
+        brand.instagram_username,
+    )
+    return True

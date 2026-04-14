@@ -127,7 +127,88 @@ class InstagramService:
 
             creation_id = res_media.json().get("id")
 
-            # 4. 최종 게시
+            # 4. 미디어 처리 상태 폴링 (song fd465f8 이식)
+            # Meta 는 /media 호출 직후 creation_id 를 즉시 반환하지만, 실제로는
+            # 백그라운드에서 image_url 다운로드/검증/리사이즈를 수행한다.
+            # 곧바로 publish 를 호출하면 code=9007 "Media ID is not available"
+            # 에러가 발생하고, 같은 요청을 두 번 눌러야 성공하는 증상이 생긴다.
+            # /{creation_id}?fields=status_code 를 폴링해 FINISHED 가 된 후에만
+            # publish 를 호출한다. song 원본 fd465f8 의 파라미터를 그대로 사용:
+            #   max_wait_seconds=30, poll_interval=1.5
+            # (won 은 httpx 기반이라 requests.get → httpx.get 으로만 어댑트)
+            yield f"⏳ {target_str} 미디어를 Meta 서버가 처리할 때까지 잠시 기다리는 중..."
+            status_url = f"https://graph.facebook.com/v19.0/{creation_id}"
+            max_wait_seconds = 30
+            poll_interval = 1.5
+            waited = 0.0
+            final_status: str | None = None
+            while waited < max_wait_seconds:
+                # GET 실패 대비 재시도 로직 (최대 3회, exponential backoff)
+                max_get_retries = 3
+                get_retry_count = 0
+                status_resp = None
+                cause = "알 알 수 없는 오류"
+                
+                while get_retry_count <= max_get_retries:
+                    try:
+                        status_resp = httpx.get(
+                            status_url,
+                            params={
+                                "fields": "status_code",
+                                "access_token": access_token,
+                            },
+                            timeout=30.0,
+                        )
+                        
+                        if status_resp.status_code == 200:
+                            break  # 정상 응답 시 재시도 탈출
+                            
+                        if status_resp.status_code >= 500 or status_resp.status_code == 429:
+                            cause = f"HTTP {status_resp.status_code} 오류"
+                        else:
+                            # 400, 403, 404 등 클라이언트 렌더링 오류는 재시도 불가로 보고 즉시 탈출
+                            cause = f"HTTP {status_resp.status_code} 클라이언트 단 오류"
+                            break
+                            
+                    except httpx.RequestError as e:
+                        cause = f"네트워크 오류({type(e).__name__})"
+
+                    if get_retry_count < max_get_retries:
+                        backoff = 0.5 * (2 ** get_retry_count)  # 0.5초 -> 1초 -> 2초
+                        logger.warning(
+                            "미디어 상태 조회 GET 일시적 실패 (재시도 %d/%d). %.1f초 대기. 사유: %s", 
+                            get_retry_count + 1, max_get_retries, backoff, cause
+                        )
+                        time.sleep(backoff)
+                        get_retry_count += 1
+                    else:
+                        break  # 최대 재시도 초과
+
+                # 재시도를 거쳤음에도 최종 실패인 경우
+                if status_resp is None or status_resp.status_code != 200:
+                    err_msg = status_resp.text if status_resp else cause
+                    logger.error("미디어 상태 조회 최종 실패: %s", err_msg)
+                    raise ValueError(f"미디어 상태 조회 최종 실패: {err_msg}")
+                final_status = status_resp.json().get("status_code")
+                logger.info(
+                    "미디어 상태 조회: %s (경과 %.1fs)", final_status, waited
+                )
+                if final_status == "FINISHED":
+                    break
+                if final_status in ("ERROR", "EXPIRED"):
+                    raise ValueError(
+                        f"Meta 미디어 처리 실패 (status={final_status})"
+                    )
+                time.sleep(poll_interval)
+                waited += poll_interval
+
+            if final_status != "FINISHED":
+                raise ValueError(
+                    f"{target_str} 미디어 준비 시간 초과 "
+                    f"({max_wait_seconds}s). 잠시 후 다시 시도해주세요."
+                )
+
+            # 5. 최종 게시
             yield f"🚀 거의 다 되었습니다! {target_str}를 최종 발행합니다!"
             publish_url = f"https://graph.facebook.com/v19.0/{ig_id}/media_publish"
             publish_payload = {

@@ -177,7 +177,7 @@ class TestInstagramOnboardingFlow:
 
         assert response.mode == "placeholder"
         assert response.url is None
-        assert "API" in (response.message or "")
+        assert "Meta" in (response.message or "")
 
     async def test_connect_url_accepts_onboarding_source(self, monkeypatch):
         brand_id = uuid4()
@@ -274,6 +274,7 @@ class TestMobileUploads:
     async def test_feed_upload_returns_post_metadata(self, monkeypatch):
         brand = SimpleNamespace(id=uuid4())
         upload_id = uuid4()
+        generation_output_id = uuid4()
         posted_at = datetime.now(timezone.utc)
 
         async def fake_load_brand():
@@ -290,12 +291,6 @@ class TestMobileUploads:
                 connection_source="oauth",
                 username="bakery_owner",
             )
-
-        async def fake_find_or_create_product_for_upload(**_kwargs):
-            return SimpleNamespace(id=uuid4())
-
-        def fake_save_to_staging(_data, extension=".png"):
-            return mobile_app.Path("/tmp/fake-upload" + extension)
 
         async def fake_run_in_threadpool(func, *args, **kwargs):
             return func(*args, **kwargs)
@@ -343,12 +338,6 @@ class TestMobileUploads:
             "_load_instagram_summary",
             fake_load_instagram_summary,
         )
-        monkeypatch.setattr(
-            mobile_app,
-            "_find_or_create_product_for_upload",
-            fake_find_or_create_product_for_upload,
-        )
-        monkeypatch.setattr(mobile_app, "save_to_staging", fake_save_to_staging)
         monkeypatch.setattr(mobile_app, "run_in_threadpool", fake_run_in_threadpool)
         monkeypatch.setattr(mobile_app, "InstagramService", DummyInstagramService)
         monkeypatch.setattr(mobile_app, "UploadService", DummyUploadService)
@@ -361,6 +350,7 @@ class TestMobileUploads:
                 goal="신제품 출시",
                 caption="따끈한 소금빵 나왔어요",
                 image_data_url="data:image/png;base64,ZmFrZQ==",
+                generation_output_id=generation_output_id,
             )
         )
 

@@ -12,7 +12,7 @@ Loah 프롬프트 이식 (318c9e8 → 3899c7b → 9b17801 + bdff7b3, 864fe0e 입
 
 import logging
 
-from openai import OpenAI
+from langfuse.openai import OpenAI  # Langfuse auto-trace wrapper
 
 from config.settings import Settings
 from schemas.instagram_schema import CaptionGenerationRequest, CaptionGenerationResponse

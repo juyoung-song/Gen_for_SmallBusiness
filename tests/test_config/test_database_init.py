@@ -20,7 +20,7 @@ def _table_names(engine_sync) -> list[str]:
 
 class TestInitDbIdempotent:
     def test_init_db_creates_all_tables(self, tmp_path, monkeypatch):
-        """첫 호출에 brand_images / products / generated_uploads 모두 생성."""
+        """첫 호출에 신규 스키마 6개 테이블이 모두 생성된다."""
         # 임시 DB 파일로 격리
         db_path = tmp_path / "test.db"
         db_url = f"sqlite+aiosqlite:///{db_path}"
@@ -37,8 +37,11 @@ class TestInitDbIdempotent:
         tables = _table_names(sync_engine)
         sync_engine.dispose()
 
-        assert "brand_images" in tables
-        assert "products" in tables
+        assert "brands" in tables
+        assert "reference_images" in tables
+        assert "generations" in tables
+        assert "generation_outputs" in tables
+        assert "instagram_connections" in tables
         assert "generated_uploads" in tables
 
     def test_init_db_is_idempotent_when_called_twice(self, tmp_path, monkeypatch):
@@ -57,6 +60,9 @@ class TestInitDbIdempotent:
         tables = _table_names(sync_engine)
         sync_engine.dispose()
 
-        assert "brand_images" in tables
-        assert "products" in tables
+        assert "brands" in tables
+        assert "reference_images" in tables
+        assert "generations" in tables
+        assert "generation_outputs" in tables
+        assert "instagram_connections" in tables
         assert "generated_uploads" in tables

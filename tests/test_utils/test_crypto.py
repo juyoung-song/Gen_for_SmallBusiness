@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import pytest
 
-from utils.crypto import decrypt_token, encrypt_token
+from utils.crypto import decrypt_token, encrypt_token, generate_fernet_key
 
 
 class TestCrypto:
     def test_round_trip_encrypts_and_decrypts_token(self):
-        encrypted = encrypt_token("secret-token", "my-test-key")
+        key = generate_fernet_key()
+        encrypted = encrypt_token("secret-token", key)
 
         assert encrypted != "secret-token"
-        assert decrypt_token(encrypted, "my-test-key") == "secret-token"
+        assert decrypt_token(encrypted, key) == "secret-token"
 
     def test_raises_when_secret_missing(self):
         with pytest.raises(ValueError):
