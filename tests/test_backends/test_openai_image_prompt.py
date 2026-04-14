@@ -57,6 +57,16 @@ class TestOutputConstraint:
         assert "advertisement" in p or "commercial" in p or "product photography" in p
 
 
+class TestPositiveBlankDirective:
+    """CP16: 부정형 'do not repeat' 대신 긍정형 'leave other props blank'."""
+
+    def test_tail_instructs_other_props_blank(self):
+        p = build_multi_input_prompt(translated_prompt="x").lower()
+        tail = p.split("x", 1)[1]
+        # 나머지 프롭을 명시적으로 비우라는 긍정문
+        assert "blank" in tail or "no text" in tail or "no logo" in tail
+
+
 class TestSandwichReinforcement:
     """CP15-b: 긴 brand_prompt 뒤에 multi-input 지시가 묻히는 문제 완화.
 

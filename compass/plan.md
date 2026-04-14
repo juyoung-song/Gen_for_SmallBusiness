@@ -451,7 +451,12 @@ Phase 2 — MVP 완성 (기능 추가)
 - 알려진 한계 (CP16 에서 다듬을 예정):
   - "exactly ONE prop" 지시해도 모델이 종종 2~3곳에 중복 각인 → 프롬프트/로고 이미지 추가 조정 필요
 
-### 🔜 CP16+ (다음)
-- 로고 각인 양조절 (one prop only 엄수)
-- 로고 PNG 렌더링 강화 (콘트라스트/두께) — 필요 시
-- 머지 전략: `refactor/flow-logo` → `refactor/flow`, `logo_gen_exp/` 는 제외
+### ✅ CP16 — 각인 양조절 (긍정형 blank 지시)
+- `_TAIL_REMINDER` 재작성: 부정형 "Do NOT repeat" → 긍정형 "All OTHER props MUST be COMPLETELY BLANK"
+  · napkin/packaging/plate 를 명시적으로 plain 하게 두라고 지시
+- 테스트 +1 (총 125 passed)
+- 📱 스모크 통과 — 머그에만 `goorm` 각인, 봉투/냅킨/접시 전부 blank
+- 단일 실험으로 효과 확인 → 바로 머지
+
+### 🔜 다음 — 머지
+- `refactor/flow-logo` → `refactor/flow`, `logo_gen_exp/` 는 제외

@@ -55,11 +55,13 @@ _MULTI_INPUT_GUIDANCE = (
 _TAIL_REMINDER = (
     "\n\n"
     "FINAL REMINDER (MANDATORY): The SECOND input image is a wordmark logo on\n"
-    "white — copy its letters EXACTLY onto exactly ONE of: a mug, cup, plate,\n"
-    "paper bag, napkin, or packaging in the output scene. Use the single most\n"
-    "natural prop; DO NOT repeat the wordmark on multiple props. The output MUST\n"
-    "show the wordmark physically engraved or printed on that one prop. Do not\n"
-    "skip this step; do not treat the second image as a style/color reference."
+    "white — copy its letters EXACTLY onto exactly ONE prop (a mug, cup, plate,\n"
+    "paper bag, napkin, or packaging) in the output scene. Pick the single most\n"
+    "natural prop and place the wordmark there.\n"
+    "\n"
+    "All OTHER props in the scene MUST be COMPLETELY BLANK — no text, no logo,\n"
+    "no print, no lettering of any kind. Leave napkins plain, leave packaging\n"
+    "plain, leave plates plain. Only the chosen single prop bears the wordmark."
 )
 
 
