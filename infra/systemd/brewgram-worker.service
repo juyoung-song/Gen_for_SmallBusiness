@@ -1,0 +1,18 @@
+[Unit]
+Description=Brewgram worker_api FastAPI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/brewgram/Gen_for_SmallBusiness
+EnvironmentFile=/etc/brewgram/worker_api.env
+ExecStart=/usr/local/bin/uv run uvicorn worker_api:app --host 127.0.0.1 --port 8006
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

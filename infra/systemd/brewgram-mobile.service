@@ -1,0 +1,18 @@
+[Unit]
+Description=Brewgram mobile_app FastAPI
+After=network-online.target brewgram-worker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/brewgram/Gen_for_SmallBusiness
+EnvironmentFile=/etc/brewgram/mobile_app.env
+ExecStart=/usr/local/bin/uv run uvicorn mobile_app:app --host 127.0.0.1 --port 8007
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

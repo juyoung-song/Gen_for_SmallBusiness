@@ -1,0 +1,14 @@
+brewgram.duckdns.org {
+  encode zstd gzip
+
+  header {
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    X-Frame-Options "SAMEORIGIN"
+  }
+
+  header /stitch/service-worker.js Cache-Control "no-cache"
+  header /stitch/manifest.webmanifest Cache-Control "no-cache"
+
+  reverse_proxy 127.0.0.1:8007
+}
