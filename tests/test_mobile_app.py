@@ -242,3 +242,130 @@ class TestRootRedirect:
         response = await mobile_app.root()
 
         assert response.headers["location"] == "/stitch/index.html"
+
+
+class TestMobileUploads:
+    async def test_feed_upload_requires_connected_account(self, monkeypatch):
+        async def fake_load_brand():
+            return SimpleNamespace(id=uuid4())
+
+        async def fake_apply_user_token_async(_settings, _brand):
+            return False
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+        monkeypatch.setattr(
+            mobile_app,
+            "apply_user_token_async",
+            fake_apply_user_token_async,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await mobile_app.mobile_upload_feed(
+                mobile_app.MobileFeedUploadRequest(
+                    product_name="소금빵",
+                    caption="따끈한 소금빵 나왔어요",
+                    image_data_url="data:image/png;base64,ZmFrZQ==",
+                )
+            )
+
+        assert exc_info.value.status_code == 409
+        assert "연결" in exc_info.value.detail
+
+    async def test_feed_upload_returns_post_metadata(self, monkeypatch):
+        brand = SimpleNamespace(id=uuid4())
+        upload_id = uuid4()
+        posted_at = datetime.now(timezone.utc)
+
+        async def fake_load_brand():
+            return brand
+
+        async def fake_apply_user_token_async(_settings, _brand):
+            return True
+
+        async def fake_load_instagram_summary(_brand):
+            return mobile_app.MobileInstagramSummary(
+                oauth_available=True,
+                connected=True,
+                upload_ready=True,
+                connection_source="oauth",
+                username="bakery_owner",
+            )
+
+        async def fake_find_or_create_product_for_upload(**_kwargs):
+            return SimpleNamespace(id=uuid4())
+
+        def fake_save_to_staging(_data, extension=".png"):
+            return mobile_app.Path("/tmp/fake-upload" + extension)
+
+        async def fake_run_in_threadpool(func, *args, **kwargs):
+            return func(*args, **kwargs)
+
+        class DummyInstagramService:
+            def __init__(self, _settings):
+                self.last_post_id = None
+                self.last_posted_at = None
+
+            def upload_real(self, _image_bytes, _caption):
+                self.last_post_id = "17841234567890"
+                self.last_posted_at = posted_at
+                yield "DONE"
+
+            def upload_story(self, _image_bytes, _caption):
+                self.last_post_id = "17841234567890"
+                self.last_posted_at = posted_at
+                yield "DONE"
+
+        class DummyUploadService:
+            def __init__(self, _session):
+                pass
+
+            async def create(self, **_kwargs):
+                return SimpleNamespace(id=upload_id)
+
+            async def mark_posted(self, **_kwargs):
+                return None
+
+        class DummySessionContext:
+            async def __aenter__(self):
+                return object()
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+        monkeypatch.setattr(
+            mobile_app,
+            "apply_user_token_async",
+            fake_apply_user_token_async,
+        )
+        monkeypatch.setattr(
+            mobile_app,
+            "_load_instagram_summary",
+            fake_load_instagram_summary,
+        )
+        monkeypatch.setattr(
+            mobile_app,
+            "_find_or_create_product_for_upload",
+            fake_find_or_create_product_for_upload,
+        )
+        monkeypatch.setattr(mobile_app, "save_to_staging", fake_save_to_staging)
+        monkeypatch.setattr(mobile_app, "run_in_threadpool", fake_run_in_threadpool)
+        monkeypatch.setattr(mobile_app, "InstagramService", DummyInstagramService)
+        monkeypatch.setattr(mobile_app, "UploadService", DummyUploadService)
+        monkeypatch.setattr(mobile_app, "AsyncSessionLocal", lambda: DummySessionContext())
+
+        response = await mobile_app.mobile_upload_feed(
+            mobile_app.MobileFeedUploadRequest(
+                product_name="소금빵",
+                description="버터 풍미가 진한 대표 메뉴",
+                goal="신제품 출시",
+                caption="따끈한 소금빵 나왔어요",
+                image_data_url="data:image/png;base64,ZmFrZQ==",
+            )
+        )
+
+        assert response.status == "ok"
+        assert response.kind == "feed"
+        assert response.instagram_post_id == "17841234567890"
+        assert response.generated_upload_id == upload_id
+        assert response.account_username == "bakery_owner"

@@ -49,6 +49,8 @@
   };
 
   let lastGenerateResult = null;
+  let lastCaptionResult = null;
+  let lastStoryResult = null;
   let lastBootstrap = null;
 
   function cloneDefaults() {
@@ -331,15 +333,42 @@
       const handle = summary.username ? `@${escapeHtml(summary.username)}` : "연결된 계정";
       return {
         tone: "neutral",
-        html: `${handle} 계정 연결은 완료되었습니다. 자동 ${target} 업로드 API 연결만 남아 있어 지금은 저장 후 직접 업로드해 주세요.`,
-        status: `${target} 자동 업로드 API는 아직 연결되지 않았습니다.`,
+        html: `${handle} 계정이 연결되어 있습니다. 아래 ${target} 업로드 버튼을 누르면 바로 게시를 시도합니다.`,
+        status: `${target} 업로드 준비가 완료되었습니다.`,
       };
     }
     return {
       tone: "neutral",
-      html: `현재는 관리자 고정 계정 업로드 환경만 준비되어 있습니다. 사장님 계정으로 쓰려면 <a href="${PATHS.settings}">설정에서 연결</a>해 주세요.`,
-      status: `${target} 업로드는 아직 개인 계정 연결 전입니다.`,
+      html: `현재는 관리자 고정 계정 업로드 환경이 준비되어 있습니다. 지금 ${target} 업로드를 시도할 수 있고, 사장님 계정으로 쓰려면 <a href="${PATHS.settings}">설정에서 연결</a>해 주세요.`,
+      status: `${target} 업로드 준비가 완료되었습니다.`,
     };
+  }
+
+  function buildFeedUploadCaption(result, captionResult, state) {
+    if (captionResult?.caption) {
+      return `${captionResult.caption}\n\n${captionResult.hashtags || ""}`.trim();
+    }
+    const fallbackCopy =
+      result?.text_result?.ad_copies?.[0] ||
+      result?.text_result?.promo_sentences?.[0] ||
+      `${state.create.productName} 홍보 문구`;
+    return fallbackCopy.trim();
+  }
+
+  function applyUploadButtonState() {
+    const uploadFeedButton = selectOne("#create-upload-feed-button");
+    const uploadStoryButton = selectOne("#create-upload-story-button");
+    const hasFeedImage = Boolean(lastGenerateResult?.image_data_url);
+    const hasStoryImage = Boolean(lastStoryResult?.image_data_url);
+
+    if (uploadFeedButton) {
+      uploadFeedButton.disabled = !hasFeedImage;
+      uploadFeedButton.classList.toggle("action-button--disabled", !hasFeedImage);
+    }
+    if (uploadStoryButton) {
+      uploadStoryButton.disabled = !hasStoryImage;
+      uploadStoryButton.classList.toggle("action-button--disabled", !hasStoryImage);
+    }
   }
 
   function consumeInstagramFeedback() {
@@ -466,10 +495,14 @@
           item.captionReady ? "캡션 완료" : null,
           item.storyReady ? "스토리 완료" : null,
           item.uploadFeedStatus === "placeholder" ? "피드 업로드 준비" : null,
+          item.uploadFeedStatus === "posted" ? "피드 게시 완료" : null,
           item.uploadStoryStatus === "placeholder" ? "스토리 업로드 준비" : null,
+          item.uploadStoryStatus === "posted" ? "스토리 게시 완료" : null,
         ].filter(Boolean);
         const status =
-          item.uploadFeedStatus === "placeholder" || item.uploadStoryStatus === "placeholder"
+          item.uploadFeedStatus === "posted" || item.uploadStoryStatus === "posted"
+            ? "게시 완료"
+            : item.uploadFeedStatus === "placeholder" || item.uploadStoryStatus === "placeholder"
             ? "준비 중"
             : "생성 완료";
 
@@ -1015,10 +1048,7 @@
       storyButton?.classList.toggle("hidden", !canStory);
       if (captionButton) captionButton.disabled = !canCaption;
       if (storyButton) storyButton.disabled = !canStory;
-      if (uploadFeedButton) uploadFeedButton.disabled = !result.image_data_url;
-      if (uploadStoryButton) uploadStoryButton.disabled = !result.image_data_url;
-      uploadFeedButton?.classList.toggle("action-button--disabled", !result.image_data_url);
-      uploadStoryButton?.classList.toggle("action-button--disabled", !result.image_data_url);
+      applyUploadButtonState();
     }
 
     if (preferenceUploadEnabled && uploadNote) {
@@ -1492,6 +1522,8 @@
             reference_image: latestState.create.referenceImage,
           },
         });
+        lastCaptionResult = null;
+        lastStoryResult = null;
         saveHistoryEntry(latestState.create, lastGenerateResult);
         renderGenerateResult(lastGenerateResult);
         setStatus(bootstrapStatus, "광고 생성이 완료되었습니다.", "success");
@@ -1521,6 +1553,7 @@
             ad_copies: lastGenerateResult.text_result.ad_copies,
           },
         });
+        lastCaptionResult = caption;
         captionBlock.innerHTML = `
           <div class="result-card">
             <h3 class="result-card__title">피드 캡션</h3>
@@ -1556,6 +1589,10 @@
             text: storyText,
           },
         });
+        lastStoryResult = {
+          ...story,
+          text: storyText,
+        };
         storyBlock.innerHTML = `
           <div class="result-card">
             <h3 class="result-card__title">스토리 이미지</h3>
@@ -1564,6 +1601,7 @@
           </div>
         `;
         storyBlock.classList.remove("hidden");
+        applyUploadButtonState();
         updateLastHistory({ storyReady: true });
         setStatus(bootstrapStatus, "스토리 이미지가 준비되었습니다.", "success");
       } catch (error) {
@@ -1571,26 +1609,92 @@
       }
     });
 
-    uploadFeedButton?.addEventListener("click", () => {
-      updateLastHistory({ uploadFeedStatus: "placeholder" });
-      const nextNote = buildUploadPlaceholder(getInstagramSummary(lastBootstrap), "feed");
-      if (uploadNote) {
-        uploadNote.innerHTML = nextNote.html;
-        uploadNote.className = "upload-note";
-        uploadNote.classList.remove("hidden");
+    uploadFeedButton?.addEventListener("click", async () => {
+      const instagram = getInstagramSummary(lastBootstrap);
+      if (!lastGenerateResult?.image_data_url) {
+        setStatus(bootstrapStatus, "업로드할 피드 이미지를 먼저 생성해주세요.", "error");
+        return;
       }
-      setStatus(bootstrapStatus, nextNote.status, nextNote.tone);
+      if (instagram.expired || !instagram.upload_ready) {
+        updateLastHistory({ uploadFeedStatus: "placeholder" });
+        const nextNote = buildUploadPlaceholder(instagram, "feed");
+        if (uploadNote) {
+          uploadNote.innerHTML = nextNote.html;
+          uploadNote.className = "upload-note";
+          uploadNote.classList.remove("hidden");
+        }
+        setStatus(bootstrapStatus, nextNote.status, nextNote.tone);
+        return;
+      }
+
+      setStatus(bootstrapStatus, "인스타그램 피드에 업로드하는 중입니다.", "loading");
+      try {
+        const latestState = readState();
+        const response = await api("/upload/feed", {
+          method: "POST",
+          body: {
+            product_name: latestState.create.productName,
+            description: latestState.create.productDescription,
+            goal: latestState.create.goal,
+            caption: buildFeedUploadCaption(lastGenerateResult, lastCaptionResult, latestState),
+            image_data_url: lastGenerateResult.image_data_url,
+          },
+        });
+        updateLastHistory({ uploadFeedStatus: "posted" });
+        if (uploadNote) {
+          const handle = response.account_username
+            ? `@${escapeHtml(response.account_username)}`
+            : "연결된 계정";
+          uploadNote.innerHTML = `${handle} 계정으로 피드 업로드를 완료했습니다. 게시 ID: <b>${escapeHtml(response.instagram_post_id || "확인 중")}</b>`;
+          uploadNote.className = "upload-note";
+          uploadNote.classList.remove("hidden");
+        }
+        setStatus(bootstrapStatus, "인스타그램 피드 업로드가 완료되었습니다.", "success");
+      } catch (error) {
+        setStatus(bootstrapStatus, error.message, "error");
+      }
     });
 
-    uploadStoryButton?.addEventListener("click", () => {
-      updateLastHistory({ uploadStoryStatus: "placeholder" });
-      const nextNote = buildUploadPlaceholder(getInstagramSummary(lastBootstrap), "story");
-      if (uploadNote) {
-        uploadNote.innerHTML = nextNote.html;
-        uploadNote.className = "upload-note";
-        uploadNote.classList.remove("hidden");
+    uploadStoryButton?.addEventListener("click", async () => {
+      const instagram = getInstagramSummary(lastBootstrap);
+      if (!lastStoryResult?.image_data_url) {
+        setStatus(bootstrapStatus, "스토리 이미지를 먼저 만들어주세요.", "error");
+        return;
       }
-      setStatus(bootstrapStatus, nextNote.status, nextNote.tone);
+      if (instagram.expired || !instagram.upload_ready) {
+        updateLastHistory({ uploadStoryStatus: "placeholder" });
+        const nextNote = buildUploadPlaceholder(instagram, "story");
+        if (uploadNote) {
+          uploadNote.innerHTML = nextNote.html;
+          uploadNote.className = "upload-note";
+          uploadNote.classList.remove("hidden");
+        }
+        setStatus(bootstrapStatus, nextNote.status, nextNote.tone);
+        return;
+      }
+
+      setStatus(bootstrapStatus, "인스타그램 스토리에 업로드하는 중입니다.", "loading");
+      try {
+        const response = await api("/upload/story", {
+          method: "POST",
+          body: {
+            image_data_url: lastStoryResult.image_data_url,
+            caption: lastStoryResult.text || "",
+          },
+        });
+        updateLastHistory({ uploadStoryStatus: "posted" });
+        if (uploadNote) {
+          const handle = response.account_username
+            ? `@${escapeHtml(response.account_username)}`
+            : "연결된 계정";
+          uploadNote.innerHTML = `${handle} 계정으로 스토리 업로드를 완료했습니다. 게시 ID: <b>${escapeHtml(response.instagram_post_id || "확인 중")}</b>`;
+          uploadNote.className = "upload-note";
+          uploadNote.classList.remove("hidden");
+        }
+        setStatus(bootstrapStatus, "인스타그램 스토리 업로드가 완료되었습니다.", "success");
+      } catch (error) {
+        setStatus(bootstrapStatus, error.message, "error");
+      }
     });
 
     selectOne("#create-back")?.addEventListener("click", () => {

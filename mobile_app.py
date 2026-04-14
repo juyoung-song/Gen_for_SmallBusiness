@@ -43,7 +43,9 @@ from schemas.text_schema import TextGenerationRequest
 from services.brand_image_service import BrandImageService
 from services.caption_service import CaptionService
 from services.image_service import ImageService, ImageServiceError
+from services.instagram_auth_adapter import apply_user_token_async
 from services.instagram_auth_service import InstagramAuthService
+from services.instagram_service import InstagramService
 from services.onboarding_service import (
     BrandImageDraft,
     GPTVisionAnalyzer,
@@ -178,6 +180,28 @@ class MobileSimpleStatusResponse(BaseModel):
     status: Literal["ok"]
 
 
+class MobileFeedUploadRequest(BaseModel):
+    product_name: str
+    description: str = ""
+    goal: str = "일반 홍보"
+    caption: str = ""
+    image_data_url: str
+
+
+class MobileStoryUploadRequest(BaseModel):
+    image_data_url: str
+    caption: str = ""
+
+
+class MobileUploadResponse(BaseModel):
+    status: Literal["ok"]
+    kind: Literal["feed", "story"]
+    instagram_post_id: str | None = None
+    posted_at: datetime | None = None
+    account_username: str | None = None
+    generated_upload_id: UUID | None = None
+
+
 _DATA_URL_RE = re.compile(r"^data:(?P<mime>[\w/+.-]+);base64,(?P<data>.+)$")
 
 
@@ -208,6 +232,14 @@ def _infer_extension(upload: DataUrlFile) -> str:
 def _to_data_url(image_bytes: bytes, mime: str = "image/png") -> str:
     encoded = base64.b64encode(image_bytes).decode("utf-8")
     return f"data:{mime};base64,{encoded}"
+
+
+def _mime_to_extension(mime: str) -> str:
+    if mime == "image/jpeg":
+        return ".jpg"
+    if mime == "image/webp":
+        return ".webp"
+    return ".png"
 
 
 async def _download_reference_image(reference_url: str) -> bytes:
@@ -442,6 +474,69 @@ async def _load_bootstrap() -> MobileBootstrapResponse:
         product_count=len(products),
         published_reference_count=len(uploads),
     )
+
+
+def _split_goal(goal: str) -> tuple[str, str]:
+    cleaned = goal.strip()
+    if " · " in cleaned:
+        goal_category, goal_freeform = cleaned.split(" · ", 1)
+        return goal_category.strip(), goal_freeform.strip()
+    return cleaned or "일반 홍보", ""
+
+
+def _consume_upload_generator(
+    service: InstagramService,
+    image_bytes: bytes,
+    caption: str,
+    *,
+    is_story: bool,
+) -> tuple[str | None, datetime | None]:
+    generator = (
+        service.upload_story(image_bytes, caption)
+        if is_story
+        else service.upload_real(image_bytes, caption)
+    )
+    for _ in generator:
+        pass
+    return service.last_post_id, service.last_posted_at
+
+
+async def _resolve_upload_context() -> tuple[BrandImage, object]:
+    brand = await _load_brand()
+    if brand is None:
+        raise HTTPException(
+            status_code=409,
+            detail="브랜드 온보딩을 먼저 완료해야 인스타그램 업로드를 사용할 수 있습니다.",
+        )
+
+    upload_settings = settings.model_copy(deep=True)
+    upload_ready = await apply_user_token_async(upload_settings, brand)
+    if not upload_ready:
+        raise HTTPException(
+            status_code=409,
+            detail="인스타그램 계정을 먼저 연결하거나 관리자 업로드 설정을 준비해야 합니다.",
+        )
+    return brand, upload_settings
+
+
+async def _find_or_create_product_for_upload(
+    *,
+    product_name: str,
+    description: str,
+    raw_image_path: str,
+) -> object:
+    async with AsyncSessionLocal() as session:
+        product_service = ProductService(session)
+        existing = await product_service.find_by_name(product_name)
+        normalized_description = description.strip()
+        for product in reversed(existing):
+            if product.description.strip() == normalized_description:
+                return product
+        return await product_service.create(
+            name=product_name,
+            description=description,
+            raw_image_path=raw_image_path,
+        )
 
 
 @app.get("/health")
@@ -844,6 +939,93 @@ async def mobile_story(payload: MobileStoryRequest) -> MobileStoryResponse:
         payload.text.strip(),
     )
     return MobileStoryResponse(image_data_url=_to_data_url(composed))
+
+
+@app.post("/api/mobile/upload/feed", response_model=MobileUploadResponse)
+async def mobile_upload_feed(
+    payload: MobileFeedUploadRequest,
+) -> MobileUploadResponse:
+    if not payload.product_name.strip():
+        raise HTTPException(status_code=400, detail="상품명을 먼저 입력해주세요.")
+
+    brand, upload_settings = await _resolve_upload_context()
+    image_bytes, mime = _decode_data_url(payload.image_data_url)
+    caption = payload.caption.strip()
+    saved_path = save_to_staging(image_bytes, extension=_mime_to_extension(mime))
+    goal_category, goal_freeform = _split_goal(payload.goal)
+
+    product = await _find_or_create_product_for_upload(
+        product_name=payload.product_name.strip(),
+        description=payload.description.strip(),
+        raw_image_path=str(saved_path),
+    )
+
+    instagram_service = InstagramService(upload_settings)
+    try:
+        post_id, posted_at = await run_in_threadpool(
+            _consume_upload_generator,
+            instagram_service,
+            image_bytes,
+            caption,
+            is_story=False,
+        )
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    async with AsyncSessionLocal() as session:
+        upload_service = UploadService(session)
+        upload = await upload_service.create(
+            product_id=product.id,
+            image_path=str(saved_path),
+            caption=caption,
+            goal_category=goal_category,
+            goal_freeform=goal_freeform,
+        )
+        if post_id is not None and posted_at is not None:
+            await upload_service.mark_posted(
+                upload_id=upload.id,
+                instagram_post_id=post_id,
+                posted_at=posted_at,
+            )
+
+    instagram = await _load_instagram_summary(brand)
+    return MobileUploadResponse(
+        status="ok",
+        kind="feed",
+        instagram_post_id=post_id,
+        posted_at=posted_at,
+        account_username=instagram.username,
+        generated_upload_id=upload.id,
+    )
+
+
+@app.post("/api/mobile/upload/story", response_model=MobileUploadResponse)
+async def mobile_upload_story(
+    payload: MobileStoryUploadRequest,
+) -> MobileUploadResponse:
+    brand, upload_settings = await _resolve_upload_context()
+    image_bytes, _ = _decode_data_url(payload.image_data_url)
+
+    instagram_service = InstagramService(upload_settings)
+    try:
+        post_id, posted_at = await run_in_threadpool(
+            _consume_upload_generator,
+            instagram_service,
+            image_bytes,
+            payload.caption.strip(),
+            is_story=True,
+        )
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    instagram = await _load_instagram_summary(brand)
+    return MobileUploadResponse(
+        status="ok",
+        kind="story",
+        instagram_post_id=post_id,
+        posted_at=posted_at,
+        account_username=instagram.username,
+    )
 
 
 @app.get("/")

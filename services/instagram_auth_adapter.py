@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 from config.settings import Settings
 from services.instagram_auth_service import InstagramAuthService
@@ -23,6 +24,13 @@ async def apply_user_token_async(settings: Settings, brand_image) -> bool:
     auth_service = InstagramAuthService(settings)
     connection = await auth_service.get_connection(brand_image.id)
     if not connection or not connection.is_active:
+        return bool(settings.META_ACCESS_TOKEN and settings.INSTAGRAM_ACCOUNT_ID)
+
+    expires_at = connection.token_expires_at
+    if expires_at is not None and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at is not None and expires_at <= datetime.now(timezone.utc):
+        logger.info("인스타그램 OAuth 토큰 만료 — .env 업로드 설정으로 폴백")
         return bool(settings.META_ACCESS_TOKEN and settings.INSTAGRAM_ACCOUNT_ID)
 
     try:
