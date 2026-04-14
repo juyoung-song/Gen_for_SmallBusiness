@@ -27,11 +27,24 @@ def render_instagram_connection(settings, brand):
     if not brand:
         return None
 
-    # OAuth 앱 설정이 안 되어 있으면 UI를 표시하지 않음
-    if not settings.META_APP_ID or not settings.META_APP_SECRET:
-        return None
+    from services.instagram_auth_service import (
+        InstagramAuthService,
+        InstagramPageConnectionRequiredError,
+    )
 
-    from services.instagram_auth_service import InstagramAuthService
+    if not settings.is_instagram_oauth_configured_for("streamlit"):
+        with st.sidebar:
+            st.markdown("---")
+            st.markdown("#### 📷 인스타그램 계정")
+            st.info(
+                "현재는 Streamlit용 Meta redirect URI가 설정되지 않아 "
+                "여기서 계정 연결을 시작할 수 없습니다."
+            )
+            st.caption(
+                "필요한 값: META_APP_ID, META_APP_SECRET, TOKEN_ENCRYPTION_KEY, "
+                "META_REDIRECT_URI_STREAMLIT 또는 META_REDIRECT_URI"
+            )
+        return None
 
     auth_svc = InstagramAuthService(settings)
 
@@ -52,7 +65,12 @@ def render_instagram_connection(settings, brand):
                     code = query_params["code"]
 
                     # code → short token
-                    short_token = run_async(auth_svc.exchange_code_for_token(code))
+                    short_token = run_async(
+                        auth_svc.exchange_code_for_token(
+                            code,
+                            surface="streamlit",
+                        )
+                    )
                     # short → long-lived token (60일)
                     long_token, expires_in = run_async(auth_svc.exchange_for_long_lived_token(short_token))
                     
@@ -61,14 +79,21 @@ def render_instagram_connection(settings, brand):
                         ig_info = run_async(auth_svc.fetch_instagram_account(long_token))
                         # 2) DB에 암호화 저장
                         run_async(auth_svc.save_connection(brand.id, long_token, expires_in, ig_info))
-                        
+                        st.session_state.pop("ig_page_connection_required", None)
                         st.success(f"✅ @{ig_info['instagram_username']} 계정이 연결되었습니다!")
                         st.query_params.clear()
                         st.session_state.ig_connecting = False
                         st.rerun()
+                    except InstagramPageConnectionRequiredError as ve:
+                        st.warning(f"⚠️ {str(ve)}")
+                        st.session_state.ig_page_connection_required = str(ve)
+                        st.session_state.pending_ig_token = (long_token, expires_in)
+                        st.session_state.ig_connecting = False
+                        st.query_params.clear()
                     except ValueError as ve:
                         # 자동 조회 실패 시 수동 입력 모드 준비
                         st.warning(f"⚠️ 자동 찾기 실패: {str(ve)}")
+                        st.session_state.pop("ig_page_connection_required", None)
                         st.session_state.pending_ig_token = (long_token, expires_in)
                         st.session_state.ig_connecting = False
                         st.query_params.clear()
@@ -104,7 +129,10 @@ def render_instagram_connection(settings, brand):
                 if st.button("🔄 재연결", key="ig_reconnect", use_container_width=True):
                     state = str(uuid4())
                     st.session_state["oauth_state"] = state
-                    oauth_url = auth_svc.generate_oauth_url(state)
+                    oauth_url = auth_svc.generate_oauth_url(
+                        state,
+                        surface="streamlit",
+                    )
                     st.markdown(f'<meta http-equiv="refresh" content="0;url={oauth_url}">', unsafe_allow_html=True)
             with col2:
                 if st.button("❌ 해제", key="ig_disconnect", use_container_width=True):
@@ -117,8 +145,21 @@ def render_instagram_connection(settings, brand):
             if st.button("🔗 자동 연결하기", key="ig_connect", use_container_width=True):
                 state = str(uuid4())
                 st.session_state["oauth_state"] = state
-                oauth_url = auth_svc.generate_oauth_url(state)
+                oauth_url = auth_svc.generate_oauth_url(
+                    state,
+                    surface="streamlit",
+                )
                 st.markdown(f'<meta http-equiv="refresh" content="0;url={oauth_url}">', unsafe_allow_html=True)
+
+            page_help_message = st.session_state.get("ig_page_connection_required")
+            if page_help_message:
+                with st.expander("📘 Facebook Page 연결 안내", expanded=True):
+                    st.caption(page_help_message)
+                    st.markdown(
+                        "1. Instagram 앱에서 **프로필 편집 > 페이지**로 이동합니다.\n"
+                        "2. 연결할 Facebook Page를 선택하거나 새로 만듭니다.\n"
+                        "3. 연결이 끝나면 여기로 돌아와 **자동 연결하기**를 다시 누릅니다."
+                    )
 
             # ── 수동 입력 섹션 (자동 찾기 실패했을 때만 나타남) ──
             if "pending_ig_token" in st.session_state:
@@ -135,7 +176,8 @@ def render_instagram_connection(settings, brand):
                             with st.spinner("정보 확인 중..."):
                                 ig_info = run_async(auth_svc.fetch_instagram_account_manually(token, manual_id))
                                 run_async(auth_svc.save_connection(brand.id, token, exp, ig_info))
-                            
+
+                            st.session_state.pop("ig_page_connection_required", None)
                             del st.session_state.pending_ig_token
                             st.success(f"✅ @{ig_info['instagram_username']} 연결 완료!")
                             st.rerun()

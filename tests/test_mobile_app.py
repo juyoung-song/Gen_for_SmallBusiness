@@ -12,6 +12,7 @@ from uuid import uuid4
 
 import mobile_app
 from schemas.instagram_schema import CaptionGenerationResponse
+from services.instagram_auth_service import InstagramPageConnectionRequiredError
 
 
 class TestDownloadReferenceImage:
@@ -120,7 +121,11 @@ class TestInstagramSummary:
 
         monkeypatch.setattr(mobile_app.settings, "META_APP_ID", "app-id")
         monkeypatch.setattr(mobile_app.settings, "META_APP_SECRET", "secret")
-        monkeypatch.setattr(mobile_app.settings, "META_REDIRECT_URI", "https://example.com/callback")
+        monkeypatch.setattr(
+            mobile_app.settings,
+            "META_REDIRECT_URI_MOBILE",
+            "https://example.com/callback",
+        )
         monkeypatch.setattr(mobile_app.settings, "TOKEN_ENCRYPTION_KEY", "token-key")
         monkeypatch.setattr(
             mobile_app.InstagramAuthService,
@@ -144,6 +149,7 @@ class TestInstagramSummary:
         monkeypatch.setattr(mobile_app.settings, "META_APP_ID", "")
         monkeypatch.setattr(mobile_app.settings, "META_APP_SECRET", "")
         monkeypatch.setattr(mobile_app.settings, "META_REDIRECT_URI", "")
+        monkeypatch.setattr(mobile_app.settings, "META_REDIRECT_URI_MOBILE", "")
         monkeypatch.setattr(mobile_app.settings, "TOKEN_ENCRYPTION_KEY", "")
         monkeypatch.setattr(
             mobile_app.InstagramAuthService,
@@ -169,6 +175,7 @@ class TestInstagramOnboardingFlow:
         monkeypatch.setattr(mobile_app.settings, "META_APP_ID", "")
         monkeypatch.setattr(mobile_app.settings, "META_APP_SECRET", "")
         monkeypatch.setattr(mobile_app.settings, "META_REDIRECT_URI", "")
+        monkeypatch.setattr(mobile_app.settings, "META_REDIRECT_URI_MOBILE", "")
         monkeypatch.setattr(mobile_app.settings, "TOKEN_ENCRYPTION_KEY", "")
 
         response = await mobile_app.mobile_instagram_connect_url(
@@ -190,14 +197,14 @@ class TestInstagramOnboardingFlow:
         monkeypatch.setattr(mobile_app.settings, "META_APP_SECRET", "meta-secret")
         monkeypatch.setattr(
             mobile_app.settings,
-            "META_REDIRECT_URI",
+            "META_REDIRECT_URI_MOBILE",
             "https://example.com/api/mobile/instagram/callback",
         )
         monkeypatch.setattr(mobile_app.settings, "TOKEN_ENCRYPTION_KEY", "token-key")
         monkeypatch.setattr(
             mobile_app.InstagramAuthService,
             "generate_oauth_url",
-            lambda self, state: f"https://meta.example/oauth?state={state}",
+            lambda self, state, **_: f"https://meta.example/oauth?state={state}",
         )
 
         response = await mobile_app.mobile_instagram_connect_url(
@@ -219,6 +226,45 @@ class TestInstagramOnboardingFlow:
 
         assert response.headers["location"].startswith(
             "/stitch/onboarding-instagram.html?ig=cancelled"
+        )
+
+    async def test_callback_redirects_with_page_required_feedback(self, monkeypatch):
+        state = mobile_app._issue_instagram_state(uuid4(), "settings")
+
+        async def fake_exchange_code_for_token(self, _code, **_kwargs):
+            return "short-token"
+
+        async def fake_exchange_for_long_lived_token(self, _short_token):
+            return "long-token", 3600
+
+        async def fake_fetch_instagram_account(self, _access_token):
+            raise InstagramPageConnectionRequiredError(
+                "Facebook Page 연결이 필요합니다."
+            )
+
+        monkeypatch.setattr(
+            mobile_app.InstagramAuthService,
+            "exchange_code_for_token",
+            fake_exchange_code_for_token,
+        )
+        monkeypatch.setattr(
+            mobile_app.InstagramAuthService,
+            "exchange_for_long_lived_token",
+            fake_exchange_for_long_lived_token,
+        )
+        monkeypatch.setattr(
+            mobile_app.InstagramAuthService,
+            "fetch_instagram_account",
+            fake_fetch_instagram_account,
+        )
+
+        response = await mobile_app.mobile_instagram_callback(
+            code="oauth-code",
+            state=state,
+        )
+
+        assert response.headers["location"].startswith(
+            "/stitch/settings.html?ig=page_required"
         )
 
 

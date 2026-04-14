@@ -53,15 +53,14 @@ class Settings(BaseSettings):
     INSTAGRAM_ACCOUNT_ID: str = ""
     META_APP_ID: str = ""
     META_APP_SECRET: str = ""
+    # legacy fallback. Streamlit/Mobile 별 redirect 가 없을 때만 사용.
     META_REDIRECT_URI: str = ""
-    TOKEN_ENCRYPTION_KEY: str = ""
-
-    # ── Instagram OAuth 2.0 (song 이식) ──
-    # 신규 사용자가 OAuth 로 연결하는 경로. 미설정 시 위의 META_ACCESS_TOKEN /
-    # INSTAGRAM_ACCOUNT_ID fallback 이 사용된다 (services/instagram_auth_adapter).
-    META_APP_ID: str = ""
-    META_APP_SECRET: str = ""
-    META_REDIRECT_URI: str = "http://localhost:8501/"
+    # Streamlit OAuth callback (ui/instagram_connect.py query-param flow)
+    META_REDIRECT_URI_STREAMLIT: str = "http://localhost:8501/"
+    # Stitch mobile OAuth callback (mobile_app.py /api/mobile/instagram/callback)
+    META_REDIRECT_URI_MOBILE: str = (
+        "http://localhost:8007/api/mobile/instagram/callback"
+    )
     TOKEN_ENCRYPTION_KEY: str = ""  # Fernet 32-byte urlsafe base64; utils/crypto.generate_fernet_key()
 
     # ── Langfuse (LLM Observability) ──
@@ -154,14 +153,38 @@ class Settings(BaseSettings):
             self.META_ACCESS_TOKEN and self.INSTAGRAM_ACCOUNT_ID
         )
 
-    @property
-    def is_instagram_oauth_configured(self) -> bool:
-        """개인 계정 OAuth 연결 기능을 켤 수 있는지 여부."""
+    def get_meta_redirect_uri(
+        self,
+        surface: Literal["streamlit", "mobile"],
+    ) -> str:
+        """표면별 OAuth redirect URI 반환.
+
+        surface 전용 설정이 없으면 legacy META_REDIRECT_URI 로 폴백한다.
+        """
+        if surface == "streamlit":
+            return self.META_REDIRECT_URI_STREAMLIT or self.META_REDIRECT_URI
+        if surface == "mobile":
+            return self.META_REDIRECT_URI_MOBILE or self.META_REDIRECT_URI
+        raise ValueError(f"지원하지 않는 OAuth surface: {surface}")
+
+    def is_instagram_oauth_configured_for(
+        self,
+        surface: Literal["streamlit", "mobile"],
+    ) -> bool:
+        """표면별 개인 계정 OAuth 연결 가능 여부."""
         return bool(
             self.META_APP_ID
             and self.META_APP_SECRET
-            and self.META_REDIRECT_URI
             and self.TOKEN_ENCRYPTION_KEY
+            and self.get_meta_redirect_uri(surface)
+        )
+
+    @property
+    def is_instagram_oauth_configured(self) -> bool:
+        """어느 한 표면에서라도 개인 계정 OAuth 연결이 가능한지 여부."""
+        return (
+            self.is_instagram_oauth_configured_for("streamlit")
+            or self.is_instagram_oauth_configured_for("mobile")
         )
 
 

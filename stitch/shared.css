@@ -436,6 +436,12 @@ nav {
   margin-top: 0.25rem;
 }
 
+.instagram-help-card {
+  border: 1px solid rgba(243, 93, 91, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 249, 245, 0.98), rgba(255, 255, 255, 0.96));
+}
+
 .settings-checklist {
   display: grid;
   gap: 0.7rem;

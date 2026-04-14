@@ -45,3 +45,13 @@ IMAGE_TIMEOUT=60.0
 META_ACCESS_TOKEN=<CHANGE_ME>
 INSTAGRAM_ACCOUNT_ID=<CHANGE_ME>
 FREEIMAGE_API_KEY=6d207e02198a847aa98d0a2a901485a5    # 공용 키 기본값, 변경 안 해도 됨
+
+# ── 인스타그램 OAuth (사장님 계정 직접 연결) ──
+# Streamlit 과 Stitch 모바일을 둘 다 쓸 경우 아래 2개 redirect URI 를 Meta 앱에 모두 등록
+META_APP_ID=
+META_APP_SECRET=
+TOKEN_ENCRYPTION_KEY=
+META_REDIRECT_URI_STREAMLIT=http://localhost:8501/
+META_REDIRECT_URI_MOBILE=http://localhost:8007/api/mobile/instagram/callback
+# legacy fallback (가능하면 비워두고 위 2개를 사용)
+META_REDIRECT_URI=

@@ -45,7 +45,10 @@ from services.caption_service import CaptionService
 from services.generation_service import GenerationService, OutputSpec
 from services.image_service import ImageService, ImageServiceError
 from services.instagram_auth_adapter import apply_user_token
-from services.instagram_auth_service import InstagramAuthService
+from services.instagram_auth_service import (
+    InstagramAuthService,
+    InstagramPageConnectionRequiredError,
+)
 from services.instagram_service import InstagramService
 from services.onboarding_service import (
     GPTVisionAnalyzer,
@@ -403,7 +406,7 @@ async def _load_brand() -> Brand | None:
 
 
 async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary:
-    oauth_available = settings.is_instagram_oauth_configured
+    oauth_available = settings.is_instagram_oauth_configured_for("mobile")
 
     if brand is not None:
         connection = await InstagramAuthService(settings).get_connection(brand.id)
@@ -617,7 +620,7 @@ async def mobile_instagram_connect_url(
 
     source = payload.source if payload is not None else "settings"
 
-    if not settings.is_instagram_oauth_configured:
+    if not settings.is_instagram_oauth_configured_for("mobile"):
         return MobileInstagramConnectResponse(
             mode="placeholder",
             message=(
@@ -627,7 +630,7 @@ async def mobile_instagram_connect_url(
         )
 
     state = _issue_instagram_state(brand.id, source)
-    url = InstagramAuthService(settings).generate_oauth_url(state)
+    url = InstagramAuthService(settings).generate_oauth_url(state, surface="mobile")
     return MobileInstagramConnectResponse(mode="oauth", url=url)
 
 
@@ -682,7 +685,10 @@ async def mobile_instagram_callback(
 
     auth_service = InstagramAuthService(settings)
     try:
-        short_token = await auth_service.exchange_code_for_token(code)
+        short_token = await auth_service.exchange_code_for_token(
+            code,
+            surface="mobile",
+        )
         long_token, expires_in = await auth_service.exchange_for_long_lived_token(
             short_token
         )
@@ -695,6 +701,11 @@ async def mobile_instagram_callback(
         )
         return RedirectResponse(
             url=f"{base_url}?{urlencode({'ig': 'connected'})}",
+            status_code=307,
+        )
+    except InstagramPageConnectionRequiredError as exc:
+        return RedirectResponse(
+            url=f"{base_url}?{urlencode({'ig': 'page_required', 'ig_message': str(exc)[:180]})}",
             status_code=307,
         )
     except Exception as exc:  # pragma: no cover - external OAuth integration

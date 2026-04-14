@@ -381,20 +381,45 @@
 
     if (flag === "connected") {
       return {
+        flag,
         tone: "success",
         message: "인스타그램 계정 연결이 완료되었습니다.",
       };
     }
     if (flag === "cancelled") {
       return {
+        flag,
         tone: "neutral",
         message: "인스타그램 계정 연결이 취소되었습니다.",
       };
     }
+    if (flag === "page_required") {
+      return {
+        flag,
+        tone: "error",
+        message:
+          message ||
+          "Facebook Page 연결이 필요합니다. 아래 안내를 따라 연결한 뒤 다시 시도해 주세요.",
+      };
+    }
     return {
+      flag,
       tone: "error",
       message: message || "인스타그램 계정 연결 중 오류가 발생했습니다.",
     };
+  }
+
+  function setInstagramPageGuide(rootSelector, feedback) {
+    const guideNode = selectOne(rootSelector);
+    if (!guideNode) return;
+
+    const copyNode = guideNode.querySelector("[id$='page-guide-copy']");
+    const shouldShow = Boolean(feedback?.flag === "page_required");
+    guideNode.classList.toggle("hidden", !shouldShow);
+
+    if (shouldShow && copyNode) {
+      copyNode.textContent = feedback.message;
+    }
   }
 
   function productThumb(productName) {
@@ -778,6 +803,7 @@
     const backButton = selectOne("#onboarding-instagram-back");
     const brandNameNode = selectOne("#onboarding-instagram-brand-name");
     const feedback = consumeInstagramFeedback();
+    setInstagramPageGuide("#onboarding-page-guide", feedback);
 
     const applyInstagramState = (summary, bootstrap) => {
       if (brandNameNode) {
@@ -866,6 +892,10 @@
       await loadState();
       if (feedback) {
         setStatus(statusNode, feedback.message, feedback.tone);
+        if (feedback.flag === "page_required" && copyNode) {
+          copyNode.textContent =
+            "Meta 로그인은 완료됐지만 Facebook Page 연결이 확인되지 않았습니다. 아래 안내대로 Page를 연결한 뒤 다시 시도해 주세요.";
+        }
       }
     } catch (error) {
       setStatus(statusNode, error.message, "error");
@@ -1250,6 +1280,7 @@
     });
 
     const feedback = consumeInstagramFeedback();
+    setInstagramPageGuide("#settings-page-guide", feedback);
 
     const applyInstagramSettings = (instagram, bootstrap) => {
       const onboardingCompleted = Boolean(bootstrap?.onboarding_completed);
@@ -1373,6 +1404,10 @@
       if (!payload) return;
       if (feedback) {
         setStatus(statusNode, feedback.message, feedback.tone);
+        if (feedback.flag === "page_required" && instagramCopyNode) {
+          instagramCopyNode.textContent =
+            "Meta 로그인은 완료됐지만 업로드할 Instagram professional account와 연결된 Facebook Page가 아직 없습니다.";
+        }
       }
     } catch (error) {
       setStatus(statusNode, error.message, "error");
