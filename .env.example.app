@@ -30,6 +30,11 @@ OPENAI_API_KEY=<CHANGE_ME>
 TEXT_MODEL=gpt-5-mini
 TEXT_TIMEOUT=30.0
 
+# ── Langfuse (선택: OpenAI 호출 trace 수집) ──
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
+LANGFUSE_HOST=https://cloud.langfuse.com
+
 # ── 원격 이미지 워커 (IMAGE_BACKEND_KIND=remote_worker 시 필수) ──
 IMAGE_WORKER_URL=http://YOUR_VM_IP:8006/
 IMAGE_WORKER_TOKEN=<CHANGE_ME_LONG_RANDOM>

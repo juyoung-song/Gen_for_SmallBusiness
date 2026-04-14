@@ -541,6 +541,7 @@ async def _save_generation_outputs(
     tone: str,
     text_result: dict | None,
     image_bytes: bytes | None,
+    langfuse_trace_id: str | None = None,
 ) -> tuple[UUID | None, UUID | None]:
     outputs: list[OutputSpec] = []
     if image_bytes:
@@ -569,6 +570,7 @@ async def _save_generation_outputs(
             tone=tone,
             is_new_product=False,
             outputs=outputs,
+            langfuse_trace_id=langfuse_trace_id,
         )
     image_output_id = next(
         (output.id for output in generation.outputs if output.kind == "image"),
@@ -586,6 +588,42 @@ def _require_generation_output_id(
             detail="광고 이미지를 다시 생성한 뒤 업로드를 시도해주세요.",
         )
     return generation_output_id
+
+
+def _langfuse_trace_span(name: str):
+    """Langfuse 루트 span 컨텍스트 매니저.
+
+    Streamlit app.py 와 같은 방식으로 모바일 요청 단위를 trace 로 묶는다.
+    Langfuse 가 비활성이면 nullcontext 로 폴백한다.
+    """
+    import contextlib
+
+    try:
+        from langfuse import get_client
+
+        client = get_client()
+        return client.start_as_current_observation(name=name, as_type="span")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Langfuse span 시작 실패 → 추적 없이 진행: %s", exc)
+        return contextlib.nullcontext()
+
+
+def _capture_langfuse_trace_id() -> str | None:
+    """현재 활성 span 의 trace_id 반환."""
+    try:
+        from langfuse import get_client
+
+        return get_client().get_current_trace_id()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _mobile_generation_trace_name(generation_type: str) -> str:
+    if generation_type == "text":
+        return "generation.text_only"
+    if generation_type == "image":
+        return "generation.image_only"
+    return "generation.combined"
 
 
 @app.get("/health")
@@ -785,11 +823,12 @@ async def complete_onboarding(
             mood=brand_atmosphere,
         )
         try:
-            content = await run_in_threadpool(
-                analyzer.analyze,
-                merged_freetext,
-                analysis_images,
-            )
+            with _langfuse_trace_span("onboarding.analysis"):
+                content = await run_in_threadpool(
+                    analyzer.analyze,
+                    merged_freetext,
+                    analysis_images,
+                )
         except Exception as exc:  # pragma: no cover - 외부 API 의존
             logger.warning("모바일 온보딩 Vision 분석 실패: %s", exc)
             warnings.append(
@@ -858,43 +897,48 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
     text_payload: dict | None = None
     generation_id: UUID | None = None
     generation_output_id: UUID | None = None
+    langfuse_trace_id: str | None = None
 
     try:
-        if payload.generation_type in {"text", "both"}:
-            text_result = await run_in_threadpool(
-                text_service.generate_ad_copy,
-                TextGenerationRequest(
-                    product_name=payload.product_name.strip(),
-                    description=payload.description.strip(),
-                    style=payload.tone,
-                    goal=payload.goal.strip(),
-                    image_data=reference_bytes,
-                    brand_prompt=brand_prompt,
-                    is_new_product=False,
-                    reference_analysis="",
-                ),
-            )
-            text_payload = text_result.model_dump()
+        with _langfuse_trace_span(
+            _mobile_generation_trace_name(payload.generation_type)
+        ):
+            if payload.generation_type in {"text", "both"}:
+                text_result = await run_in_threadpool(
+                    text_service.generate_ad_copy,
+                    TextGenerationRequest(
+                        product_name=payload.product_name.strip(),
+                        description=payload.description.strip(),
+                        style=payload.tone,
+                        goal=payload.goal.strip(),
+                        image_data=reference_bytes,
+                        brand_prompt=brand_prompt,
+                        is_new_product=False,
+                        reference_analysis="",
+                    ),
+                )
+                text_payload = text_result.model_dump()
 
-        if payload.generation_type in {"image", "both"}:
-            hint_copy = ""
-            if text_result is not None and text_result.ad_copies:
-                hint_copy = text_result.ad_copies[0]
+            if payload.generation_type in {"image", "both"}:
+                hint_copy = ""
+                if text_result is not None and text_result.ad_copies:
+                    hint_copy = text_result.ad_copies[0]
 
-            image_result = await run_in_threadpool(
-                image_service.generate_ad_image,
-                ImageGenerationRequest(
-                    prompt=hint_copy,
-                    product_name=payload.product_name.strip(),
-                    description=payload.description.strip(),
-                    goal=payload.goal.strip(),
-                    style=payload.style,
-                    image_data=reference_bytes,
-                    brand_prompt=brand_prompt,
-                    is_new_product=False,
-                    reference_analysis="",
-                ),
-            )
+                image_result = await run_in_threadpool(
+                    image_service.generate_ad_image,
+                    ImageGenerationRequest(
+                        prompt=hint_copy,
+                        product_name=payload.product_name.strip(),
+                        description=payload.description.strip(),
+                        goal=payload.goal.strip(),
+                        style=payload.style,
+                        image_data=reference_bytes,
+                        brand_prompt=brand_prompt,
+                        is_new_product=False,
+                        reference_analysis="",
+                    ),
+                )
+            langfuse_trace_id = _capture_langfuse_trace_id()
 
         generation_id, generation_output_id = await _save_generation_outputs(
             brand=brand,
@@ -904,6 +948,7 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
             tone=payload.tone,
             text_result=text_payload,
             image_bytes=image_result.image_data if image_result is not None else None,
+            langfuse_trace_id=langfuse_trace_id,
         )
     except TextServiceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -934,18 +979,19 @@ async def mobile_caption(
     brand_prompt = await _load_brand_prompt()
     caption_service = CaptionService(settings)
     try:
-        return await run_in_threadpool(
-            caption_service.generate_caption,
-            CaptionGenerationRequest(
-                product_name=payload.product_name.strip(),
-                description=payload.description.strip(),
-                ad_copies=payload.ad_copies,
-                style=payload.style,
-                brand_prompt=brand_prompt,
-                is_new_product=payload.is_new_product,
-                reference_analysis="",
-            ),
-        )
+        with _langfuse_trace_span("generation.caption"):
+            return await run_in_threadpool(
+                caption_service.generate_caption,
+                CaptionGenerationRequest(
+                    product_name=payload.product_name.strip(),
+                    description=payload.description.strip(),
+                    ad_copies=payload.ad_copies,
+                    style=payload.style,
+                    brand_prompt=brand_prompt,
+                    is_new_product=payload.is_new_product,
+                    reference_analysis="",
+                ),
+            )
     except AuthenticationError as exc:
         raise HTTPException(
             status_code=500,
