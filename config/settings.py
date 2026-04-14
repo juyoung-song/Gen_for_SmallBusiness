@@ -22,12 +22,14 @@ class ImageBackendKind(str, Enum):
     - hf_local       — 같은 머신의 diffusers (개발자 Mac 또는 워커 GPU)
     - hf_remote_api  — Hugging Face Serverless Inference API
     - remote_worker  — 자체 원격 워커 (worker_api.py) 호출
+    - openai_image   — gpt-image-1-mini, 상품 사진 + 로고 multi-input (CP15 기본값)
     """
 
     MOCK = "mock"
     HF_LOCAL = "hf_local"
     HF_REMOTE_API = "hf_remote_api"
     REMOTE_WORKER = "remote_worker"
+    OPENAI_IMAGE = "openai_image"
 
 
 class Settings(BaseSettings):
@@ -70,7 +72,9 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # ── 이미지 백엔드 모드 (Stage 2 단일 enum) ──
-    IMAGE_BACKEND_KIND: ImageBackendKind = ImageBackendKind.MOCK
+    # CP15: 기본값을 OPENAI_IMAGE 로 전환 — 상품 사진 + 로고 multi-input.
+    # 이전 default 였던 MOCK 은 .env 에서 명시적으로 IMAGE_BACKEND_KIND=mock 으로 지정.
+    IMAGE_BACKEND_KIND: ImageBackendKind = ImageBackendKind.OPENAI_IMAGE
 
     # ── Model Settings ──
     # TEXT_MODEL: 텍스트 및 Vision 호출에 모두 사용.

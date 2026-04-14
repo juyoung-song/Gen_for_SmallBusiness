@@ -698,6 +698,7 @@ def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_st
 
         with _langfuse_trace_span("generation.image_only"):
             with st.spinner("🖼️ 상품과 어울리는 예쁜 사진을 그리고 있어요... (약 10~20초 정도 걸립니다)"):
+                _brand_obj = st.session_state.get("_current_brand")
                 request = ImageGenerationRequest(
                     product_name=name,
                     description=desc,
@@ -708,6 +709,7 @@ def _run_image_generation(name: str, desc: str, goal: str, style_val: str, ui_st
                     brand_prompt=st.session_state.get("brand_prompt", ""),
                     is_new_product=st.session_state.get("is_new_product", False),
                     reference_analysis=composition_prompt,
+                    logo_path=getattr(_brand_obj, "logo_path", None),
                 )
                 response = image_service.generate_ad_image(request)
             _capture_langfuse_trace_id()
@@ -761,6 +763,7 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
 
             with st.spinner("🖼️ [2단계] 작성된 글과 어울리는 예쁜 홍보 사진을 알아서 그리고 있어요... (약 10~20초)"):
                 hint_copy = res_t.ad_copies[0] if res_t.ad_copies else ""
+                _brand_obj = st.session_state.get("_current_brand")
                 req_i = ImageGenerationRequest(
                     product_name=name,
                     description=desc,
@@ -772,6 +775,7 @@ def _run_combined_generation(name: str, desc: str, goal: str, tone_val: str, sty
                     brand_prompt=brand,
                     is_new_product=is_new,
                     reference_analysis=composition_prompt,
+                    logo_path=getattr(_brand_obj, "logo_path", None),
                 )
                 res_i = image_service.generate_ad_image(req_i)
                 _stash_generated_image(res_i.image_data)

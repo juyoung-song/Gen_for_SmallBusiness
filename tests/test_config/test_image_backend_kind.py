@@ -1,10 +1,11 @@
 """ImageBackendKind enum + Settings 통합 테스트.
 
-Stage 2 의 핵심 — 4가지 모드를 단일 enum 으로 표현:
+5가지 모드:
 - mock           — Pillow 그라데이션 (Mock)
 - hf_local       — 같은 머신의 diffusers (개발자 또는 워커 GPU)
 - hf_remote_api  — Hugging Face Serverless API
 - remote_worker  — 자체 원격 워커 호출
+- openai_image   — gpt-image-1-mini 상품+로고 multi-input (CP15 기본)
 """
 
 import pytest
@@ -13,14 +14,15 @@ from config.settings import ImageBackendKind, Settings
 
 
 class TestImageBackendKind:
-    def test_enum_has_exactly_four_values(self):
-        assert len(list(ImageBackendKind)) == 4
+    def test_enum_has_exactly_five_values(self):
+        assert len(list(ImageBackendKind)) == 5
 
     def test_enum_values_are_known_strings(self):
         assert ImageBackendKind.MOCK.value == "mock"
         assert ImageBackendKind.HF_LOCAL.value == "hf_local"
         assert ImageBackendKind.HF_REMOTE_API.value == "hf_remote_api"
         assert ImageBackendKind.REMOTE_WORKER.value == "remote_worker"
+        assert ImageBackendKind.OPENAI_IMAGE.value == "openai_image"
 
     def test_enum_can_be_constructed_from_string(self):
         assert ImageBackendKind("mock") is ImageBackendKind.MOCK
@@ -33,16 +35,15 @@ class TestImageBackendKind:
 
 
 class TestSettingsImageBackendKind:
-    def test_default_is_mock(self, monkeypatch):
-        """기본값은 mock — 외부 의존 없이 처음 띄울 수 있어야 함."""
+    def test_default_is_openai_image(self, monkeypatch):
+        """CP15 기본값: openai_image — 상품+로고 multi-input."""
         # 환경변수가 영향 주지 않도록 비우기
         for var in ("IMAGE_BACKEND", "IMAGE_BACKEND_KIND", "USE_MOCK", "USE_LOCAL_MODEL"):
             monkeypatch.delenv(var, raising=False)
-        # .env 파일 무시
         monkeypatch.setenv("PYDANTIC_SETTINGS_DISABLE_ENV_FILE", "1")
 
         s = Settings(_env_file=None)  # type: ignore[call-arg]
-        assert s.IMAGE_BACKEND_KIND == ImageBackendKind.MOCK
+        assert s.IMAGE_BACKEND_KIND == ImageBackendKind.OPENAI_IMAGE
 
     def test_env_var_string_is_parsed_to_enum(self, monkeypatch):
         monkeypatch.setenv("IMAGE_BACKEND_KIND", "hf_local")

@@ -37,6 +37,7 @@ _WEIGHT_OPTIONS = {
 
 # 사용자에게 보여줄 라벨
 _KIND_LABELS: dict[ImageBackendKind, str] = {
+    ImageBackendKind.OPENAI_IMAGE: "🎨 OpenAI Image — gpt-image-1-mini (상품+로고 multi-input, CP15 기본)",
     ImageBackendKind.MOCK: "🧪 Mock — Pillow 그라데이션 (외부 호출 0)",
     ImageBackendKind.HF_LOCAL: "🖥️ HF Local — 같은 머신의 diffusers (Mac 느림)",
     ImageBackendKind.HF_REMOTE_API: "☁️ HF Remote API — Hugging Face Serverless",

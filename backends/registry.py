@@ -4,6 +4,7 @@ ImageService / TextService 는 백엔드를 직접 import 하지 않고
 이 모듈의 select_image_backend / select_text_backend 만 호출한다.
 
 이미지 백엔드 선택 (settings.IMAGE_BACKEND_KIND):
+    OPENAI_IMAGE    → OpenAIImageBackend (gpt-image-1-mini, 상품+로고 multi-input, CP15 기본)
     MOCK            → MockImageBackend (Pillow 그라데이션, 외부 의존 0)
     HF_LOCAL        → 로컬 diffusers (참조 이미지 + LOCAL_BACKEND 에 따라 분기)
     HF_REMOTE_API   → HFInferenceAPIBackend (Hugging Face Serverless API)
@@ -33,6 +34,10 @@ def select_image_backend(settings, has_reference: bool = False) -> ImageBackend:
             HF_LOCAL 모드에서 참조 유무에 따라 SD15 vs IP-Adapter/img2img/hybrid 분기.
     """
     kind = settings.IMAGE_BACKEND_KIND
+
+    if kind == ImageBackendKind.OPENAI_IMAGE:
+        from backends.openai_image import OpenAIImageBackend
+        return OpenAIImageBackend(settings)
 
     if kind == ImageBackendKind.MOCK:
         from backends.mock_image import MockImageBackend

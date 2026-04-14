@@ -419,3 +419,44 @@ Phase 2 — MVP 완성 (기능 추가)
 - [ ] 인스타 게시 성공 시 generated_upload 자동 저장
 - [ ] DB I/O가 메인 경로에서 빠짐 (백그라운드)
 - [ ] legacy 코드 (`history.py`, `crawl_and_analyze/image_crawler.py`) 제거
+
+---
+
+## Phase 3 로그 (refactor/flow-logo 브랜치)
+
+### ✅ CP13-exp — AI 로고 자동 생성 실험 (logo_gen_exp/)
+- 4개 모드 비교: AI(gpt-image-1-mini) / PIL 폰트 / PIL+AI edit / Raw
+- 결론: **PIL 폰트 렌더링만 production 채택**. AI 는 실험 아카이브.
+- 47 tests. 상세: `logo_gen_exp/compass/` 참고.
+
+### ✅ CP14 — 온보딩 자동 로고 생성
+- `services/logo_service.py` 신설 (PIL render_wordmark + LogoAutoGenerator)
+- `assets/fonts/LXGWWenKaiKR-Medium.ttf` + OFL.txt 배치
+- `BrandDraft.with_logo_path` 추가
+- `OnboardingService.finalize`: `logo_path is None` 이면 자동 생성
+- `ui/onboarding.py` 의존성 주입
+- 테스트 13개 (logo_service 8 + onboarding 통합 5)
+- 📱 스모크 통과
+
+### ✅ CP15 — OpenAIImageBackend (gpt-image-1-mini 상품+로고 multi-input)
+- `backends/openai_image.py` 신설 — `OpenAIImageBackend` + `build_multi_input_prompt`
+  - 샌드위치 구조: 앞쪽 guidance (TWO images + wordmark ≠ style reference) + 본문 + 뒤쪽 FINAL REMINDER
+  - "exactly ONE prop" 제약 — 머그/접시/포장지 중 하나에만 각인 (초기엔 여러 개 중복됨 → 문구 강화)
+  - Protocol `ImageClient` 로 의존 주입, `_RealOpenAIImageClient` 가 `langfuse.openai.OpenAI.images.edit` 호출
+- `ImageBackendKind.OPENAI_IMAGE` 신설, 기본값 전환 (MOCK → OPENAI_IMAGE)
+- `ImageGenerationRequest.logo_path` 추가, `app.py` 두 생성 경로 (`_run_image_generation`, `_run_combined_generation`) 에서 `brand.logo_path` 주입
+- `ui/sidebar.py` OPENAI_IMAGE 라벨 추가 (최상단)
+- 테스트 17개 추가 (build_multi_input_prompt 11 + OpenAIImageBackend 6), 총 124 passed
+- 📱 스모크 통과 — 머그/봉투/접시에 `goorm` 워드마크 정확히 각인, 컬러(#5562EA) 정확
+- 알려진 한계 (CP16 에서 다듬을 예정):
+  - "exactly ONE prop" 지시해도 모델이 종종 2~3곳에 중복 각인 → 프롬프트/로고 이미지 추가 조정 필요
+
+### ✅ CP16 — 각인 양조절 (긍정형 blank 지시)
+- `_TAIL_REMINDER` 재작성: 부정형 "Do NOT repeat" → 긍정형 "All OTHER props MUST be COMPLETELY BLANK"
+  · napkin/packaging/plate 를 명시적으로 plain 하게 두라고 지시
+- 테스트 +1 (총 125 passed)
+- 📱 스모크 통과 — 머그에만 `goorm` 각인, 봉투/냅킨/접시 전부 blank
+- 단일 실험으로 효과 확인 → 바로 머지
+
+### 🔜 다음 — 머지
+- `refactor/flow-logo` → `refactor/flow`, `logo_gen_exp/` 는 제외

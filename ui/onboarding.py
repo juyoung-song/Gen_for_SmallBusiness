@@ -18,6 +18,7 @@ import streamlit as st
 from backends.insta_capture import InstaCaptureBackend
 from config.database import AsyncSessionLocal
 from services.brand_service import BrandService
+from services.logo_service import LogoAutoGenerator
 from services.onboarding_service import (
     BrandDraft,
     GPTVisionAnalyzer,
@@ -26,7 +27,11 @@ from services.onboarding_service import (
 from utils.async_runner import run_async
 
 
-_ONBOARDING_DIR = Path(__file__).resolve().parent.parent / "data" / "onboarding"
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_ONBOARDING_DIR = _PROJECT_ROOT / "data" / "onboarding"
+# CP14: 로고 자동 생성용 폰트 / 저장 디렉토리.
+_LOGO_FONT_PATH = _PROJECT_ROOT / "assets" / "fonts" / "LXGWWenKaiKR-Medium.ttf"
+_BRAND_ASSETS_DIR = _PROJECT_ROOT / "data" / "brand_assets"
 
 
 def render_onboarding_screen(settings) -> None:
@@ -223,11 +228,17 @@ def _persist_draft(settings, draft: BrandDraft) -> None:
     async def _save() -> None:
         async with AsyncSessionLocal() as session:
             brand_service = BrandService(session)
+            # 로고 미업로드 시 PIL 폰트 렌더링으로 자동 생성 (CP14).
+            logo_generator = LogoAutoGenerator(
+                font_path=_LOGO_FONT_PATH,
+                save_dir=_BRAND_ASSETS_DIR,
+            )
             service = OnboardingService(
                 capture_backend=InstaCaptureBackend(),  # 재사용 없음
                 vision_analyzer=GPTVisionAnalyzer(settings),  # 재사용 없음
                 onboarding_dir=_ONBOARDING_DIR,
                 brand_service=brand_service,
+                logo_generator=logo_generator,
             )
             await service.finalize(draft)
 
