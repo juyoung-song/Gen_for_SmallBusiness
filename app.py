@@ -910,11 +910,24 @@ with tab_create:
         st.markdown("#### <span class='step-badge'>3</span> 옵션 선택 🎨", unsafe_allow_html=True)
 
         # 광고 목적: 칩 6종 + 자유 텍스트 (design.md §4.1.1)
+        # 기존 상품(is_new_product=False)에는 "신메뉴 출시" 목적을 허용하지 않는다.
+        # 프롬프트 빌더에서 상품 상태("검증된 매력/신뢰감")와 Visual Strategy
+        # ("first-reveal novelty")가 충돌하는 것을 UI 레벨에서 미리 차단.
+        if is_new_product:
+            goal_options = list(GOAL_CATEGORIES)
+        else:
+            goal_options = [c for c in GOAL_CATEGORIES if c != "신메뉴 출시"]
+
+        # 이전 선택값이 새 옵션 목록에 없으면 세션 키를 제거해 default 로 초기화.
+        _prev_goal = st.session_state.get("goal_category_pills")
+        if _prev_goal is not None and _prev_goal not in goal_options:
+            del st.session_state["goal_category_pills"]
+
         st.markdown("🎯 이번 홍보의 목적은 무엇인가요?")
         goal_category = st.pills(
             label="광고 목적 카테고리",
-            options=list(GOAL_CATEGORIES),
-            default=GOAL_CATEGORIES[0],
+            options=goal_options,
+            default=goal_options[0],
             label_visibility="collapsed",
             key="goal_category_pills",
         )
