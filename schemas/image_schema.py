@@ -60,6 +60,14 @@ class ImageGenerationRequest(BaseModel):
         default="",
         description="참조 이미지 분석 텍스트. 시각적 합성의 1차 참고 자료.",
     )
+    logo_path: str | None = Field(
+        default=None,
+        description=(
+            "브랜드 로고 PNG 파일 경로 (brand.logo_path). "
+            "OpenAIImageBackend 가 multi-input 으로 함께 모델에 주입할 때 사용. "
+            "그 외 백엔드(HF/Mock)는 무시 가능."
+        ),
+    )
 
     @field_validator("style")
     @classmethod

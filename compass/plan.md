@@ -438,7 +438,20 @@ Phase 2 — MVP 완성 (기능 추가)
 - 테스트 13개 (logo_service 8 + onboarding 통합 5)
 - 📱 스모크 통과
 
-### 🔜 CP15+ (다음 세션)
-- 이미지 생성 백엔드 `gpt-image-1-mini` 전환
-- multi-input 으로 상품 이미지 + 로고 동시 주입 → 컵·접시에 로고 자연스럽게 렌더링
+### ✅ CP15 — OpenAIImageBackend (gpt-image-1-mini 상품+로고 multi-input)
+- `backends/openai_image.py` 신설 — `OpenAIImageBackend` + `build_multi_input_prompt`
+  - 샌드위치 구조: 앞쪽 guidance (TWO images + wordmark ≠ style reference) + 본문 + 뒤쪽 FINAL REMINDER
+  - "exactly ONE prop" 제약 — 머그/접시/포장지 중 하나에만 각인 (초기엔 여러 개 중복됨 → 문구 강화)
+  - Protocol `ImageClient` 로 의존 주입, `_RealOpenAIImageClient` 가 `langfuse.openai.OpenAI.images.edit` 호출
+- `ImageBackendKind.OPENAI_IMAGE` 신설, 기본값 전환 (MOCK → OPENAI_IMAGE)
+- `ImageGenerationRequest.logo_path` 추가, `app.py` 두 생성 경로 (`_run_image_generation`, `_run_combined_generation`) 에서 `brand.logo_path` 주입
+- `ui/sidebar.py` OPENAI_IMAGE 라벨 추가 (최상단)
+- 테스트 17개 추가 (build_multi_input_prompt 11 + OpenAIImageBackend 6), 총 124 passed
+- 📱 스모크 통과 — 머그/봉투/접시에 `goorm` 워드마크 정확히 각인, 컬러(#5562EA) 정확
+- 알려진 한계 (CP16 에서 다듬을 예정):
+  - "exactly ONE prop" 지시해도 모델이 종종 2~3곳에 중복 각인 → 프롬프트/로고 이미지 추가 조정 필요
+
+### 🔜 CP16+ (다음)
+- 로고 각인 양조절 (one prop only 엄수)
+- 로고 PNG 렌더링 강화 (콘트라스트/두께) — 필요 시
 - 머지 전략: `refactor/flow-logo` → `refactor/flow`, `logo_gen_exp/` 는 제외

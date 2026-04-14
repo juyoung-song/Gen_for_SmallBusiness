@@ -51,6 +51,7 @@ backends/                  # 이미지/텍스트 생성 백엔드 (Step 1.1 ✅)
   hf_hybrid.py             # IP-Adapter + img2img 하이브리드
   hf_inference_api.py      # Hugging Face Serverless Inference API
   openai_gpt.py            # OpenAI GPT (텍스트)
+  openai_image.py          # (CP15 ✅) OpenAI gpt-image-1-mini 상품+로고 multi-input edit, 기본 백엔드
   remote_worker.py         # 자체 원격 워커 클라이언트 (worker_api.py 호출)
   insta_capture.py         # (Step 2.1 ✅) browser-use CLI 기반 인스타 캡처
   mock_image.py
