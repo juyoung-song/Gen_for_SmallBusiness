@@ -876,6 +876,24 @@ with tab_create:
                     product_description = selected_product.product_description
                     existing_raw_image_path = selected_product.product_image_path
 
+                    # 상품 이미지 미리보기 — 예전 Generation 에 저장된 원본 상품 사진
+                    if existing_raw_image_path and Path(existing_raw_image_path).exists():
+                        col_img, col_info = st.columns([1, 2])
+                        with col_img:
+                            st.image(existing_raw_image_path, width="stretch")
+                        with col_info:
+                            st.caption("📦 기존 상품 이미지")
+                            st.markdown(f"**{selected_product.product_name}**")
+                            st.markdown(
+                                f"_{selected_product.product_description}_"
+                                if selected_product.product_description
+                                else ""
+                            )
+                    elif existing_raw_image_path:
+                        st.warning(
+                            f"❓ 기존 상품 이미지 파일을 찾을 수 없어요: {existing_raw_image_path}"
+                        )
+
     # 2. 생성 타입 섹션
     with st.container(border=True):
         st.markdown("#### <span class='step-badge'>2</span> 무엇을 만드시겠어요? ⚙️", unsafe_allow_html=True)
