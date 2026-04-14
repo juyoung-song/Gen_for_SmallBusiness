@@ -32,6 +32,7 @@ from openai import (
 from pydantic import BaseModel, Field
 
 from config.database import AsyncSessionLocal, init_db
+from config.runtime_paths import ROOT_DIR, get_app_data_dir
 from config.settings import get_settings, setup_logging
 from models.brand import Brand
 from schemas.image_schema import ImageGenerationRequest
@@ -58,8 +59,7 @@ from services.text_service import TextService, TextServiceError
 from services.upload_service import UploadService
 from utils.staging_storage import save_to_brand_assets, save_to_staging
 
-ROOT_DIR = Path(__file__).resolve().parent
-DATA_DIR = ROOT_DIR / "data"
+DATA_DIR = get_app_data_dir()
 STITCH_DIR = ROOT_DIR / "stitch"
 ONBOARDING_DIR = DATA_DIR / "onboarding" / "mobile"
 

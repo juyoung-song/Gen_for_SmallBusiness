@@ -5,11 +5,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=ubuntu
-Group=ubuntu
-WorkingDirectory=/opt/brewgram/Gen_for_SmallBusiness
+User=spai0608
+Group=spai0608
+WorkingDirectory=/home/spai0608/Gen_for_SmallBusiness
 EnvironmentFile=/etc/brewgram/mobile_app.env
-ExecStart=/usr/local/bin/uv run uvicorn mobile_app:app --host 127.0.0.1 --port 8007
+ExecStart=/home/spai0608/.local/bin/uv run uvicorn mobile_app:app --host 127.0.0.1 --port 8011
 Restart=always
 RestartSec=5
 TimeoutStopSec=20
