@@ -98,11 +98,12 @@
     }
   </style>
   </head>
-<body class="min-h-screen flex flex-col items-center justify-start bg-surface overflow-x-hidden" data-stitch-page="onboarding-2">
+<body class="bg-surface text-on-surface min-h-screen flex flex-col items-center justify-start overflow-x-hidden" data-stitch-page="onboarding-2">
 <!-- Top AppBar (Navigation Shell Suppressed for Onboarding Flow) -->
-<header class="w-full max-w-md px-6 py-8 flex items-center justify-between">
-<button class="w-12 h-12 flex items-center justify-center rounded-full bg-surface-container-low active:scale-95 transition-transform duration-200" id="step2-back" type="button">
-<span class="material-symbols-outlined text-on-surface-variant">arrow_back</span>
+<header class="fixed top-0 w-full z-50 bg-[#fff8ef]/80 dark:bg-stone-950/80 backdrop-blur-xl">
+<div class="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
+<button class="text-[#954a25] dark:text-[#f1e7d2] hover:bg-[#f1e7d2]/50 active:scale-95 transition-all p-2 rounded-full" id="step2-back" type="button">
+<span class="material-symbols-outlined">arrow_back</span>
 </button>
 <div class="flex flex-col items-center gap-1">
 <div class="brand-lockup">
@@ -116,10 +117,11 @@
 </div>
 <span class="font-label text-[10px] font-bold text-primary tracking-widest uppercase film-step">STEP 02/04</span>
 </div>
-<div class="w-12"></div>
+<div class="w-10"></div>
+</div>
 </header>
 <!-- Main Content Canvas -->
-<main class="w-full max-w-md px-6 flex flex-col flex-grow">
+<main class="w-full max-w-2xl px-6 pt-24 pb-32 flex flex-col flex-grow">
 <!-- Headline Section -->
 <section class="mb-8">
 <p class="film-note">collect the mood you love</p>
@@ -208,9 +210,13 @@
                 링크 하나만 있거나 이미지 한 장만 있어도 충분해요. 아무것도 없다면 지금은 건너뛰고, 나중에 메인 화면에서 다시 추가할 수도 있어요.
             </p>
 </div>
+<section class="pb-4">
+<p class="px-2 text-sm text-primary font-medium" id="reference-image-status"></p>
+</section>
 </main>
 <!-- Fixed Footer Action Area -->
-<footer class="w-full max-w-md p-6 bg-surface/90 backdrop-blur-xl flex gap-3 pb-10">
+<footer class="fixed bottom-0 left-0 w-full bg-surface/90 backdrop-blur-xl px-8 pb-10 pt-6 z-50">
+<div class="max-w-2xl mx-auto flex gap-3">
 <button class="flex-[1] h-14 rounded-full font-label font-bold text-on-surface-variant hover:bg-surface-container-high transition-colors active:scale-95" id="step2-skip" type="button">
             건너뛰기
         </button>
@@ -218,7 +224,7 @@
             다음
             <span class="material-symbols-outlined text-xl">arrow_forward</span>
 </button>
+</div>
 </footer>
-<p class="px-6 pb-6 text-sm text-primary font-medium" id="reference-image-status"></p>
 <script src="../shared.js"></script>
 </body></html>
