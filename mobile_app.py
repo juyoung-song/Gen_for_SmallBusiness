@@ -575,8 +575,8 @@ async def mobile_instagram_connect_url(
         return MobileInstagramConnectResponse(
             mode="placeholder",
             message=(
-                "인스타그램 연결 API 자리는 준비되어 있지만, 실제 Meta OAuth 설정은 아직 연결되지 않았습니다. "
-                "다른 팀원이 이 응답 계약(mode/url/message)을 기준으로 실제 연동을 이어붙이면 됩니다."
+                "현재 환경에는 Meta 로그인 설정이 아직 연결되지 않았습니다. "
+                "설정이 준비되면 이 버튼으로 Facebook 로그인과 Instagram 계정 연결을 바로 시작할 수 있습니다."
             ),
         )
 

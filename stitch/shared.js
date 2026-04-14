@@ -240,13 +240,13 @@
       return "재연결 필요";
     }
     if (summary.connection_source === "env") {
-      return "관리자 계정 준비";
+      return "기본 업로드 계정 사용 중";
     }
     if (summary.oauth_available) {
       return "미연결";
     }
     if (summary.connect_available) {
-      return "연동 준비 중";
+      return "연결 안내 준비";
     }
     return "설정 필요";
   }
@@ -263,15 +263,15 @@
       return "이전 연결이 만료되었습니다. 다시 연결하면 이후 업로드 흐름에 그대로 이어붙일 수 있습니다.";
     }
     if (summary.connection_source === "env") {
-      return "현재는 관리자 고정 계정 업로드 환경만 준비되어 있습니다. 사장님 계정을 직접 연결하려면 Meta OAuth 설정이 필요합니다.";
+      return "현재는 기본 업로드 계정만 연결되어 있습니다. 사장님 계정을 직접 연결하려면 Meta 로그인 설정이 필요합니다.";
     }
     if (summary.oauth_available) {
-      return "사장님 본인 계정을 한 번만 연결해두면 이후 피드/스토리 업로드를 자연스럽게 이어붙일 수 있습니다.";
+      return "사장님 본인 계정을 한 번만 연결해두면 이후 피드와 스토리를 바로 업로드할 수 있습니다.";
     }
     if (summary.connect_available) {
-      return "인스타그램 연결 API는 먼저 준비되어 있습니다. 실제 Meta OAuth 설정만 붙이면 지금 버튼 흐름을 그대로 사용할 수 있습니다.";
+      return "연결 흐름과 API는 준비되어 있습니다. Meta 앱 설정만 붙이면 지금 버튼으로 실제 연결을 바로 시작할 수 있습니다.";
     }
-    return "Meta OAuth 환경 설정이 아직 없어 개인 계정 연결 기능을 켤 수 없습니다.";
+    return "현재 환경에서는 Meta 로그인 설정이 없어 사장님 계정 연결을 시작할 수 없습니다.";
   }
 
   function instagramSettingsNote(summary, onboardingCompleted = true) {
@@ -285,12 +285,12 @@
       return "만료 후에는 다시 연결만 하면 됩니다. 저장된 UI 흐름이나 생성 결과는 그대로 유지됩니다.";
     }
     if (summary.oauth_available) {
-      return "이 화면이 계정 연결을 관리하는 유일한 진입점입니다. 홈과 결과 화면은 상태 요약과 연결 유도만 담당합니다.";
+      return "이 화면에서 연결과 재연결을 관리합니다. 한번 연결해두면 이후 업로드 버튼이 같은 계정을 사용합니다.";
     }
     if (summary.connect_available) {
-      return "버튼과 API 계약은 준비되어 있습니다. 현재는 placeholder 응답만 내려주고 있어, 다음 구현 단계에서 실제 Meta OAuth만 연결하면 됩니다.";
+      return "버튼과 API는 준비되어 있습니다. Meta 앱 설정만 연결되면 이 버튼이 바로 실제 로그인 화면으로 이어집니다.";
     }
-    return "현재 환경에서는 개인 계정 연결이 비활성화되어 있습니다.";
+    return "현재 환경에서는 사장님 계정 연결을 사용할 수 없습니다.";
   }
 
   function instagramGuideCopy(summary) {
@@ -302,13 +302,13 @@
       return "이전 인스타그램 연결이 만료되었습니다. 설정에서 다시 연결해두면 이후 자동 업로드 흐름을 자연스럽게 붙일 수 있습니다.";
     }
     if (summary.connection_source === "env") {
-      return "현재는 관리자 고정 계정 업로드 환경만 준비되어 있습니다. 사장님 계정 직접 연결은 설정에서 관리합니다.";
+      return "현재는 기본 업로드 계정으로만 게시할 수 있습니다. 사장님 계정 직접 연결은 설정에서 시작합니다.";
     }
     if (summary.oauth_available) {
-      return "자동 업로드 기능은 아직 연결 전이지만, 설정에서 인스타그램 계정을 미리 연결해둘 수 있습니다.";
+      return "사장님 계정을 한 번 연결해두면, 이후 피드와 스토리를 바로 업로드할 수 있습니다.";
     }
     if (summary.connect_available) {
-      return "인스타그램 연결 UI와 API는 먼저 준비되어 있습니다. 실제 인증 연결은 다음 단계에서 이어붙이면 됩니다.";
+      return "연결 UI와 API는 준비되어 있습니다. Meta 앱 설정만 붙이면 바로 실제 연결을 시작할 수 있습니다.";
     }
     return "자동 업로드는 다음 단계에서 연결합니다. 지금은 저장 버튼과 인스타그램 미리보기 중심으로 결과를 점검하면 됩니다.";
   }
@@ -339,7 +339,7 @@
     }
     return {
       tone: "neutral",
-      html: `현재는 관리자 고정 계정 업로드 환경이 준비되어 있습니다. 지금 ${target} 업로드를 시도할 수 있고, 사장님 계정으로 쓰려면 <a href="${PATHS.settings}">설정에서 연결</a>해 주세요.`,
+      html: `현재는 기본 업로드 계정으로 ${target} 업로드를 시도합니다. 사장님 계정으로 바로 올리려면 <a href="${PATHS.settings}">설정에서 Meta 계정 연결</a>을 먼저 진행해 주세요.`,
       status: `${target} 업로드 준비가 완료되었습니다.`,
     };
   }
@@ -793,13 +793,13 @@
             "이전 연결이 만료되었습니다. 지금 다시 연결하거나, 나중에 설정 화면에서 이어서 연결할 수 있습니다.";
         } else if (summary.oauth_available) {
           copyNode.textContent =
-            "지금 연결해두면 이후 업로드 기능이 붙었을 때 더 자연스럽게 이어집니다. 원하지 않으면 건너뛰어도 됩니다.";
+            "지금 Meta 로그인으로 한 번만 연결해두면, 이후 피드와 스토리를 바로 업로드할 수 있습니다. 원하지 않으면 건너뛰어도 됩니다.";
         } else if (summary.connect_available) {
           copyNode.textContent =
-            "실제 인증 연결은 아직 비어 있지만, 이 버튼과 API 응답 계약은 이미 준비되어 있습니다. 다른 팀원이 바로 이어서 붙일 수 있습니다.";
+            "이 화면의 연결 흐름은 준비되어 있습니다. 지금은 Meta 앱 설정이 없어 실제 로그인 창을 띄우지 못하지만, 설정만 붙으면 바로 연결을 시작할 수 있습니다.";
         } else {
           copyNode.textContent =
-            "현재 환경에서는 계정 연결을 사용할 수 없습니다. 나중에 설정이 준비되면 설정 화면에서 연결할 수 있습니다.";
+            "현재 환경에서는 계정 연결을 사용할 수 없습니다. 나중에 설정이 준비되면 설정 화면에서 Meta 로그인을 진행할 수 있습니다.";
         }
       }
       if (noteNode) {
@@ -813,7 +813,7 @@
           "hidden",
           !bootstrap?.onboarding_completed || !summary.connect_available || summary.connected,
         );
-        connectButton.textContent = summary.expired ? "다시 연결하기" : "인스타 계정 연결";
+        connectButton.textContent = summary.expired ? "Meta로 다시 연결하기" : "Meta로 계속하기";
       }
     };
 
@@ -848,7 +848,7 @@
         }
         setStatus(
           statusNode,
-          response.message || "인스타그램 연결 API는 준비되어 있지만 실제 인증 설정은 아직 연결되지 않았습니다.",
+          response.message || "Meta 로그인 설정이 아직 연결되지 않아 실제 연결 화면을 열 수 없습니다.",
           "neutral",
         );
       } catch (error) {
@@ -1268,6 +1268,12 @@
       instagramConnectButton?.classList.toggle("hidden", !canConnect);
       instagramReconnectButton?.classList.toggle("hidden", !canReconnect);
       instagramDisconnectButton?.classList.toggle("hidden", !canDisconnect);
+      if (instagramConnectButton) {
+        instagramConnectButton.textContent = "Meta로 연결하기";
+      }
+      if (instagramReconnectButton) {
+        instagramReconnectButton.textContent = "Meta로 다시 연결하기";
+      }
     };
 
     const loadSettingsStatus = async () => {
@@ -1321,7 +1327,7 @@
         }
         setStatus(
           statusNode,
-          response.message || "인스타그램 연결 API는 준비되어 있지만 실제 인증 설정은 아직 연결되지 않았습니다.",
+          response.message || "Meta 로그인 설정이 아직 연결되지 않아 실제 연결 화면을 열 수 없습니다.",
           "neutral",
         );
       } catch (error) {
@@ -1342,7 +1348,7 @@
         }
         setStatus(
           statusNode,
-          response.message || "인스타그램 연결 API는 준비되어 있지만 실제 인증 설정은 아직 연결되지 않았습니다.",
+          response.message || "Meta 로그인 설정이 아직 연결되지 않아 실제 연결 화면을 열 수 없습니다.",
           "neutral",
         );
       } catch (error) {
