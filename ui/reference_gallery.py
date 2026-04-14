@@ -45,12 +45,24 @@ def render_reference_gallery() -> tuple[list[str], list[str]]:
         )
         return [], []
 
+    # 같은 이미지(GenerationOutput) 가 피드/스토리 등 여러 번 업로드되면
+    # list_published 가 pair 를 중복 반환한다. 갤러리는 이미지 단위로 unique.
+    # (가장 최근 posted_at 순으로 내려오므로 첫 등장만 취하면 최신 caption 유지.)
+    seen_output_ids: set[str] = set()
+    unique_pairs: list = []
+    for u, o in pairs:
+        oid = str(o.id)
+        if oid in seen_output_ids:
+            continue
+        seen_output_ids.add(oid)
+        unique_pairs.append((u, o))
+
     st.caption(
         f"이전에 올린 광고 중 비슷한 톤으로 가고 싶은 걸 골라주세요 (선택, 다중 가능). "
-        f"총 {len(pairs)}장 · 최근 {min(len(pairs), _MAX_DISPLAY)}장 표시."
+        f"총 {len(unique_pairs)}장 · 최근 {min(len(unique_pairs), _MAX_DISPLAY)}장 표시."
     )
 
-    display_pairs = pairs[:_MAX_DISPLAY]
+    display_pairs = unique_pairs[:_MAX_DISPLAY]
     selected_ids: set[str] = set(st.session_state.reference_selected_ids)
 
     for row_start in range(0, len(display_pairs), _GALLERY_COLS):
@@ -66,7 +78,7 @@ def render_reference_gallery() -> tuple[list[str], list[str]]:
     # 선택된 output id → (content_path, output_id)
     selected_paths: list[str] = []
     selected_output_ids: list[str] = []
-    for _, o in pairs:
+    for _, o in unique_pairs:
         if str(o.id) in selected_ids and o.content_path:
             selected_paths.append(o.content_path)
             selected_output_ids.append(str(o.id))
