@@ -125,6 +125,10 @@ class BrandDraft:
     def with_edited_style_prompt(self, new_prompt: str) -> "BrandDraft":
         return replace(self, style_prompt=new_prompt)
 
+    def with_logo_path(self, path: str) -> "BrandDraft":
+        """로고 경로만 교체한 새 BrandDraft 반환 (frozen 이라 replace 사용)."""
+        return replace(self, logo_path=path)
+
 
 # ──────────────────────────────────────────────
 # 주입 가능한 외부 의존성 프로토콜
@@ -139,6 +143,15 @@ class _VisionAnalyzerProto(Protocol):
     def analyze(
         self, freetext: str, image_paths: list[Path]
     ) -> str: ...
+
+
+class _LogoGeneratorProto(Protocol):
+    """services.logo_service.LogoAutoGenerator 가 충족하는 최소 인터페이스.
+
+    테스트에서 Fake 로 대체 가능하도록 Protocol 로 분리.
+    """
+
+    def generate_and_save(self, *, name: str, color_hex: str) -> Path: ...
 
 
 # ──────────────────────────────────────────────
@@ -199,11 +212,13 @@ class OnboardingService:
         vision_analyzer: _VisionAnalyzerProto,
         onboarding_dir: Path,
         brand_service: BrandService | None = None,
+        logo_generator: _LogoGeneratorProto | None = None,
     ) -> None:
         self.capture_backend = capture_backend
         self.vision_analyzer = vision_analyzer
         self.onboarding_dir = Path(onboarding_dir)
         self.brand_service = brand_service
+        self.logo_generator = logo_generator
 
     async def generate_draft(
         self,
@@ -251,12 +266,25 @@ class OnboardingService:
         )
 
     async def finalize(self, draft: BrandDraft) -> Brand:
-        """검수를 마친 draft 를 Brand 로 DB 저장."""
+        """검수를 마친 draft 를 Brand 로 DB 저장.
+
+        draft.logo_path 가 비어있고 logo_generator 가 주입돼 있으면,
+        자동으로 PIL 워드마크 로고를 생성해 draft 에 반영한 뒤 저장한다.
+        """
         if self.brand_service is None:
             raise RuntimeError(
                 "OnboardingService 에 brand_service 가 주입되지 않았습니다. "
                 "finalize() 호출 전에 설정해주세요."
             )
+
+        # 로고 미업로드 + 생성기 주입 → 자동 생성
+        if draft.logo_path is None and self.logo_generator is not None:
+            generated_path = self.logo_generator.generate_and_save(
+                name=draft.name, color_hex=draft.color_hex
+            )
+            logger.info("로고 자동 생성 완료 → %s", generated_path)
+            draft = draft.with_logo_path(str(generated_path))
+
         return await self.brand_service.create(
             name=draft.name,
             color_hex=draft.color_hex,

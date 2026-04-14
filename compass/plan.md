@@ -419,3 +419,26 @@ Phase 2 — MVP 완성 (기능 추가)
 - [ ] 인스타 게시 성공 시 generated_upload 자동 저장
 - [ ] DB I/O가 메인 경로에서 빠짐 (백그라운드)
 - [ ] legacy 코드 (`history.py`, `crawl_and_analyze/image_crawler.py`) 제거
+
+---
+
+## Phase 3 로그 (refactor/flow-logo 브랜치)
+
+### ✅ CP13-exp — AI 로고 자동 생성 실험 (logo_gen_exp/)
+- 4개 모드 비교: AI(gpt-image-1-mini) / PIL 폰트 / PIL+AI edit / Raw
+- 결론: **PIL 폰트 렌더링만 production 채택**. AI 는 실험 아카이브.
+- 47 tests. 상세: `logo_gen_exp/compass/` 참고.
+
+### ✅ CP14 — 온보딩 자동 로고 생성
+- `services/logo_service.py` 신설 (PIL render_wordmark + LogoAutoGenerator)
+- `assets/fonts/LXGWWenKaiKR-Medium.ttf` + OFL.txt 배치
+- `BrandDraft.with_logo_path` 추가
+- `OnboardingService.finalize`: `logo_path is None` 이면 자동 생성
+- `ui/onboarding.py` 의존성 주입
+- 테스트 13개 (logo_service 8 + onboarding 통합 5)
+- 📱 스모크 통과
+
+### 🔜 CP15+ (다음 세션)
+- 이미지 생성 백엔드 `gpt-image-1-mini` 전환
+- multi-input 으로 상품 이미지 + 로고 동시 주입 → 컵·접시에 로고 자연스럽게 렌더링
+- 머지 전략: `refactor/flow-logo` → `refactor/flow`, `logo_gen_exp/` 는 제외

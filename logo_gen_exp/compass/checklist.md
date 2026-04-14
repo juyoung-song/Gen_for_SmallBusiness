@@ -73,12 +73,12 @@
 
 ## 다음 단계 (별도 CP)
 
-- [ ] **CP14**: `services/logo_service.py` 이식
-  - [ ] 폰트 이동: `logo_gen_exp/LXGWWenKaiKR-Medium.ttf` + `OFL.txt` → `assets/fonts/`
-  - [ ] `render_wordmark` + `LogoAutoGenerator` 신설
-  - [ ] `BrandDraft.with_logo_path` 추가
-  - [ ] `OnboardingService.finalize` 통합 — `logo_path is None` 이면 자동 생성
-  - [ ] `ui/onboarding.py` `_persist_draft` 에 `LogoAutoGenerator` 주입
-  - [ ] 테스트 이식
-  - [ ] 📱 실사용 스모크
+- [x] **CP14**: `services/logo_service.py` 이식 ✅ 완료
+  - [x] 폰트 이동: `assets/fonts/LXGWWenKaiKR-Medium.ttf` + `OFL.txt`
+  - [x] `render_wordmark` + `LogoAutoGenerator` 신설
+  - [x] `BrandDraft.with_logo_path` 추가
+  - [x] `OnboardingService.finalize` 통합 — `logo_path is None` 이면 자동 생성
+  - [x] `ui/onboarding.py` `_persist_draft` 에 `LogoAutoGenerator` 주입
+  - [x] 테스트: `tests/test_services/test_logo_service.py` (8) + `test_onboarding_service_logo.py` (5)
+  - [x] 📱 실사용 스모크: 로고 미업로드 온보딩 → `brands.logo_path` 자동 채움 확인
 - [ ] **CP15+**: 이미지 생성 백엔드 `gpt-image-1-mini` 로 전환, multi-input 로고 주입

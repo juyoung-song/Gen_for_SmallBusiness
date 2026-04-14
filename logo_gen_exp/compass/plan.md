@@ -88,7 +88,7 @@ AI 모드 (gpt-image-1-mini generate / edit / raw edit) 는 실험 폴더에만 
 
 - ✅ **채택**: PIL 폰트 렌더링 (결정적, 비용 0, 한글 정확)
 - ❌ **비채택**: gpt-image-1-mini generate/edit (결과 품질 편차 크고, 장식 오염, 배경 변형 등 제어 어려움)
-- 🔜 **CP14** (별도): PIL 렌더러를 `services/logo_service.py` 로 이식, `OnboardingService.finalize` 에서 `logo_path` 없으면 자동 생성
+- ✅ **CP14** 완료: PIL 렌더러 → `services/logo_service.py` 이식, `OnboardingService.finalize` 통합. 📱 스모크 통과.
 - 🔜 **CP15+** (별도): 이미지 생성 백엔드를 `gpt-image-1-mini` 로 전환 + multi-input 으로 상품 사진 + 로고 동시 주입
 
 ## 결정 변경 이력
