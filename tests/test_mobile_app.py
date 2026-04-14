@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
+from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 from fastapi import HTTPException
 from openai import APITimeoutError
 from types import SimpleNamespace
-from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import mobile_app
+from schemas.image_schema import ImageGenerationResponse
 from schemas.instagram_schema import CaptionGenerationResponse
+from schemas.text_schema import TextGenerationResponse
+from services.generation_service import GenerationService
 from services.instagram_auth_service import InstagramPageConnectionRequiredError
 
 
@@ -104,6 +108,115 @@ class TestMobileCaption:
 
         assert response.caption == "따뜻한 식감이 오래 남는 식빵 한 장"
         assert response.hashtags == "#식빵 #베이커리"
+
+
+class TestMobileGenerate:
+    async def test_passes_langfuse_trace_id_to_generation_save(self, monkeypatch):
+        brand = SimpleNamespace(
+            id=uuid4(),
+            name="구름 베이커리",
+            color_hex="#ff7448",
+            style_prompt="따뜻한 브랜드 가이드",
+        )
+        captured: dict = {}
+
+        async def fake_load_brand():
+            return brand
+
+        async def fake_run_in_threadpool(func, *args, **kwargs):
+            return func(*args, **kwargs)
+
+        async def fake_save_generation_outputs(**kwargs):
+            captured.update(kwargs)
+            return uuid4(), uuid4()
+
+        def fake_generate_ad_copy(self, request):
+            return TextGenerationResponse(
+                ad_copies=["따뜻한 아침을 여는 소금빵"],
+                promo_sentences=["한 입 베어 물면 하루가 부드럽게 시작돼요."],
+                story_copies=["오늘의 첫 빵"],
+            )
+
+        def fake_generate_ad_image(self, request):
+            return ImageGenerationResponse(
+                image_data=b"fake-image",
+                revised_prompt="warm bakery prompt",
+            )
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+        monkeypatch.setattr(mobile_app, "run_in_threadpool", fake_run_in_threadpool)
+        monkeypatch.setattr(
+            mobile_app,
+            "_save_generation_outputs",
+            fake_save_generation_outputs,
+        )
+        monkeypatch.setattr(
+            mobile_app.TextService,
+            "generate_ad_copy",
+            fake_generate_ad_copy,
+        )
+        monkeypatch.setattr(
+            mobile_app.ImageService,
+            "generate_ad_image",
+            fake_generate_ad_image,
+        )
+        monkeypatch.setattr(mobile_app, "_langfuse_trace_span", lambda _name: nullcontext())
+        monkeypatch.setattr(
+            mobile_app,
+            "_capture_langfuse_trace_id",
+            lambda: "trace-mobile-123",
+        )
+
+        await mobile_app.mobile_generate(
+            mobile_app.MobileGenerateRequest(
+                product_name="소금빵",
+                description="겉은 바삭하고 속은 촉촉한 대표 메뉴",
+                generation_type="both",
+            )
+        )
+
+        assert captured["langfuse_trace_id"] == "trace-mobile-123"
+
+    async def test_save_generation_outputs_persists_langfuse_trace_id(
+        self,
+        monkeypatch,
+        db_session,
+        brand_factory,
+    ):
+        brand = await brand_factory()
+
+        class DummySessionContext:
+            async def __aenter__(self):
+                return db_session
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        monkeypatch.setattr(
+            mobile_app,
+            "AsyncSessionLocal",
+            lambda: DummySessionContext(),
+        )
+
+        generation_id, _ = await mobile_app._save_generation_outputs(
+            brand=brand,
+            product_name="소금빵",
+            description="버터 풍미가 진한 대표 메뉴",
+            goal="일반 홍보",
+            tone="기본",
+            text_result={
+                "ad_copies": ["따뜻한 소금빵"],
+                "promo_sentences": ["오늘 가장 먼저 집어 들게 되는 빵"],
+                "story_copies": ["갓 구운 소금빵"],
+            },
+            image_bytes=None,
+            langfuse_trace_id="trace-mobile-abc",
+        )
+
+        saved = await GenerationService(db_session).get_with_outputs(generation_id)
+
+        assert saved is not None
+        assert saved.langfuse_trace_id == "trace-mobile-abc"
 
 
 class TestInstagramSummary:
