@@ -3,6 +3,7 @@
 현 브랜치(`refactor/flow`) 코드 기준의 **실제 실행 경로** 문서.
 
 다루는 범위:
+
 1. **광고 생성** — 텍스트 / 이미지 / 결합 3종, 프롬프트 조립, DB 저장(Generation + Outputs)
 2. **참조 이미지** — reference gallery 선택 → 구도 분석(Vision) → ImageGenerationRequest 주입
 3. **피드 캡션 생성** — Instagram preview + 편집 + 게시
@@ -19,22 +20,25 @@
 ### 1.1 개요
 
 한 번의 생성 요청은:
+
 - **Generation 1건** + **GenerationOutput N건** 을 단일 트랜잭션으로 INSERT
 - Langfuse 루트 span 아래에 OpenAI 호출들이 자식 observation 으로 묶여 `langfuse_trace_id` 1개로 추적
 - 참조 이미지가 있으면 구도 분석 후 `Generation.reference_image_id` FK 로 연결
 
 3개 경로:
-| 타입 | 함수 | OpenAI 호출 수 | Langfuse 루트 span |
-|------|------|----------------|-------------------|
-| 텍스트만 | `_run_text_generation` | 1 | `generation.text_only` |
-| 이미지만 | `_run_image_generation` | 2 (번역 + 이미지) | `generation.image_only` |
-| 결합 | `_run_combined_generation` | 3 (텍스트 + 번역 + 이미지) | `generation.combined` |
+
+| 타입     | 함수                         | OpenAI 호출 수             | Langfuse 루트 span        |
+| -------- | ---------------------------- | -------------------------- | ------------------------- |
+| 텍스트만 | `_run_text_generation`     | 1                          | `generation.text_only`  |
+| 이미지만 | `_run_image_generation`    | 2 (번역 + 이미지)          | `generation.image_only` |
+| 결합     | `_run_combined_generation` | 3 (텍스트 + 번역 + 이미지) | `generation.combined`   |
 
 ### 1.2 진입 — 탭 "새로 만들기"
 
 [app.py:813~1048](../app.py#L813) `tab_create` 블록. 4개 섹션:
 
 **섹션 1: 상품 정보**
+
 - 신상품 토글 `is_new_product`
 - 기존 상품 드롭다운: `GenerationService.list_products(brand_id)` → `ProductGroup` 리스트
   - [services/generation_service.py:127](../services/generation_service.py#L127) — `product_name` 기반 distinct 그룹핑, `generation_count` 포함
@@ -42,9 +46,11 @@
 - 신상품 모드면 새 이미지 파일 업로더
 
 **섹션 2: 생성 타입**
+
 - `st.radio` 3종: 홍보 글만 / 이미지만 / 결합
 
 **섹션 3: 옵션**
+
 - **광고 목적 칩** (CP11) — 토글 OFF 면 "신메뉴 출시" 옵션 제외
   ```python
   if is_new_product:
@@ -52,11 +58,13 @@
   else:
       goal_options = [c for c in GOAL_CATEGORIES if c != "신메뉴 출시"]
   ```
+
   이전 선택값이 새 목록에 없으면 세션 키 삭제 → StreamlitException 방지
 - 자유 텍스트
 - 톤 / 스타일 — `TONE_STYLE_DISPLAY_MAP`
 
 **섹션 4: 참조 이미지 갤러리**
+
 - [app.py:930](../app.py#L930) `render_reference_gallery()` 호출 (§2 참고)
 - 반환: `(paths, output_ids)` 튜플
 
@@ -183,6 +191,7 @@ _run_combined_generation(name, desc, goal, tone, style, ..., reference_image_pat
 반환: `(system_prompt, user_prompt)` 튜플.
 
 **system 구조**
+
 1. "당신은 대한민국 최고의 브랜드 전략가이자 카피라이터입니다."
 2. `[[브랜드 가이드라인]]` ← `brand_prompt` (비어있으면 내장 `_BRAND_CUES`)
 3. `[[상품 상태 지침]]` — is_new_product 분기
@@ -199,6 +208,7 @@ _run_combined_generation(name, desc, goal, tone, style, ..., reference_image_pat
 한국어 조립 결과(1문자열) → 한→영 번역 → 이미지 백엔드 전달.
 
 블록 순서:
+
 1. `Brand guidelines (MUST follow): {brand_prompt}` ← 맨 앞 + `MUST follow` 명령
 2. 주제 선언: `A professional commercial advertisement visual concept for '{product_name}'.`
 3. (참조 있으면) `Respect the composition and color scheme of the provided reference image.`
@@ -211,7 +221,9 @@ _run_combined_generation(name, desc, goal, tone, style, ..., reference_image_pat
 10. 공통 꼬리말: `Clean composition, high-end product photography, commercial lighting. ... no text on image.`
 
 #### 한→영 번역
+
 [services/image_service.py:146](../services/image_service.py#L146):
+
 ```python
 client.chat.completions.create(
     name="image.translate_ko_to_en",
@@ -223,40 +235,45 @@ client.chat.completions.create(
         {"role": "user", "content": raw_prompt},
     ])
 ```
+
 결과가 `request.prompt` 를 덮어쓰고 백엔드에 들어감.
 
 ### 1.6 데이터 저장
 
 #### `Generation` 테이블
+
 [models/generation.py](../models/generation.py)
 
-| 필드 | 비고 |
-|------|------|
-| `id` UUID PK | |
-| `brand_id` FK → brands | |
-| `reference_image_id` FK → reference_images (nullable) | |
-| `product_name` / `product_description` / `product_image_path` | 상품 정보 (중복 저장) |
-| `goal` / `tone` / `is_new_product` | 생성 파라미터 |
-| `langfuse_trace_id` | Langfuse Cloud 연결 키 |
-| `error_message` | 실패 시만 |
-| `created_at` | |
+| 필드                                                                | 비고                   |
+| ------------------------------------------------------------------- | ---------------------- |
+| `id` UUID PK                                                      |                        |
+| `brand_id` FK → brands                                           |                        |
+| `reference_image_id` FK → reference_images (nullable)            |                        |
+| `product_name` / `product_description` / `product_image_path` | 상품 정보 (중복 저장)  |
+| `goal` / `tone` / `is_new_product`                            | 생성 파라미터          |
+| `langfuse_trace_id`                                               | Langfuse Cloud 연결 키 |
+| `error_message`                                                   | 실패 시만              |
+| `created_at`                                                      |                        |
 
 #### `GenerationOutput` 테이블
+
 [models/generation_output.py](../models/generation_output.py)
 
-| 필드 | 비고 |
-|------|------|
-| `id` UUID PK | |
-| `generation_id` FK | |
-| `kind` | `image` / `ad_copy` / `promo_sentence` / `story_copy` / `caption` / `hashtags` |
-| `content_text` | 텍스트 산출물 (이미지면 NULL) |
-| `content_path` | 이미지 파일 경로 (텍스트면 NULL) |
-| `created_at` | |
+| 필드                 | 비고                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `id` UUID PK       |                                                                                            |
+| `generation_id` FK |                                                                                            |
+| `kind`             | `image` / `ad_copy` / `promo_sentence` / `story_copy` / `caption` / `hashtags` |
+| `content_text`     | 텍스트 산출물 (이미지면 NULL)                                                              |
+| `content_path`     | 이미지 파일 경로 (텍스트면 NULL)                                                           |
+| `created_at`       |                                                                                            |
 
 한 Generation 당 9개 output 기본 (image 1 + ad_copy 3 + promo 2 + story 3). 캡션/해시태그는 별도 생성 시 추가.
 
 #### `GenerationService.create_with_outputs`
+
 [services/generation_service.py:52](../services/generation_service.py#L52). 단일 트랜잭션:
+
 1. Generation `session.add` + `flush` (id 확보)
 2. GenerationOutput N개 `session.add`
 3. `commit` + `refresh(attribute_names=["outputs"])` — 호출자가 즉시 `gen.outputs` 접근 가능하도록
@@ -321,9 +338,11 @@ _prepare_reference(source_output_id)  →  (ref_id, composition_prompt)
 [services/reference_service.py:32](../services/reference_service.py#L32) `build_composition_analysis_prompt()`:
 
 포함 항목:
+
 - camera angle / framing / subject placement / depth of field / arrangement / orientation
 
 **STRICT RULES** (절대 금지):
+
 - 색감·팔레트·무드·분위기·조명 스타일·톤·브랜드 느낌
 - 실제 상품 묘사 (`croissant` 등) — 역할(`central subject`) 만
 - 재질·마감·미학 형용사 (minimal/rustic/modern 등)
@@ -373,6 +392,7 @@ CaptionGenerationResponse(caption, hashtags)
 ### 3.2 system prompt 핵심
 
 [services/caption_service.py:63](../services/caption_service.py#L63):
+
 - 역할: 인스타 SNS 마케터
 - **사실 기반 제한** — 확인되지 않은 배경/소품/행동/장면 지어내기 금지
 - **고객 일상 예시 1문장 필수** — "내 이야기 같다" 느낌
@@ -469,17 +489,18 @@ _persist_generated_upload(kind, caption, post_id, posted_at)
 실패 시 `logger.exception` + 세션의 `current_generation_output_id` 를 None 으로 리셋 (다음 업로드 차단).
 
 ### `generated_uploads` 테이블
+
 [models/generated_upload.py](../models/generated_upload.py)
 
-| 필드 | 비고 |
-|------|------|
-| `id` UUID PK | |
-| `generation_output_id` FK → generation_outputs | |
-| `kind` | `feed` / `story` |
-| `caption` | story 는 빈 문자열 (현재 경로는 저장 안 함) |
-| `instagram_post_id` | 게시 성공 시만 |
-| `posted_at` | 게시 성공 시만 |
-| `created_at` | |
+| 필드                                              | 비고                                        |
+| ------------------------------------------------- | ------------------------------------------- |
+| `id` UUID PK                                    |                                             |
+| `generation_output_id` FK → generation_outputs |                                             |
+| `kind`                                          | `feed` / `story`                        |
+| `caption`                                       | story 는 빈 문자열 (현재 경로는 저장 안 함) |
+| `instagram_post_id`                             | 게시 성공 시만                              |
+| `posted_at`                                     | 게시 성공 시만                              |
+| `created_at`                                    |                                             |
 
 ---
 
@@ -506,19 +527,19 @@ tab_archive
 
 ## 7. 세션 키 맵 (생성 관련)
 
-| 키 | 설정 시점 | 용도 |
-|---|---|---|
-| `is_new_product` | UI 토글 | 프롬프트 분기 + 목적 칩 필터 |
-| `last_request` | `_run_*_generation` 시작 | 재생성 버튼 |
-| `current_product_image_path` | 상품 이미지 staging 후 | Generation.product_image_path |
-| `current_generated_image_path` | `_stash_generated_image` | GenerationOutput.content_path |
-| `current_reference_source_output_id` | 참조 선택 | `_prepare_reference` 입력 |
-| `current_reference_image_id` | `_prepare_reference` 반환 | Generation.reference_image_id FK |
-| `current_generation_id` | `_save_generation_record` | 히스토리 조회 |
-| `current_generation_output_id` | 동일 | UploadService FK — 텍스트 전용이면 None |
-| `_pending_langfuse_trace_id` | `_capture_langfuse_trace_id` | Generation.langfuse_trace_id |
-| `text_result` / `image_result` / `caption_result` / `story_result` / `story_text` | 각 생성 완료 시 | UI 렌더 입력 |
-| `error_message` / `error_exception` | 예외 발생 | UI 표시 + expander traceback |
+| 키                                                                                          | 설정 시점                      | 용도                                     |
+| ------------------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------- |
+| `is_new_product`                                                                          | UI 토글                        | 프롬프트 분기 + 목적 칩 필터             |
+| `last_request`                                                                            | `_run_*_generation` 시작     | 재생성 버튼                              |
+| `current_product_image_path`                                                              | 상품 이미지 staging 후         | Generation.product_image_path            |
+| `current_generated_image_path`                                                            | `_stash_generated_image`     | GenerationOutput.content_path            |
+| `current_reference_source_output_id`                                                      | 참조 선택                      | `_prepare_reference` 입력              |
+| `current_reference_image_id`                                                              | `_prepare_reference` 반환    | Generation.reference_image_id FK         |
+| `current_generation_id`                                                                   | `_save_generation_record`    | 히스토리 조회                            |
+| `current_generation_output_id`                                                            | 동일                           | UploadService FK — 텍스트 전용이면 None |
+| `_pending_langfuse_trace_id`                                                              | `_capture_langfuse_trace_id` | Generation.langfuse_trace_id             |
+| `text_result` / `image_result` / `caption_result` / `story_result` / `story_text` | 각 생성 완료 시                | UI 렌더 입력                             |
+| `error_message` / `error_exception`                                                     | 예외 발생                      | UI 표시 + expander traceback             |
 
 ---
 
@@ -526,14 +547,14 @@ tab_archive
 
 루트 span + 자식 observation 트리 구조로 찍힘.
 
-| 루트 span | 자식 observation | 파일:라인 |
-|-----------|------------------|-----------|
-| `generation.text_only` | `text.generate_ad_copy` | [backends/openai_gpt.py:77](../backends/openai_gpt.py#L77) |
-| `generation.image_only` | `image.translate_ko_to_en` + 이미지 백엔드 | [services/image_service.py:146](../services/image_service.py#L146) |
-| `generation.combined` | 위 2개 + `text.generate_ad_copy` | — |
-| (루트 없음 — 개별 trace) | `reference.vision_composition` | [services/reference_service.py:77](../services/reference_service.py#L77) |
-| (루트 없음 — 개별 trace) | `onboarding.vision_brand_style` | [services/onboarding_service.py:160](../services/onboarding_service.py#L160) |
-| (루트 없음 — 개별 trace) | `caption.generate` | [services/caption_service.py:111](../services/caption_service.py#L111) |
+| 루트 span                 | 자식 observation                             | 파일:라인                                                                 |
+| ------------------------- | -------------------------------------------- | ------------------------------------------------------------------------- |
+| `generation.text_only`  | `text.generate_ad_copy`                    | [backends/openai_gpt.py:77](../backends/openai_gpt.py#L77)                   |
+| `generation.image_only` | `image.translate_ko_to_en` + 이미지 백엔드 | [services/image_service.py:146](../services/image_service.py#L146)           |
+| `generation.combined`   | 위 2개 +`text.generate_ad_copy`            | —                                                                        |
+| (루트 없음 — 개별 trace) | `reference.vision_composition`             | [services/reference_service.py:77](../services/reference_service.py#L77)     |
+| (루트 없음 — 개별 trace) | `onboarding.vision_brand_style`            | [services/onboarding_service.py:160](../services/onboarding_service.py#L160) |
+| (루트 없음 — 개별 trace) | `caption.generate`                         | [services/caption_service.py:111](../services/caption_service.py#L111)       |
 
 캡션/참조 분석/온보딩 Vision 은 생성 이벤트와 별개라 별도 trace. Generation 이 실행될 때만 루트 span 으로 묶음.
 
@@ -542,6 +563,7 @@ tab_archive
 ## 9. 에러 처리 (CP7)
 
 모든 생성/업로드 경로는 동일 패턴:
+
 ```python
 except Exception as e:
     logger.exception("컨텍스트")
@@ -550,6 +572,7 @@ except Exception as e:
 ```
 
 에러 표시 지점 [app.py:1014~](../app.py#L1014):
+
 ```python
 if st.session_state.error_message:
     st.error(st.session_state.error_message)
