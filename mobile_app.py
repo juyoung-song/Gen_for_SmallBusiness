@@ -18,7 +18,7 @@ from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -70,6 +70,10 @@ BRAND_ASSETS_DIR = DATA_DIR / "brand_assets"
 settings = get_settings()
 logger = logging.getLogger(__name__)
 PENDING_INSTAGRAM_STATES: dict[str, tuple[UUID, Literal["settings", "onboarding"], datetime]] = {}
+TRACE_CLIENT_ID_HEADER = "x-brewgram-client-id"
+TRACE_SESSION_ID_HEADER = "x-brewgram-session-id"
+TRACE_PAGE_HEADER = "x-brewgram-page"
+TRACE_INSTALL_STATE_HEADER = "x-brewgram-install-state"
 
 
 @asynccontextmanager
@@ -669,6 +673,100 @@ def _langfuse_trace_span(name: str):
         return contextlib.nullcontext()
 
 
+def _sanitize_langfuse_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    ascii_value = value.encode("ascii", "ignore").decode("ascii").strip()
+    if not ascii_value:
+        return None
+    return ascii_value[:200]
+
+
+def _request_trace_attributes(
+    request: Request | None,
+    *,
+    tags: list[str] | None = None,
+    metadata: dict[str, str] | None = None,
+) -> tuple[str | None, str | None, list[str], dict[str, str]]:
+    base_tags = ["surface:mobile"]
+    base_metadata = {"surface": "mobile"}
+
+    if request is not None:
+        page = _sanitize_langfuse_value(request.headers.get(TRACE_PAGE_HEADER))
+        install_state = _sanitize_langfuse_value(
+            request.headers.get(TRACE_INSTALL_STATE_HEADER)
+        )
+        request_path = _sanitize_langfuse_value(request.url.path)
+        client_id = _sanitize_langfuse_value(
+            request.headers.get(TRACE_CLIENT_ID_HEADER)
+        )
+        session_id = _sanitize_langfuse_value(
+            request.headers.get(TRACE_SESSION_ID_HEADER)
+        )
+
+        if page:
+            base_tags.append(f"page:{page}")
+            base_metadata["page"] = page
+        if install_state:
+            base_tags.append(f"install:{install_state}")
+            base_metadata["install_state"] = install_state
+        if request_path:
+            base_metadata["request_path"] = request_path
+    else:
+        client_id = None
+        session_id = None
+
+    if tags:
+        for tag in tags:
+            cleaned = _sanitize_langfuse_value(tag)
+            if cleaned:
+                base_tags.append(cleaned)
+
+    if metadata:
+        for key, value in metadata.items():
+            cleaned_key = _sanitize_langfuse_value(key)
+            cleaned_value = _sanitize_langfuse_value(value)
+            if cleaned_key and cleaned_value:
+                base_metadata[cleaned_key] = cleaned_value
+
+    deduped_tags = list(dict.fromkeys(base_tags))
+    return client_id, session_id, deduped_tags, base_metadata
+
+
+def _langfuse_trace_attributes(
+    request: Request | None = None,
+    *,
+    tags: list[str] | None = None,
+    metadata: dict[str, str] | None = None,
+):
+    import contextlib
+
+    try:
+        from langfuse import propagate_attributes
+
+        user_id, session_id, trace_tags, trace_metadata = _request_trace_attributes(
+            request,
+            tags=tags,
+            metadata=metadata,
+        )
+        kwargs: dict[str, object] = {}
+        if user_id:
+            kwargs["user_id"] = user_id
+        if session_id:
+            kwargs["session_id"] = session_id
+        if trace_tags:
+            kwargs["tags"] = trace_tags
+        if trace_metadata:
+            kwargs["metadata"] = trace_metadata
+
+        if not kwargs:
+            return contextlib.nullcontext()
+        return propagate_attributes(**kwargs)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Langfuse 속성 전파 실패 → 기본 trace 로 진행: %s", exc)
+        return contextlib.nullcontext()
+
+
 def _capture_langfuse_trace_id() -> str | None:
     """현재 활성 span 의 trace_id 반환."""
     try:
@@ -845,6 +943,7 @@ async def mobile_instagram_callback(
 @app.post("/api/mobile/onboarding/complete", response_model=MobileOnboardingResponse)
 async def complete_onboarding(
     payload: MobileOnboardingRequest,
+    request: Request = None,
 ) -> MobileOnboardingResponse:
     async with AsyncSessionLocal() as session:
         existing = await BrandService(session).get_first()
@@ -926,11 +1025,19 @@ async def complete_onboarding(
         )
         try:
             with _langfuse_trace_span("onboarding.analysis"):
-                content = await run_in_threadpool(
-                    analyzer.analyze,
-                    merged_freetext,
-                    analysis_images,
-                )
+                with _langfuse_trace_attributes(
+                    request,
+                    tags=["feature:onboarding"],
+                    metadata={
+                        "analysis_image_count": str(len(analysis_images)),
+                        "has_instagram_url": "true" if bool(instagram_url) else "false",
+                    },
+                ):
+                    content = await run_in_threadpool(
+                        analyzer.analyze,
+                        merged_freetext,
+                        analysis_images,
+                    )
         except Exception as exc:  # pragma: no cover - 외부 API 의존
             logger.warning("모바일 온보딩 Vision 분석 실패: %s", exc)
             warnings.append(
@@ -976,7 +1083,10 @@ async def complete_onboarding(
 
 
 @app.post("/api/mobile/generate", response_model=MobileGenerateResponse)
-async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateResponse:
+async def mobile_generate(
+    payload: MobileGenerateRequest,
+    request: Request = None,
+) -> MobileGenerateResponse:
     if not payload.product_name.strip():
         raise HTTPException(status_code=400, detail="상품명을 입력해주세요.")
 
@@ -1031,43 +1141,64 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
         with _langfuse_trace_span(
             _mobile_generation_trace_name(payload.generation_type)
         ):
-            if payload.generation_type in {"text", "both"}:
-                text_result = await run_in_threadpool(
-                    text_service.generate_ad_copy,
-                    TextGenerationRequest(
-                        product_name=payload.product_name.strip(),
-                        description=payload.description.strip(),
-                        style=payload.tone,
-                        goal=payload.goal.strip(),
-                        image_data=reference_bytes,
-                        brand_prompt=brand_prompt,
-                        is_new_product=False,
-                        reference_analysis="",
+            with _langfuse_trace_attributes(
+                request,
+                tags=[
+                    "feature:generation",
+                    f"generation_type:{payload.generation_type}",
+                ],
+                metadata={
+                    "product_name_length": str(len(payload.product_name.strip())),
+                    "description_length": str(len(payload.description.strip())),
+                    "is_new_product": "true" if payload.is_new_product else "false",
+                    "has_reference_image": (
+                        "true"
+                        if payload.reference_image is not None or bool(payload.reference_url.strip())
+                        else "false"
                     ),
-                )
-                text_payload = text_result.model_dump()
-
-            if payload.generation_type in {"image", "both"}:
-                hint_copy = ""
-                if text_result is not None and text_result.ad_copies:
-                    hint_copy = text_result.ad_copies[0]
-
-                image_result = await run_in_threadpool(
-                    image_service.generate_ad_image,
-                    ImageGenerationRequest(
-                        prompt=hint_copy,
-                        product_name=payload.product_name.strip(),
-                        description=payload.description.strip(),
-                        goal=payload.goal.strip(),
-                        style=payload.style,
-                        image_data=product_image_bytes,
-                        brand_prompt=brand_prompt,
-                        is_new_product=payload.is_new_product,
-                        reference_analysis=composition_prompt,
-                        logo_path=brand.logo_path,
+                    "has_product_image": "true" if product_image_bytes is not None else "false",
+                    "has_existing_product_name": (
+                        "true" if bool(payload.existing_product_name) else "false"
                     ),
-                )
-            langfuse_trace_id = _capture_langfuse_trace_id()
+                },
+            ):
+                if payload.generation_type in {"text", "both"}:
+                    text_result = await run_in_threadpool(
+                        text_service.generate_ad_copy,
+                        TextGenerationRequest(
+                            product_name=payload.product_name.strip(),
+                            description=payload.description.strip(),
+                            style=payload.tone,
+                            goal=payload.goal.strip(),
+                            image_data=reference_bytes,
+                            brand_prompt=brand_prompt,
+                            is_new_product=False,
+                            reference_analysis="",
+                        ),
+                    )
+                    text_payload = text_result.model_dump()
+
+                if payload.generation_type in {"image", "both"}:
+                    hint_copy = ""
+                    if text_result is not None and text_result.ad_copies:
+                        hint_copy = text_result.ad_copies[0]
+
+                    image_result = await run_in_threadpool(
+                        image_service.generate_ad_image,
+                        ImageGenerationRequest(
+                            prompt=hint_copy,
+                            product_name=payload.product_name.strip(),
+                            description=payload.description.strip(),
+                            goal=payload.goal.strip(),
+                            style=payload.style,
+                            image_data=product_image_bytes,
+                            brand_prompt=brand_prompt,
+                            is_new_product=payload.is_new_product,
+                            reference_analysis=composition_prompt,
+                            logo_path=brand.logo_path,
+                        ),
+                    )
+                langfuse_trace_id = _capture_langfuse_trace_id()
 
         generation_id, generation_output_id = await _save_generation_outputs(
             brand=brand,
@@ -1103,6 +1234,7 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
 @app.post("/api/mobile/caption", response_model=CaptionGenerationResponse)
 async def mobile_caption(
     payload: MobileCaptionRequest,
+    request: Request = None,
 ) -> CaptionGenerationResponse:
     if not payload.ad_copies:
         raise HTTPException(status_code=400, detail="캡션 생성을 위한 문구가 없습니다.")
@@ -1111,18 +1243,27 @@ async def mobile_caption(
     caption_service = CaptionService(settings)
     try:
         with _langfuse_trace_span("generation.caption"):
-            return await run_in_threadpool(
-                caption_service.generate_caption,
-                CaptionGenerationRequest(
-                    product_name=payload.product_name.strip(),
-                    description=payload.description.strip(),
-                    ad_copies=payload.ad_copies,
-                    style=payload.style,
-                    brand_prompt=brand_prompt,
-                    is_new_product=payload.is_new_product,
-                    reference_analysis="",
-                ),
-            )
+            with _langfuse_trace_attributes(
+                request,
+                tags=["feature:caption"],
+                metadata={
+                    "is_new_product": "true" if payload.is_new_product else "false",
+                    "ad_copy_count": str(len(payload.ad_copies)),
+                    "product_name_length": str(len(payload.product_name.strip())),
+                },
+            ):
+                return await run_in_threadpool(
+                    caption_service.generate_caption,
+                    CaptionGenerationRequest(
+                        product_name=payload.product_name.strip(),
+                        description=payload.description.strip(),
+                        ad_copies=payload.ad_copies,
+                        style=payload.style,
+                        brand_prompt=brand_prompt,
+                        is_new_product=payload.is_new_product,
+                        reference_analysis="",
+                    ),
+                )
     except AuthenticationError as exc:
         raise HTTPException(
             status_code=500,
@@ -1157,23 +1298,33 @@ async def mobile_caption(
 
 
 @app.post("/api/mobile/story", response_model=MobileStoryResponse)
-async def mobile_story(payload: MobileStoryRequest) -> MobileStoryResponse:
+async def mobile_story(
+    payload: MobileStoryRequest,
+    request: Request = None,
+) -> MobileStoryResponse:
     if not payload.text.strip():
         raise HTTPException(status_code=400, detail="스토리 문구를 선택해주세요.")
 
     image_bytes, _ = _decode_data_url(payload.image_data_url)
     image_service = ImageService(settings)
-    composed = await run_in_threadpool(
-        image_service.compose_story_image,
-        image_bytes,
-        payload.text.strip(),
-    )
+    with _langfuse_trace_span("generation.story"):
+        with _langfuse_trace_attributes(
+            request,
+            tags=["feature:story"],
+            metadata={"text_length": str(len(payload.text.strip()))},
+        ):
+            composed = await run_in_threadpool(
+                image_service.compose_story_image,
+                image_bytes,
+                payload.text.strip(),
+            )
     return MobileStoryResponse(image_data_url=_to_data_url(composed))
 
 
 @app.post("/api/mobile/upload/feed", response_model=MobileUploadResponse)
 async def mobile_upload_feed(
     payload: MobileFeedUploadRequest,
+    request: Request = None,
 ) -> MobileUploadResponse:
     if not payload.product_name.strip():
         raise HTTPException(status_code=400, detail="상품명을 먼저 입력해주세요.")
@@ -1185,13 +1336,19 @@ async def mobile_upload_feed(
 
     instagram_service = InstagramService(upload_settings)
     try:
-        post_id, posted_at = await run_in_threadpool(
-            _consume_upload_generator,
-            instagram_service,
-            image_bytes,
-            caption,
-            is_story=False,
-        )
+        with _langfuse_trace_span("instagram.upload.feed"):
+            with _langfuse_trace_attributes(
+                request,
+                tags=["feature:upload", "upload:feed"],
+                metadata={"has_caption": "true" if bool(caption) else "false"},
+            ):
+                post_id, posted_at = await run_in_threadpool(
+                    _consume_upload_generator,
+                    instagram_service,
+                    image_bytes,
+                    caption,
+                    is_story=False,
+                )
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1223,6 +1380,7 @@ async def mobile_upload_feed(
 @app.post("/api/mobile/upload/story", response_model=MobileUploadResponse)
 async def mobile_upload_story(
     payload: MobileStoryUploadRequest,
+    request: Request = None,
 ) -> MobileUploadResponse:
     brand, upload_settings = await _resolve_upload_context()
     image_bytes, _ = _decode_data_url(payload.image_data_url)
@@ -1230,13 +1388,21 @@ async def mobile_upload_story(
 
     instagram_service = InstagramService(upload_settings)
     try:
-        post_id, posted_at = await run_in_threadpool(
-            _consume_upload_generator,
-            instagram_service,
-            image_bytes,
-            payload.caption.strip(),
-            is_story=True,
-        )
+        with _langfuse_trace_span("instagram.upload.story"):
+            with _langfuse_trace_attributes(
+                request,
+                tags=["feature:upload", "upload:story"],
+                metadata={
+                    "has_caption": "true" if bool(payload.caption.strip()) else "false"
+                },
+            ):
+                post_id, posted_at = await run_in_threadpool(
+                    _consume_upload_generator,
+                    instagram_service,
+                    image_bytes,
+                    payload.caption.strip(),
+                    is_story=True,
+                )
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
