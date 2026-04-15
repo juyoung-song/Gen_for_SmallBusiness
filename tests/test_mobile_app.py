@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
 from openai import APITimeoutError
 from types import SimpleNamespace
 from uuid import uuid4
@@ -111,6 +112,55 @@ class TestMobileCaption:
 
 
 class TestMobileGenerate:
+    def test_request_trace_attributes_extracts_client_and_session(self):
+        request = Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/api/mobile/generate",
+                "headers": [
+                    (b"x-brewgram-client-id", b"client-123"),
+                    (b"x-brewgram-session-id", b"session-456"),
+                    (b"x-brewgram-page", b"create"),
+                    (b"x-brewgram-install-state", b"installed"),
+                ],
+            }
+        )
+
+        user_id, session_id, tags, metadata = mobile_app._request_trace_attributes(
+            request,
+            tags=["feature:generation"],
+            metadata={"goal": "신제품 출시"},
+        )
+
+        assert user_id == "client-123"
+        assert session_id == "session-456"
+        assert "surface:mobile" in tags
+        assert "page:create" in tags
+        assert "install:installed" in tags
+        assert "feature:generation" in tags
+        assert metadata["surface"] == "mobile"
+        assert metadata["page"] == "create"
+        assert metadata["install_state"] == "installed"
+        assert metadata["request_path"] == "/api/mobile/generate"
+        assert "goal" not in metadata
+
+    def test_request_trace_attributes_sanitizes_non_ascii_metadata(self):
+        user_id, session_id, tags, metadata = mobile_app._request_trace_attributes(
+            None,
+            tags=["feature:caption", "한글태그"],
+            metadata={"tone": "감성", "style": "modern"},
+        )
+
+        assert user_id is None
+        assert session_id is None
+        assert "surface:mobile" in tags
+        assert "feature:caption" in tags
+        assert "한글태그" not in tags
+        assert metadata["surface"] == "mobile"
+        assert "tone" not in metadata
+        assert metadata["style"] == "modern"
+
     async def test_passes_langfuse_trace_id_to_generation_save(self, monkeypatch):
         brand = SimpleNamespace(
             id=uuid4(),
@@ -119,6 +169,7 @@ class TestMobileGenerate:
             style_prompt="따뜻한 브랜드 가이드",
         )
         captured: dict = {}
+        trace_context_called: dict = {}
 
         async def fake_load_brand():
             return brand
@@ -163,6 +214,14 @@ class TestMobileGenerate:
         monkeypatch.setattr(mobile_app, "_langfuse_trace_span", lambda _name: nullcontext())
         monkeypatch.setattr(
             mobile_app,
+            "_langfuse_trace_attributes",
+            lambda request=None, **kwargs: trace_context_called.update(
+                {"request": request, **kwargs}
+            )
+            or nullcontext(),
+        )
+        monkeypatch.setattr(
+            mobile_app,
             "_capture_langfuse_trace_id",
             lambda: "trace-mobile-123",
         )
@@ -176,6 +235,8 @@ class TestMobileGenerate:
         )
 
         assert captured["langfuse_trace_id"] == "trace-mobile-123"
+        assert trace_context_called["request"] is None
+        assert "feature:generation" in trace_context_called["tags"]
 
     async def test_save_generation_outputs_persists_langfuse_trace_id(
         self,

@@ -1,5 +1,7 @@
 (function () {
   const STORAGE_KEY = "brewgram.mobile.state.v1";
+  const CLIENT_ID_STORAGE_KEY = "brewgram.mobile.client-id.v1";
+  const SESSION_ID_STORAGE_KEY = "brewgram.mobile.session-id.v1";
   const PAGE = document.body.dataset.stitchPage;
   const API_BASE = "/api/mobile";
   const MAX_HISTORY_ITEMS = 12;
@@ -53,6 +55,8 @@
   let lastStoryResult = null;
   let lastBootstrap = null;
   let deferredInstallPrompt = null;
+  let memoryClientId = null;
+  let memorySessionId = null;
 
   function cloneDefaults() {
     return JSON.parse(JSON.stringify(defaultState));
@@ -101,11 +105,89 @@
     return target;
   }
 
+  function generateId() {
+    if (window.crypto?.randomUUID) {
+      return window.crypto.randomUUID();
+    }
+
+    const bytes = new Uint8Array(16);
+    if (window.crypto?.getRandomValues) {
+      window.crypto.getRandomValues(bytes);
+    } else {
+      for (let index = 0; index < bytes.length; index += 1) {
+        bytes[index] = Math.floor(Math.random() * 256);
+      }
+    }
+
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+    const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+    return [
+      hex.slice(0, 8),
+      hex.slice(8, 12),
+      hex.slice(12, 16),
+      hex.slice(16, 20),
+      hex.slice(20),
+    ].join("-");
+  }
+
+  function safeReadStorage(storage, key) {
+    try {
+      return storage.getItem(key);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function safeWriteStorage(storage, key, value) {
+    try {
+      storage.setItem(key, value);
+    } catch (_) {
+      // 일부 브라우저/모드에서는 storage 접근이 막힐 수 있다.
+    }
+    return value;
+  }
+
+  function getClientId() {
+    const stored = safeReadStorage(window.localStorage, CLIENT_ID_STORAGE_KEY) || memoryClientId;
+    if (stored) {
+      memoryClientId = stored;
+      return stored;
+    }
+
+    const nextId = generateId();
+    memoryClientId = nextId;
+    return safeWriteStorage(window.localStorage, CLIENT_ID_STORAGE_KEY, nextId);
+  }
+
+  function getSessionId() {
+    const stored = safeReadStorage(window.sessionStorage, SESSION_ID_STORAGE_KEY) || memorySessionId;
+    if (stored) {
+      memorySessionId = stored;
+      return stored;
+    }
+
+    const nextId = generateId();
+    memorySessionId = nextId;
+    return safeWriteStorage(window.sessionStorage, SESSION_ID_STORAGE_KEY, nextId);
+  }
+
+  function buildTraceHeaders() {
+    return {
+      "X-Brewgram-Client-Id": getClientId(),
+      "X-Brewgram-Session-Id": getSessionId(),
+      "X-Brewgram-Page": PAGE || "unknown",
+      "X-Brewgram-Install-State": getPwaInstallState(),
+    };
+  }
+
   async function api(path, options = {}) {
     const response = await fetch(`${API_BASE}${path}`, {
       method: options.method || "GET",
       headers: {
         "Content-Type": "application/json",
+        ...buildTraceHeaders(),
         ...(options.headers || {}),
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
