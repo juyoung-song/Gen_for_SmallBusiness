@@ -12,11 +12,24 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DATA_DIR = ROOT_DIR / "data"
+
+_logger = logging.getLogger(__name__)
+_logged = False
+
+
+def _log_once(db_path: Path, data_dir: Path) -> None:
+    """프로세스당 1회 INFO 로그 — 잘못된 환경변수로 엉뚱한 DB 를 보는 사고 방지."""
+    global _logged
+    if _logged:
+        return
+    _logger.info("APP_DATA_DIR=%s | SQLITE_DB_PATH=%s", data_dir, db_path)
+    _logged = True
 
 
 def _resolve_path(raw: str) -> Path:
@@ -36,4 +49,5 @@ def get_sqlite_db_path() -> Path:
     configured = os.getenv("SQLITE_DB_PATH", "").strip()
     db_path = _resolve_path(configured) if configured else get_app_data_dir() / "history.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
+    _log_once(db_path, get_app_data_dir())
     return db_path
