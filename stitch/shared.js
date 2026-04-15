@@ -928,6 +928,79 @@
     const feedback = consumeInstagramFeedback();
     setInstagramPageGuide("#onboarding-page-guide", feedback);
 
+    // CP20: 온보딩 — 다중 계정 선택 패널
+    const igSelectPanel = selectOne("#onboarding-ig-select-panel");
+    const igSelectEl = selectOne("#onboarding-ig-account-select");
+    const igSelectConfirm = selectOne("#onboarding-ig-select-confirm");
+
+    // CP20: 온보딩 — 수동 입력 패널
+    const igManualPanel = selectOne("#onboarding-ig-manual-panel");
+    const igManualInput = selectOne("#onboarding-ig-manual-input");
+    const igManualConfirm = selectOne("#onboarding-ig-manual-confirm");
+
+    if (feedback?.flag === "select_required" && igSelectPanel) {
+      igSelectPanel.classList.remove("hidden");
+      api("/instagram/candidates")
+        .then((data) => {
+          if (!igSelectEl) return;
+          igSelectEl.innerHTML = "";
+          (data.candidates || []).forEach((c) => {
+            const opt = document.createElement("option");
+            opt.value = c.instagram_account_id;
+            opt.textContent = `@${c.instagram_username || c.instagram_account_id} (${c.facebook_page_name || ""})`;
+            igSelectEl.appendChild(opt);
+          });
+        })
+        .catch(() => {
+          if (igSelectEl) igSelectEl.innerHTML = "<option>로드 실패</option>";
+        });
+    }
+
+    if (feedback?.flag === "manual_required" && igManualPanel) {
+      igManualPanel.classList.remove("hidden");
+      api("/instagram/candidates")
+        .then((data) => {
+          if (igManualInput && data.env_account_id) {
+            igManualInput.value = data.env_account_id;
+          }
+        })
+        .catch(() => {});
+    }
+
+    igSelectConfirm?.addEventListener("click", async () => {
+      const selectedId = igSelectEl?.value;
+      if (!selectedId) {
+        setStatus(statusNode, "계정을 선택해주세요.", "error");
+        return;
+      }
+      try {
+        setStatus(statusNode, "계정 연결 중…", "loading");
+        await api("/instagram/select-account", { method: "POST", body: { instagram_account_id: selectedId } });
+        igSelectPanel?.classList.add("hidden");
+        await loadState();
+        setStatus(statusNode, "인스타그램 계정 연결이 완료되었습니다.", "success");
+      } catch (error) {
+        setStatus(statusNode, error.message, "error");
+      }
+    });
+
+    igManualConfirm?.addEventListener("click", async () => {
+      const igId = igManualInput?.value?.trim();
+      if (!igId) {
+        setStatus(statusNode, "Instagram 계정 ID를 입력해주세요.", "error");
+        return;
+      }
+      try {
+        setStatus(statusNode, "계정 확인 중…", "loading");
+        await api("/instagram/manual-account", { method: "POST", body: { instagram_business_account_id: igId } });
+        igManualPanel?.classList.add("hidden");
+        await loadState();
+        setStatus(statusNode, "인스타그램 계정 연결이 완료되었습니다.", "success");
+      } catch (error) {
+        setStatus(statusNode, error.message, "error");
+      }
+    });
+
     const applyInstagramState = (summary, bootstrap) => {
       if (brandNameNode) {
         brandNameNode.textContent = bootstrap?.brand?.brand_name || "우리 가게";
