@@ -1,7 +1,7 @@
 # Plan
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-15 (CP20 시작 — 인스타 계정 선택 UI, `merge/insta` 브랜치)
+> **마지막 갱신:** 2026-04-15 (CP20 완료 — 인스타 계정 선택 UI + 온보딩 동등 기능, `merge/insta` 브랜치)
 > **베이스:** `docs/design.md`
 > **이전 버전 폐기:** IP-Adapter 코드 리뷰 작업 계획(2026-04-03)은 본 문서로 대체됨
 
@@ -461,7 +461,7 @@ Phase 2 — MVP 완성 (기능 추가)
 ### ✅ 머지 완료 (CP14~16 → refactor/flow)
 - PR #12 머지 완료 (2026-04-15). `logo_gen_exp/` 제거 후 머지.
 
-### 🚧 CP20 — 인스타 계정 선택 UI (2026-04-15 시작, `merge/insta` 브랜치)
+### ✅ CP20 — 인스타 계정 선택 UI (2026-04-15 완료, `merge/insta` 브랜치)
 
 **배경**: mobile_app 의 OAuth 콜백은 `fetch_instagram_account()` 로 IG 비즈니스 계정을 자동 조회하지만 **첫 번째 후보만 자동 선택**. FB 사용자가 여러 페이지를 관리하고 각 페이지에 IG 계정이 붙어 있으면 사용자가 원하는 계정을 고를 방법이 없음. 또한 자동 조회가 전부 실패했을 때 수동 IG ID 입력 경로도 mobile 엔드포인트로 노출돼 있지 않음. Streamlit (`ui/instagram_connect.py`) 은 자동 실패 시 `fetch_instagram_account_manually()` 로 우회 가능.
 
