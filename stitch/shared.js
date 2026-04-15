@@ -15,6 +15,7 @@
     onboarding4: "/stitch/onboarding-instagram.html",
   };
   const PRESET_GOALS = ["신제품 출시", "브랜드 인지도", "이벤트 홍보", "매장 방문 유도"];
+  const NEW_PRODUCT_GOAL_PREFIX = "신제품 출시";
 
   const defaultState = {
     onboarding: {
@@ -25,6 +26,7 @@
       instagramUrl: "",
       logo: null,
       referenceImages: [],
+      analysisContent: "",
     },
     create: {
       productName: "",
@@ -33,6 +35,7 @@
       generationType: "both",
       tone: "감성",
       style: "감성",
+      productImage: null,
       referenceUrl: "",
       referenceImage: null,
     },
@@ -478,6 +481,12 @@
     return "✨";
   }
 
+  function isNewProductGoal(goal) {
+    return String(goal || "")
+      .trim()
+      .startsWith(NEW_PRODUCT_GOAL_PREFIX);
+  }
+
   function buildHistoryEntry(createState, result) {
     const copies = result.text_result?.ad_copies || [];
     return {
@@ -753,13 +762,60 @@
     const submitButton = selectOne("#step3-submit");
     const prevButton = selectOne("#step3-prev");
     const statusNode = selectOne("#onboarding-status");
+    const analysisPanel = selectOne("#onboarding-analysis-panel");
+    const analysisTextNode = selectOne("#onboarding-analysis-text");
+    const analysisBadgeNode = selectOne("#onboarding-analysis-badge");
 
     descriptionInput.value = state.onboarding.brandDescription || "";
     descriptionInput?.addEventListener("input", (event) => {
-      patchState({ onboarding: { brandDescription: event.target.value } });
+      patchState({
+        onboarding: {
+          brandDescription: event.target.value,
+          analysisContent: "",
+        },
+      });
+      analysisPanel?.classList.add("hidden");
+      if (analysisTextNode) {
+        analysisTextNode.textContent = "";
+      }
+      if (analysisBadgeNode) {
+        analysisBadgeNode.textContent = "분석 대기";
+      }
+      if (submitButton) {
+        submitButton.innerHTML = '분석하기 <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>';
+      }
     });
 
+    const applyAnalysisContent = (analysisContent, status = "created") => {
+      const content = String(analysisContent || "").trim();
+      if (!content) {
+        analysisPanel?.classList.add("hidden");
+        return;
+      }
+
+      if (analysisTextNode) {
+        analysisTextNode.textContent = content;
+      }
+      if (analysisBadgeNode) {
+        analysisBadgeNode.textContent = status === "existing" ? "기존 분석" : "AI 분석 완료";
+      }
+      analysisPanel?.classList.remove("hidden");
+      if (submitButton) {
+        submitButton.innerHTML = '다음 <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>';
+      }
+    };
+
+    if (state.onboarding.analysisContent) {
+      applyAnalysisContent(state.onboarding.analysisContent, "existing");
+    }
+
     const submit = async (skipDescription) => {
+      const currentState = readState();
+      if (currentState.onboarding.analysisContent) {
+        navigate(PATHS.onboarding4);
+        return;
+      }
+
       const nextState = patchState({
         onboarding: {
           brandDescription: skipDescription ? "" : descriptionInput.value,
@@ -783,18 +839,22 @@
             reference_images: nextState.onboarding.referenceImages,
           },
         });
+        const analysisContent = result.brand?.content || "";
+        patchState({
+          onboarding: {
+            analysisContent,
+          },
+        });
+        applyAnalysisContent(analysisContent, result.status);
         setStatus(
           statusNode,
           result.status === "updated"
-            ? "브랜드 정보를 새 입력값으로 업데이트했습니다. 마지막 연결 단계로 이동합니다."
+            ? "브랜드 정보를 새 입력값으로 업데이트했습니다. 아래 분석을 확인하고 다음 단계로 이동하세요."
             : result.status === "existing"
-              ? "이미 저장된 브랜드가 있어 기존 설정을 그대로 사용합니다. 마지막 연결 단계로 이동합니다."
-              : "브랜드 세팅이 완료되었습니다. 마지막 연결 단계로 이동합니다.",
+              ? "이미 저장된 브랜드가 있어 기존 분석을 그대로 보여드립니다. 확인 후 다음 단계로 이동하세요."
+              : "브랜드 세팅이 완료되었습니다. 아래 분석을 확인하고 다음 단계로 이동하세요.",
           "success",
         );
-        window.setTimeout(() => {
-          navigate(PATHS.onboarding4);
-        }, 700);
       } catch (error) {
         setStatus(statusNode, error.message, "error");
       } finally {
@@ -1555,6 +1615,10 @@
     const toneSelect = selectOne("#create-tone-select");
     const styleSelect = selectOne("#create-style-select");
     const customGoalInput = selectOne("#create-goal-custom");
+    const productImagePanel = selectOne("#create-product-image-panel");
+    const productImageTrigger = selectOne("#create-product-image-trigger");
+    const productImageInput = selectOne("#create-product-image-input");
+    const productImageStatus = selectOne("#create-product-image-status");
     const referenceUrlInput = selectOne("#create-reference-url");
     const referenceTrigger = selectOne("#create-reference-trigger");
     const referenceInput = selectOne("#create-reference-input");
@@ -1592,6 +1656,10 @@
     if (customGoalInput) customGoalInput.value = customGoalValue;
     referenceUrlInput.value = state.create.referenceUrl || "";
 
+    if (state.create.productImage && productImageStatus) {
+      productImageStatus.textContent = `${state.create.productImage.name} 파일이 상품 사진으로 연결되어 있어요.`;
+    }
+
     if (state.create.referenceImage && referenceStatus) {
       referenceStatus.textContent = `${state.create.referenceImage.name} 파일이 연결되어 있어요.`;
     }
@@ -1620,14 +1688,31 @@
         inactiveText: "text-on-surface-variant",
       });
 
+    const syncProductImageUi = (goal) => {
+      const isVisible = isNewProductGoal(goal);
+      productImagePanel?.classList.toggle("hidden", !isVisible);
+      if (!productImageStatus) return;
+      if (!isVisible) {
+        productImageStatus.textContent = "";
+        return;
+      }
+      if (readState().create.productImage?.name) {
+        productImageStatus.textContent = `${readState().create.productImage.name} 파일이 상품 사진으로 준비되었습니다.`;
+        return;
+      }
+      productImageStatus.textContent = "신상품 출시 목표를 선택하면 상품 사진 업로드가 필요합니다.";
+    };
+
     applyGoalStyles(state.create.goal);
     applyGenerationStyles(state.create.generationType);
+    syncProductImageUi(state.create.goal);
 
     goalButtons.forEach((button) => {
       button.addEventListener("click", () => {
         const value = button.dataset.goalChoice;
         patchState({ create: { goal: value } });
         applyGoalStyles(value);
+        syncProductImageUi(value);
         if (customGoalInput) {
           customGoalInput.value = "";
         }
@@ -1652,6 +1737,7 @@
       const nextGoal = event.target.value.trim() || PRESET_GOALS[0];
       patchState({ create: { goal: nextGoal } });
       applyGoalStyles(nextGoal);
+      syncProductImageUi(nextGoal);
     });
     toneSelect?.addEventListener("change", (event) => {
       patchState({ create: { tone: event.target.value } });
@@ -1661,6 +1747,17 @@
     });
     referenceUrlInput?.addEventListener("input", (event) => {
       patchState({ create: { referenceUrl: event.target.value } });
+    });
+
+    productImageTrigger?.addEventListener("click", () => productImageInput?.click());
+    productImageInput?.addEventListener("change", async (event) => {
+      const [file] = event.target.files || [];
+      if (!file) return;
+      const payload = await fileToPayload(file);
+      patchState({ create: { productImage: payload } });
+      if (productImageStatus) {
+        productImageStatus.textContent = `${payload.name} 파일이 상품 사진으로 업로드 준비되었습니다.`;
+      }
     });
 
     referenceTrigger?.addEventListener("click", () => referenceInput?.click());
@@ -1680,6 +1777,10 @@
         setStatus(bootstrapStatus, "상품명을 먼저 입력해주세요.", "error");
         return;
       }
+      if (isNewProductGoal(latestState.create.goal) && !latestState.create.productImage) {
+        setStatus(bootstrapStatus, "신제품 출시 목적이면 상품 사진을 먼저 업로드해주세요.", "error");
+        return;
+      }
 
       submitButton.disabled = true;
       setStatus(bootstrapStatus, "광고를 생성하는 중입니다. 잠시만 기다려주세요.", "loading");
@@ -1694,6 +1795,9 @@
             generation_type: latestState.create.generationType,
             tone: latestState.create.tone,
             style: latestState.create.style,
+            product_image: isNewProductGoal(latestState.create.goal)
+              ? latestState.create.productImage
+              : null,
             reference_url: latestState.create.referenceUrl,
             reference_image: latestState.create.referenceImage,
           },
