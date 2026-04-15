@@ -213,6 +213,7 @@ class MobileInstagramCandidate(BaseModel):
 
 class MobileInstagramCandidatesResponse(BaseModel):
     candidates: list[MobileInstagramCandidate]
+    env_account_id: str | None = None  # .env INSTAGRAM_ACCOUNT_ID — 수동 입력 기본값
 
 
 class MobileInstagramSelectRequest(BaseModel):
@@ -921,8 +922,10 @@ async def mobile_instagram_candidates() -> MobileInstagramCandidatesResponse:
     auth_service = InstagramAuthService(settings)
     raw_candidates = await auth_service.list_candidate_accounts(pending.access_token)
 
+    env_id = settings.INSTAGRAM_ACCOUNT_ID or None
     return MobileInstagramCandidatesResponse(
-        candidates=[MobileInstagramCandidate(**c) for c in raw_candidates]
+        candidates=[MobileInstagramCandidate(**c) for c in raw_candidates],
+        env_account_id=env_id,
     )
 
 

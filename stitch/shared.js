@@ -1440,6 +1440,14 @@
 
     if (feedback?.flag === "manual_required" && igManualPanel) {
       igManualPanel.classList.remove("hidden");
+      // .env INSTAGRAM_ACCOUNT_ID 를 기본값으로 채움 (Streamlit 동등)
+      api("/instagram/candidates")
+        .then((data) => {
+          if (igManualInput && data.env_account_id) {
+            igManualInput.value = data.env_account_id;
+          }
+        })
+        .catch(() => {});
     }
 
     igSelectConfirm?.addEventListener("click", async () => {
