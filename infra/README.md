@@ -156,11 +156,11 @@ curl -I https://brewgram.duckdns.org/stitch/service-worker.js
 자동 배포 방식:
 
 ```text
-push to codex/infra
+push to merge/dev
   -> GitHub Actions
   -> SSH to VM
   -> /usr/local/bin/deploy-brewgram.sh
-  -> git pull --ff-only + uv sync + systemd restart
+  -> git pull --ff-only + uv sync + playwright install chromium + systemd restart
 ```
 
 GitHub repo secrets:
@@ -173,4 +173,5 @@ GitHub repo secrets:
 
 주의:
 - VM 사용자 계정이 `sudo systemctl`을 비밀번호 없이 실행할 수 있어야 한다.
+- Playwright Chromium 실행에 필요한 OS 패키지는 VM 최초 세팅 때 `sudo env PATH="$PATH" /home/spai0608/.local/bin/uv run python -m playwright install-deps chromium`으로 1회 설치한다.
 - VM 작업 트리에 수동 수정이 남아 있으면 `git pull --ff-only`가 실패할 수 있다.

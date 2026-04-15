@@ -2,8 +2,9 @@
 set -euo pipefail
 
 APP_DIR="${BREWGRAM_APP_DIR:-/home/spai0608/Gen_for_SmallBusiness}"
-BRANCH="${BREWGRAM_DEPLOY_BRANCH:-codex/infra}"
+BRANCH="${BREWGRAM_DEPLOY_BRANCH:-merge/dev}"
 UV_BIN="${BREWGRAM_UV_BIN:-/home/spai0608/.local/bin/uv}"
+PLAYWRIGHT_BROWSER="${BREWGRAM_PLAYWRIGHT_BROWSER:-chromium}"
 
 cd "${APP_DIR}"
 
@@ -19,6 +20,11 @@ git pull --ff-only origin "${BRANCH}"
 if [[ "${BREWGRAM_SKIP_UV_SYNC:-0}" != "1" ]]; then
   echo "[deploy] syncing dependencies"
   "${UV_BIN}" sync
+fi
+
+if [[ "${BREWGRAM_SKIP_PLAYWRIGHT_INSTALL:-0}" != "1" ]]; then
+  echo "[deploy] ensuring Playwright browser: ${PLAYWRIGHT_BROWSER}"
+  "${UV_BIN}" run python -m playwright install "${PLAYWRIGHT_BROWSER}"
 fi
 
 echo "[deploy] restarting services"

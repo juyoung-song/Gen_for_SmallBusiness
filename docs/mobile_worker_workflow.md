@@ -595,8 +595,15 @@ git fetch origin
 git switch merge/dev
 git pull --ff-only origin merge/dev
 uv sync
+uv run python -m playwright install chromium
 sudo systemctl daemon-reload
 sudo systemctl restart brewgram-worker.service brewgram-mobile.service
+```
+
+Chromium 실행에 필요한 OS 패키지는 VM 최초 세팅 때 1회만 수동 설치한다.
+
+```bash
+sudo env PATH="$PATH" /home/spai0608/.local/bin/uv run python -m playwright install-deps chromium
 ```
 
 ## 10. Failure Points

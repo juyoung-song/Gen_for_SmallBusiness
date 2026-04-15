@@ -21,7 +21,7 @@ Internet
 - `worker_api`는 VM 내부 루프백(`127.0.0.1`)으로만 연다.
 - `mobile_app`는 `IMAGE_BACKEND_KIND=remote_worker`로 내부 `worker_api`를 호출한다.
 - 앱 데이터는 repo 밖 `/srv/brewgram/data`에 둬서 `git pull`이나 재배포와 분리한다.
-- 운영 기준 브랜치는 현재 `codex/infra`다.
+- 운영 기준 브랜치는 현재 `merge/dev`다.
 
 ## 2. 현재 기준 값
 
@@ -122,11 +122,18 @@ sudo systemctl daemon-reload
 ```bash
 cd ~/Gen_for_SmallBusiness
 git fetch origin
-git switch codex/infra
-git pull --ff-only origin codex/infra
+git switch merge/dev
+git pull --ff-only origin merge/dev
 uv sync
+uv run python -m playwright install chromium
 sudo systemctl daemon-reload
 sudo systemctl restart brewgram-worker.service brewgram-mobile.service
+```
+
+VM에 Chromium 런타임 패키지가 한 번도 설치되지 않았다면 아래 명령도 1회 실행한다.
+
+```bash
+sudo env PATH="$PATH" /home/spai0608/.local/bin/uv run python -m playwright install-deps chromium
 ```
 
 배포 확인:
@@ -215,14 +222,19 @@ Meta 앱의 `Valid OAuth Redirect URIs`에는 최소 아래 둘을 유지하는 
 현재 repo에는 아래 흐름의 자동배포가 들어가 있다.
 
 ```text
-push to codex/infra
+push to merge/dev
   -> GitHub Actions
   -> SSH to VM
   -> /usr/local/bin/deploy-brewgram.sh
   -> git pull --ff-only
   -> uv sync
+  -> playwright install chromium
   -> systemd restart
 ```
+
+주의:
+- `deploy-brewgram.sh`는 `uv sync` 후 Playwright 브라우저 바이너리(`chromium`)를 설치한다.
+- OS 패키지 설치가 필요한 `playwright install-deps chromium`은 `sudo apt`를 건드리므로 자동배포에 넣지 않는다. VM 최초 세팅 때만 수동 실행한다.
 
 필요 secret:
 - `VM_HOST`
