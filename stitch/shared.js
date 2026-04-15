@@ -17,6 +17,7 @@
     onboarding4: "/stitch/onboarding-instagram.html",
   };
   const PRESET_GOALS = ["신제품 출시", "브랜드 인지도", "이벤트 홍보", "매장 방문 유도"];
+  const NEW_PRODUCT_GOAL_PREFIX = "신제품 출시";
 
   const defaultState = {
     onboarding: {
@@ -36,6 +37,7 @@
       generationType: "both",
       tone: "감성",
       style: "감성",
+      productImage: null,
       referenceUrl: "",
       referenceImage: null,
     },
@@ -559,6 +561,12 @@
     if (/(cookie|쿠키)/.test(name)) return "🍪";
     if (/(muffin|머핀)/.test(name)) return "🧁";
     return "✨";
+  }
+
+  function isNewProductGoal(goal) {
+    return String(goal || "")
+      .trim()
+      .startsWith(NEW_PRODUCT_GOAL_PREFIX);
   }
 
   function buildHistoryEntry(createState, result) {
@@ -1689,6 +1697,10 @@
     const toneSelect = selectOne("#create-tone-select");
     const styleSelect = selectOne("#create-style-select");
     const customGoalInput = selectOne("#create-goal-custom");
+    const productImagePanel = selectOne("#create-product-image-panel");
+    const productImageTrigger = selectOne("#create-product-image-trigger");
+    const productImageInput = selectOne("#create-product-image-input");
+    const productImageStatus = selectOne("#create-product-image-status");
     const referenceUrlInput = selectOne("#create-reference-url");
     const referenceTrigger = selectOne("#create-reference-trigger");
     const referenceInput = selectOne("#create-reference-input");
@@ -1725,6 +1737,9 @@
     styleSelect.value = effectiveStyle;
     if (customGoalInput) customGoalInput.value = customGoalValue;
     referenceUrlInput.value = state.create.referenceUrl || "";
+    if (state.create.productImage && productImageStatus) {
+      productImageStatus.textContent = `${state.create.productImage.name} 파일이 상품 사진으로 연결되어 있어요.`;
+    }
 
     if (state.create.referenceImage && referenceStatus) {
       referenceStatus.textContent = `${state.create.referenceImage.name} 파일이 연결되어 있어요.`;
@@ -1753,15 +1768,31 @@
         activeText: "text-primary",
         inactiveText: "text-on-surface-variant",
       });
+    const syncProductImageUi = (goal) => {
+      const isVisible = isNewProductGoal(goal);
+      productImagePanel?.classList.toggle("hidden", !isVisible);
+      if (!productImageStatus) return;
+      if (!isVisible) {
+        productImageStatus.textContent = "";
+        return;
+      }
+      if (readState().create.productImage?.name) {
+        productImageStatus.textContent = `${readState().create.productImage.name} 파일이 상품 사진으로 준비되었습니다.`;
+        return;
+      }
+      productImageStatus.textContent = "신상품 출시 목표를 선택하면 상품 사진 업로드가 필요합니다.";
+    };
 
     applyGoalStyles(state.create.goal);
     applyGenerationStyles(state.create.generationType);
+    syncProductImageUi(state.create.goal);
 
     goalButtons.forEach((button) => {
       button.addEventListener("click", () => {
         const value = button.dataset.goalChoice;
         patchState({ create: { goal: value } });
         applyGoalStyles(value);
+        syncProductImageUi(value);
         if (customGoalInput) {
           customGoalInput.value = "";
         }
@@ -1786,6 +1817,7 @@
       const nextGoal = event.target.value.trim() || PRESET_GOALS[0];
       patchState({ create: { goal: nextGoal } });
       applyGoalStyles(nextGoal);
+      syncProductImageUi(nextGoal);
     });
     toneSelect?.addEventListener("change", (event) => {
       patchState({ create: { tone: event.target.value } });
@@ -1795,6 +1827,17 @@
     });
     referenceUrlInput?.addEventListener("input", (event) => {
       patchState({ create: { referenceUrl: event.target.value } });
+    });
+
+    productImageTrigger?.addEventListener("click", () => productImageInput?.click());
+    productImageInput?.addEventListener("change", async (event) => {
+      const [file] = event.target.files || [];
+      if (!file) return;
+      const payload = await fileToPayload(file);
+      patchState({ create: { productImage: payload } });
+      if (productImageStatus) {
+        productImageStatus.textContent = `${payload.name} 파일이 상품 사진으로 업로드 준비되었습니다.`;
+      }
     });
 
     referenceTrigger?.addEventListener("click", () => referenceInput?.click());
@@ -1814,6 +1857,10 @@
         setStatus(bootstrapStatus, "상품명을 먼저 입력해주세요.", "error");
         return;
       }
+      if (isNewProductGoal(latestState.create.goal) && !latestState.create.productImage) {
+        setStatus(bootstrapStatus, "신제품 출시 목적이면 상품 사진을 먼저 업로드해주세요.", "error");
+        return;
+      }
 
       submitButton.disabled = true;
       setStatus(bootstrapStatus, "광고를 생성하는 중입니다. 잠시만 기다려주세요.", "loading");
@@ -1828,6 +1875,9 @@
             generation_type: latestState.create.generationType,
             tone: latestState.create.tone,
             style: latestState.create.style,
+            product_image: isNewProductGoal(latestState.create.goal)
+              ? latestState.create.productImage
+              : null,
             reference_url: latestState.create.referenceUrl,
             reference_image: latestState.create.referenceImage,
           },
@@ -1861,6 +1911,7 @@
             description: readState().create.productDescription,
             style: readState().create.tone,
             ad_copies: lastGenerateResult.text_result.ad_copies,
+            is_new_product: isNewProductGoal(readState().create.goal),
           },
         });
         lastCaptionResult = caption;

@@ -112,6 +112,11 @@ class TestMobileCaption:
 
 
 class TestMobileGenerate:
+    def test_is_new_product_goal_matches_prefix(self):
+        assert mobile_app._is_new_product_goal("신제품 출시") is True
+        assert mobile_app._is_new_product_goal("신제품 출시 · 봄 시즌") is True
+        assert mobile_app._is_new_product_goal("브랜드 인지도") is False
+
     def test_request_trace_attributes_extracts_client_and_session(self):
         request = Request(
             {
@@ -161,6 +166,30 @@ class TestMobileGenerate:
         assert "tone" not in metadata
         assert metadata["style"] == "modern"
 
+    async def test_requires_product_image_for_new_product_goal(self, monkeypatch):
+        async def fake_load_brand():
+            return SimpleNamespace(
+                id=uuid4(),
+                name="구름 베이커리",
+                color_hex="#ff7448",
+                style_prompt="따뜻한 브랜드 가이드",
+            )
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await mobile_app.mobile_generate(
+                mobile_app.MobileGenerateRequest(
+                    product_name="딸기 크루아상",
+                    description="봄 시즌 한정 신메뉴",
+                    goal="신제품 출시",
+                    generation_type="both",
+                )
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "상품 사진" in exc_info.value.detail
+
     async def test_passes_langfuse_trace_id_to_generation_save(self, monkeypatch):
         brand = SimpleNamespace(
             id=uuid4(),
@@ -170,6 +199,8 @@ class TestMobileGenerate:
         )
         captured: dict = {}
         trace_context_called: dict = {}
+        text_requests: list = []
+        image_requests: list = []
 
         async def fake_load_brand():
             return brand
@@ -182,6 +213,7 @@ class TestMobileGenerate:
             return uuid4(), uuid4()
 
         def fake_generate_ad_copy(self, request):
+            text_requests.append(request)
             return TextGenerationResponse(
                 ad_copies=["따뜻한 아침을 여는 소금빵"],
                 promo_sentences=["한 입 베어 물면 하루가 부드럽게 시작돼요."],
@@ -189,6 +221,7 @@ class TestMobileGenerate:
             )
 
         def fake_generate_ad_image(self, request):
+            image_requests.append(request)
             return ImageGenerationResponse(
                 image_data=b"fake-image",
                 revised_prompt="warm bakery prompt",
@@ -225,18 +258,45 @@ class TestMobileGenerate:
             "_capture_langfuse_trace_id",
             lambda: "trace-mobile-123",
         )
+        async def fake_prepare_mobile_reference_analysis(reference_bytes, **_):
+            assert reference_bytes == b"fake-reference"
+            return "overhead flat-lay, centered subject"
+
+        monkeypatch.setattr(
+            mobile_app,
+            "_prepare_mobile_reference_analysis",
+            fake_prepare_mobile_reference_analysis,
+        )
 
         await mobile_app.mobile_generate(
             mobile_app.MobileGenerateRequest(
                 product_name="소금빵",
                 description="겉은 바삭하고 속은 촉촉한 대표 메뉴",
+                goal="신제품 출시",
                 generation_type="both",
+                product_image=mobile_app.DataUrlFile(
+                    name="product.jpg",
+                    data_url="data:image/jpeg;base64,ZmFrZS1wcm9kdWN0",
+                ),
+                reference_image=mobile_app.DataUrlFile(
+                    name="reference.png",
+                    data_url="data:image/png;base64,ZmFrZS1yZWZlcmVuY2U=",
+                ),
             )
         )
 
         assert captured["langfuse_trace_id"] == "trace-mobile-123"
+        assert captured["is_new_product"] is True
+        assert captured["product_image_bytes"] == b"fake-product"
+        assert captured["product_image_extension"] == ".jpg"
         assert trace_context_called["request"] is None
         assert "feature:generation" in trace_context_called["tags"]
+        assert text_requests[0].image_data == b"fake-product"
+        assert text_requests[0].is_new_product is True
+        assert text_requests[0].reference_analysis == ""
+        assert image_requests[0].image_data == b"fake-product"
+        assert image_requests[0].is_new_product is True
+        assert image_requests[0].reference_analysis == "overhead flat-lay, centered subject"
 
     async def test_save_generation_outputs_persists_langfuse_trace_id(
         self,
@@ -271,6 +331,9 @@ class TestMobileGenerate:
                 "story_copies": ["갓 구운 소금빵"],
             },
             image_bytes=None,
+            product_image_bytes=b"fake-product",
+            product_image_extension=".jpg",
+            is_new_product=True,
             langfuse_trace_id="trace-mobile-abc",
         )
 
@@ -278,6 +341,9 @@ class TestMobileGenerate:
 
         assert saved is not None
         assert saved.langfuse_trace_id == "trace-mobile-abc"
+        assert saved.product_image_path is not None
+        assert saved.product_image_path.endswith(".jpg")
+        assert saved.is_new_product is True
 
 
 class TestInstagramSummary:

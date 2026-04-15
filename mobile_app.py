@@ -55,6 +55,7 @@ from services.onboarding_service import (
     GPTVisionAnalyzer,
     _merge_structured_inputs_into_freetext,
 )
+from services.reference_service import ReferenceAnalyzer
 from services.text_service import TextService, TextServiceError
 from services.upload_service import UploadService
 from utils.staging_storage import save_to_brand_assets, save_to_staging
@@ -62,6 +63,7 @@ from utils.staging_storage import save_to_brand_assets, save_to_staging
 DATA_DIR = get_app_data_dir()
 STITCH_DIR = ROOT_DIR / "stitch"
 ONBOARDING_DIR = DATA_DIR / "onboarding" / "mobile"
+NEW_PRODUCT_GOAL_PREFIX = "신제품 출시"
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -144,6 +146,7 @@ class MobileGenerateRequest(BaseModel):
     generation_type: Literal["text", "image", "both"] = "both"
     tone: str = "기본"
     style: str = "기본"
+    product_image: DataUrlFile | None = None
     reference_url: str = ""
     reference_image: DataUrlFile | None = None
 
@@ -545,6 +548,9 @@ async def _save_generation_outputs(
     tone: str,
     text_result: dict | None,
     image_bytes: bytes | None,
+    product_image_bytes: bytes | None = None,
+    product_image_extension: str = ".png",
+    is_new_product: bool = False,
     langfuse_trace_id: str | None = None,
 ) -> tuple[UUID | None, UUID | None]:
     outputs: list[OutputSpec] = []
@@ -562,6 +568,12 @@ async def _save_generation_outputs(
     if not outputs:
         return None, None
 
+    product_image_path: str | None = None
+    if product_image_bytes:
+        product_image_path = str(
+            save_to_staging(product_image_bytes, extension=product_image_extension)
+        )
+
     async with AsyncSessionLocal() as session:
         generation_service = GenerationService(session)
         generation = await generation_service.create_with_outputs(
@@ -569,10 +581,10 @@ async def _save_generation_outputs(
             reference_image_id=None,
             product_name=product_name,
             product_description=description,
-            product_image_path=None,
+            product_image_path=product_image_path,
             goal=goal,
             tone=tone,
-            is_new_product=False,
+            is_new_product=is_new_product,
             outputs=outputs,
             langfuse_trace_id=langfuse_trace_id,
         )
@@ -610,6 +622,27 @@ def _langfuse_trace_span(name: str):
     except Exception as exc:  # noqa: BLE001
         logger.warning("Langfuse span 시작 실패 → 추적 없이 진행: %s", exc)
         return contextlib.nullcontext()
+
+
+def _is_new_product_goal(goal: str) -> bool:
+    return goal.strip().startswith(NEW_PRODUCT_GOAL_PREFIX)
+
+
+async def _prepare_mobile_reference_analysis(
+    reference_bytes: bytes | None,
+    *,
+    extension: str = ".png",
+) -> str:
+    if not reference_bytes or not settings.is_api_ready:
+        return ""
+
+    staged_path = save_to_staging(reference_bytes, extension=extension)
+    try:
+        analyzer = ReferenceAnalyzer(settings)
+        return await run_in_threadpool(analyzer.analyze, staged_path)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("모바일 참조 이미지 구도 분석 실패: %s", exc)
+        return ""
 
 
 def _sanitize_langfuse_value(value: str | None) -> str | None:
@@ -992,12 +1025,34 @@ async def mobile_generate(
     if brand is None:
         raise HTTPException(status_code=409, detail="온보딩이 아직 완료되지 않았습니다.")
     brand_prompt = _build_brand_prompt(brand)
+    is_new_product = _is_new_product_goal(payload.goal)
+
+    product_image_bytes: bytes | None = None
+    product_image_extension = ".png"
+    if payload.product_image is not None:
+        product_image_bytes, _ = _decode_data_url(payload.product_image.data_url)
+        product_image_extension = _infer_extension(payload.product_image)
+    if is_new_product and product_image_bytes is None:
+        raise HTTPException(
+            status_code=400,
+            detail="신제품 출시 목적이면 상품 사진을 먼저 업로드해주세요.",
+        )
 
     reference_bytes: bytes | None = None
+    reference_extension = ".png"
     if payload.reference_image is not None:
         reference_bytes, _ = _decode_data_url(payload.reference_image.data_url)
+        reference_extension = _infer_extension(payload.reference_image)
     elif payload.reference_url.strip():
         reference_bytes = await _download_reference_image(payload.reference_url)
+
+    image_input_bytes = product_image_bytes if is_new_product else reference_bytes
+    reference_analysis = ""
+    if is_new_product and payload.generation_type in {"image", "both"}:
+        reference_analysis = await _prepare_mobile_reference_analysis(
+            reference_bytes,
+            extension=reference_extension,
+        )
 
     text_service = TextService(settings)
     image_service = ImageService(settings)
@@ -1022,11 +1077,13 @@ async def mobile_generate(
                 metadata={
                     "product_name_length": str(len(payload.product_name.strip())),
                     "description_length": str(len(payload.description.strip())),
+                    "is_new_product": "true" if is_new_product else "false",
                     "has_reference_image": (
                         "true"
                         if payload.reference_image is not None or bool(payload.reference_url.strip())
                         else "false"
                     ),
+                    "has_product_image": "true" if product_image_bytes is not None else "false",
                 },
             ):
                 if payload.generation_type in {"text", "both"}:
@@ -1037,9 +1094,9 @@ async def mobile_generate(
                             description=payload.description.strip(),
                             style=payload.tone,
                             goal=payload.goal.strip(),
-                            image_data=reference_bytes,
+                            image_data=image_input_bytes,
                             brand_prompt=brand_prompt,
-                            is_new_product=False,
+                            is_new_product=is_new_product,
                             reference_analysis="",
                         ),
                     )
@@ -1058,10 +1115,10 @@ async def mobile_generate(
                             description=payload.description.strip(),
                             goal=payload.goal.strip(),
                             style=payload.style,
-                            image_data=reference_bytes,
+                            image_data=image_input_bytes,
                             brand_prompt=brand_prompt,
-                            is_new_product=False,
-                            reference_analysis="",
+                            is_new_product=is_new_product,
+                            reference_analysis=reference_analysis,
                         ),
                     )
                 langfuse_trace_id = _capture_langfuse_trace_id()
@@ -1074,6 +1131,9 @@ async def mobile_generate(
             tone=payload.tone,
             text_result=text_payload,
             image_bytes=image_result.image_data if image_result is not None else None,
+            product_image_bytes=product_image_bytes if is_new_product else None,
+            product_image_extension=product_image_extension,
+            is_new_product=is_new_product,
             langfuse_trace_id=langfuse_trace_id,
         )
     except TextServiceError as exc:
