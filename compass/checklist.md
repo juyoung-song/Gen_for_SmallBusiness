@@ -280,3 +280,38 @@
 - [x] **19.S.3** 신상품 OFF + 기존 상품 선택 → 드롭다운 + 썸네일 + 결과 이미지에 과거 상품 반영
 - [x] **19.S.4** 신상품 OFF + 미선택 → 에러
 - [x] **19.S.5** 회귀: CP17/CP18 기능 유지
+
+---
+
+## CP20 — 인스타 계정 선택 UI (2026-04-15 시작, `merge/insta` 브랜치)
+
+### Phase 1 — RED
+- [ ] **20.1.1** `TestCP20FetchDefensive::test_missing_data_field_raises`
+- [ ] **20.1.2** `TestCP20FetchDefensive::test_username_fetch_failure_raises`
+- [ ] **20.1.3** `TestCP20ListCandidates::test_returns_all_accounts_with_username`
+- [ ] **20.1.4** `TestCP20CandidatesEndpoint::test_get_candidates_returns_list`
+- [ ] **20.1.5** `TestCP20SelectAccount::test_post_select_saves_connection`
+- [ ] **20.1.6** `TestCP20ManualAccount::test_post_manual_saves_connection`
+
+### Phase 2 — GREEN
+- [ ] **20.2.1** `InstagramAuthService.fetch_instagram_account()` — `3828c19` 방어 코드 이식 (data 누락 / username 실패 에러)
+- [ ] **20.2.2** 후보 2+ 일 때 `MultipleAccountsFound` 예외 발생
+- [ ] **20.2.3** `InstagramAuthService.list_candidate_accounts(token)` 신규 메서드
+- [ ] **20.2.4** `GET /api/mobile/instagram/candidates` 엔드포인트
+- [ ] **20.2.5** `POST /api/mobile/instagram/select-account` 엔드포인트
+- [ ] **20.2.6** `POST /api/mobile/instagram/manual-account` 엔드포인트
+- [ ] **20.2.7** 콜백에서 `MultipleAccountsFound` 캐치 → "선택 필요" 상태로 리다이렉트
+
+### Phase 3 — Stitch UI
+- [ ] **20.3.1** `stitch/settings.html` — `#instagram-candidates-panel` (라디오 리스트 + 연결 버튼)
+- [ ] **20.3.2** `stitch/settings.html` — `#instagram-manual-panel` (수동 입력 폼)
+- [ ] **20.3.3** `stitch/shared.js` — status 분기 (`requires_selection` / `requires_manual`)
+- [ ] **20.3.4** `shared.js` — `/candidates` fetch + 라디오 렌더 + `/select-account` 호출
+- [ ] **20.3.5** `shared.js` — 수동 입력 `/manual-account` 호출
+
+### 📱 스모크
+- [ ] **20.S.1** 페이지 1개 + IG 1개 → 자동 완료 (회귀)
+- [ ] **20.S.2** 페이지 2+ + 각 IG → 선택 UI → 완료
+- [ ] **20.S.3** 페이지 있고 IG 없음 → 수동 입력 → 완료
+- [ ] **20.S.4** 잘못된 ID 수동 입력 → 에러 토스트
+- [ ] **20.S.5** 회귀: CP19/CP17/CP18 기능 유지

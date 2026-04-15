@@ -195,6 +195,53 @@ class InstagramAuthService:
                 "facebook_page_name": p_name,
             }
 
+    async def list_candidate_accounts(self, access_token: str) -> list[dict]:
+        """연결된 모든 Instagram Business Account 후보 목록 반환.
+
+        fetch_instagram_account() 와 달리 첫 번째를 자동 선택하지 않고
+        전체 후보를 반환합니다. username 은 각 계정별로 별도 조회.
+        """
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{self.BASE_URL}/me/accounts",
+                params={
+                    "fields": "id,name,access_token,instagram_business_account",
+                    "access_token": access_token,
+                },
+            )
+            resp.raise_for_status()
+
+            resp_json = resp.json()
+            if "data" not in resp_json:
+                logger.error("Facebook 페이지 목록 응답에 'data' 필드가 없음: %s", resp_json)
+                raise ValueError("Facebook 페이지 목록을 가져오는 데 실패했습니다 (data 필드 누락).")
+
+            pages_data = resp_json.get("data", [])
+            candidates = []
+
+            for page in pages_data:
+                p_id = page.get("id")
+                p_name = page.get("name", "(이름 없는 페이지)")
+                ig_info = page.get("instagram_business_account")
+                if not ig_info or "id" not in ig_info:
+                    continue
+
+                ig_id = ig_info["id"]
+                usr_resp = await client.get(
+                    f"{self.BASE_URL}/{ig_id}",
+                    params={"fields": "username", "access_token": access_token},
+                )
+                username = usr_resp.json().get("username") if usr_resp.status_code == 200 else None
+
+                candidates.append({
+                    "facebook_page_id": p_id,
+                    "facebook_page_name": p_name,
+                    "instagram_account_id": ig_id,
+                    "instagram_username": username,
+                })
+
+            return candidates
+
     async def fetch_instagram_account_manually(
         self, access_token: str, instagram_id: str
     ) -> dict:

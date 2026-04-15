@@ -1,7 +1,7 @@
 # Plan
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-15 (CP19 스모크 완료 — 신상품 토글 + 기존 상품 선택 UI)
+> **마지막 갱신:** 2026-04-15 (CP20 시작 — 인스타 계정 선택 UI, `merge/insta` 브랜치)
 > **베이스:** `docs/design.md`
 > **이전 버전 폐기:** IP-Adapter 코드 리뷰 작업 계획(2026-04-03)은 본 문서로 대체됨
 
@@ -460,6 +460,52 @@ Phase 2 — MVP 완성 (기능 추가)
 
 ### ✅ 머지 완료 (CP14~16 → refactor/flow)
 - PR #12 머지 완료 (2026-04-15). `logo_gen_exp/` 제거 후 머지.
+
+### 🚧 CP20 — 인스타 계정 선택 UI (2026-04-15 시작, `merge/insta` 브랜치)
+
+**배경**: mobile_app 의 OAuth 콜백은 `fetch_instagram_account()` 로 IG 비즈니스 계정을 자동 조회하지만 **첫 번째 후보만 자동 선택**. FB 사용자가 여러 페이지를 관리하고 각 페이지에 IG 계정이 붙어 있으면 사용자가 원하는 계정을 고를 방법이 없음. 또한 자동 조회가 전부 실패했을 때 수동 IG ID 입력 경로도 mobile 엔드포인트로 노출돼 있지 않음. Streamlit (`ui/instagram_connect.py`) 은 자동 실패 시 `fetch_instagram_account_manually()` 로 우회 가능.
+
+**참고**: `refactor/won/final-fix-insta-backend` 의 커밋 `3828c19` 가 `found_accounts` 로 후보 수집 + 방어 코드(data 누락 / username silent pass 방지) 까지 구현해 뒀음. 다만 첫 번째 자동 선택 유지 + UI 없음 상태. CP20 은 **후보 수집 + 선택 UI + 수동 입력 fallback** 을 묶어 완성한다.
+
+**Phase 1 (RED)** — 5개 테스트
+1. `TestCP20FetchDefensive::test_missing_data_field_raises` — `/me/accounts` 응답에 data 없으면 ValueError
+2. `TestCP20FetchDefensive::test_username_fetch_failure_raises` — username 200 아닐 때 ValueError
+3. `TestCP20ListCandidates::test_returns_all_accounts_with_username` — 후보 여러 개 반환
+4. `TestCP20CandidatesEndpoint::test_get_candidates_returns_list` — GET /instagram/candidates
+5. `TestCP20SelectAccount::test_post_select_saves_connection` — POST /instagram/select-account → save_connection 호출
+6. `TestCP20ManualAccount::test_post_manual_saves_connection` — POST /instagram/manual-account
+
+**Phase 2 (GREEN)** — `services/instagram_auth_service.py` + `mobile_app.py`
+- `fetch_instagram_account()` — `3828c19` 방어 코드 이식 (data 누락 / username 실패 처리). 후보 1개면 기존처럼 자동 반환, 2개 이상이면 `MultipleAccountsFound` 예외 발생 (UI 에서 선택 유도)
+- 신규 `list_candidate_accounts(token)` — 모든 후보 + username + profile_picture_url 반환
+- `GET /api/mobile/instagram/candidates` — 세션 pending 연결의 토큰 꺼내 후보 목록 반환
+- `POST /api/mobile/instagram/select-account` — body `{instagram_account_id}` → 후보 검증 → `save_connection()`
+- `POST /api/mobile/instagram/manual-account` — body `{instagram_business_account_id}` → `fetch_instagram_account_manually()` → `save_connection()`
+- 콜백에서 `MultipleAccountsFound` 캐치 시 "선택 필요" 상태로 리다이렉트 (or status API 힌트)
+
+**Phase 3 (UI)** — Stitch
+- `stitch/settings.html` + 신규 패널 `#instagram-candidates-panel`: 후보 2+ 일 때 라디오 리스트 + "연결" 버튼
+- `stitch/settings.html` `#instagram-manual-panel`: "직접 입력" 링크 → IG 비즈니스 계정 ID 입력 + "수동 연결" 버튼
+- `shared.js`: status 조회 결과의 분기 처리
+  - 자동 선택 완료 → 현행 그대로
+  - `requires_selection: true` → `/candidates` fetch → 라디오 UI
+  - `requires_manual: true` (후보 0) → 수동 입력 폼
+
+**📱 스모크**:
+- [ ] **20.S.1** 페이지 1개 + IG 1개: 콜백 후 자동 완료 (회귀)
+- [ ] **20.S.2** 페이지 2+ 각각 IG 연결: 선택 UI 표시 → 선택 → 완료
+- [ ] **20.S.3** 페이지는 있는데 IG 없음: 수동 입력 폼 → IG ID 입력 → 완료
+- [ ] **20.S.4** 수동 입력 잘못된 ID: 에러 토스트, 저장 안 됨
+- [ ] **20.S.5** 회귀: CP19 신상품 토글, CP17 온보딩 자동 로고
+
+**뺀 것**: Streamlit 쪽 사이드바 UI 변경 없음 (app.py 는 곧 제거)
+
+**구현 결정**:
+- **토큰 pending 저장 = 프로세스 메모리 dict** (`_PENDING_IG_TOKENS: dict[UUID, PendingToken]`). InstagramConnection 스키마 변경 없이 콜백~선택/수동 사이 토큰만 임시 유지. 재시작 시 사용자 다시 OAuth (실제 흐름은 1분 이내 완료되므로 리스크 낮음).
+- **`fetch_instagram_account()` 의 기존 자동선택 동작은 보존 (len==1 인 경우만)**. 2+ 일 때 `MultipleAccountsFound` 발생. 기존 호출자는 예외 캐치 필요.
+- **현재 `instagram_auth_service.py` 는 이미 `3828c19` 방어 코드 포함** (data 누락 ValueError, username 실패 ValueError, 여러 개 warning 로그). 20.1.1 / 20.1.2 는 사실상 회귀 테스트로 등록하되 패스해도 OK.
+
+---
 
 ### ✅ CP19 — 신상품 토글 + 기존 상품 선택 UI (2026-04-15 완료)
 
