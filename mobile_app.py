@@ -51,10 +51,12 @@ from services.instagram_auth_service import (
     InstagramPageConnectionRequiredError,
 )
 from services.instagram_service import InstagramService
+from services.logo_service import LogoAutoGenerator
 from services.onboarding_service import (
     GPTVisionAnalyzer,
     _merge_structured_inputs_into_freetext,
 )
+from services.reference_service import ReferenceAnalyzer
 from services.text_service import TextService, TextServiceError
 from services.upload_service import UploadService
 from utils.staging_storage import save_to_brand_assets, save_to_staging
@@ -62,6 +64,8 @@ from utils.staging_storage import save_to_brand_assets, save_to_staging
 DATA_DIR = get_app_data_dir()
 STITCH_DIR = ROOT_DIR / "stitch"
 ONBOARDING_DIR = DATA_DIR / "onboarding" / "mobile"
+LOGO_FONT_PATH = ROOT_DIR / "assets" / "fonts" / "LXGWWenKaiKR-Medium.ttf"
+BRAND_ASSETS_DIR = DATA_DIR / "brand_assets"
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -783,6 +787,20 @@ async def complete_onboarding(
             extension=_infer_extension(payload.logo),
         )
         logo_path = str(saved_logo)
+    else:
+        # CP14: 로고 미업로드 시 PIL 워드마크 자동 생성 (Streamlit 흐름과 동등).
+        # CP15 OpenAIImageBackend 가 logo_path 를 필수로 요구하므로 항상 채워둔다.
+        BRAND_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+        generator = LogoAutoGenerator(
+            font_path=LOGO_FONT_PATH,
+            save_dir=BRAND_ASSETS_DIR,
+        )
+        saved_logo = await run_in_threadpool(
+            generator.generate_and_save,
+            name=brand_name,
+            color_hex=brand_color or "#ff7448",
+        )
+        logo_path = str(saved_logo)
 
     ONBOARDING_DIR.mkdir(parents=True, exist_ok=True)
     analysis_images: list[Path] = []
@@ -889,6 +907,20 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
     elif payload.reference_url.strip():
         reference_bytes = await _download_reference_image(payload.reference_url)
 
+    # 참조 이미지가 있으면 구도 분석 → ImageGenerationRequest.reference_analysis 로 주입.
+    # Streamlit 흐름과 동등 (app.py:_prepare_reference). 텍스트 요청에는 주입하지 않음
+    # (정책: brand 톤과 섞이면 안 됨).
+    composition_prompt = ""
+    if reference_bytes is not None:
+        try:
+            ref_path = save_to_staging(reference_bytes, extension=".png")
+            composition_prompt = await run_in_threadpool(
+                ReferenceAnalyzer(settings).analyze, ref_path
+            )
+        except Exception as exc:  # pragma: no cover - 외부 Vision API 의존
+            logger.warning("참조 이미지 구도 분석 실패: %s", exc)
+            composition_prompt = ""
+
     text_service = TextService(settings)
     image_service = ImageService(settings)
 
@@ -935,7 +967,8 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
                         image_data=reference_bytes,
                         brand_prompt=brand_prompt,
                         is_new_product=False,
-                        reference_analysis="",
+                        reference_analysis=composition_prompt,
+                        logo_path=brand.logo_path,
                     ),
                 )
             langfuse_trace_id = _capture_langfuse_trace_id()
