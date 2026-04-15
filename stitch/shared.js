@@ -27,6 +27,7 @@
       instagramUrl: "",
       logo: null,
       referenceImages: [],
+      analysisContent: "",
     },
     create: {
       productName: "",
@@ -835,13 +836,60 @@
     const submitButton = selectOne("#step3-submit");
     const prevButton = selectOne("#step3-prev");
     const statusNode = selectOne("#onboarding-status");
+    const analysisPanel = selectOne("#onboarding-analysis-panel");
+    const analysisTextNode = selectOne("#onboarding-analysis-text");
+    const analysisBadgeNode = selectOne("#onboarding-analysis-badge");
 
     descriptionInput.value = state.onboarding.brandDescription || "";
     descriptionInput?.addEventListener("input", (event) => {
-      patchState({ onboarding: { brandDescription: event.target.value } });
+      patchState({
+        onboarding: {
+          brandDescription: event.target.value,
+          analysisContent: "",
+        },
+      });
+      analysisPanel?.classList.add("hidden");
+      if (analysisTextNode) {
+        analysisTextNode.textContent = "";
+      }
+      if (analysisBadgeNode) {
+        analysisBadgeNode.textContent = "분석 대기";
+      }
+      if (submitButton) {
+        submitButton.innerHTML = '분석하기 <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>';
+      }
     });
 
+    const applyAnalysisContent = (analysisContent, status = "created") => {
+      const content = String(analysisContent || "").trim();
+      if (!content) {
+        analysisPanel?.classList.add("hidden");
+        return;
+      }
+
+      if (analysisTextNode) {
+        analysisTextNode.textContent = content;
+      }
+      if (analysisBadgeNode) {
+        analysisBadgeNode.textContent = status === "existing" ? "기존 분석" : "AI 분석 완료";
+      }
+      analysisPanel?.classList.remove("hidden");
+      if (submitButton) {
+        submitButton.innerHTML = '다음 <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>';
+      }
+    };
+
+    if (state.onboarding.analysisContent) {
+      applyAnalysisContent(state.onboarding.analysisContent, "existing");
+    }
+
     const submit = async (skipDescription) => {
+      const currentState = readState();
+      if (currentState.onboarding.analysisContent) {
+        navigate(PATHS.onboarding4);
+        return;
+      }
+
       const nextState = patchState({
         onboarding: {
           brandDescription: skipDescription ? "" : descriptionInput.value,
@@ -865,18 +913,22 @@
             reference_images: nextState.onboarding.referenceImages,
           },
         });
+        const analysisContent = result.brand?.content || "";
+        patchState({
+          onboarding: {
+            analysisContent,
+          },
+        });
+        applyAnalysisContent(analysisContent, result.status);
         setStatus(
           statusNode,
           result.status === "updated"
-            ? "브랜드 정보를 새 입력값으로 업데이트했습니다. 마지막 연결 단계로 이동합니다."
+            ? "브랜드 정보를 새 입력값으로 업데이트했습니다. 아래 분석을 확인하고 다음 단계로 이동하세요."
             : result.status === "existing"
-              ? "이미 저장된 브랜드가 있어 기존 설정을 그대로 사용합니다. 마지막 연결 단계로 이동합니다."
-              : "브랜드 세팅이 완료되었습니다. 마지막 연결 단계로 이동합니다.",
+              ? "이미 저장된 브랜드가 있어 기존 분석을 그대로 보여드립니다. 확인 후 다음 단계로 이동하세요."
+              : "브랜드 세팅이 완료되었습니다. 아래 분석을 확인하고 다음 단계로 이동하세요.",
           "success",
         );
-        window.setTimeout(() => {
-          navigate(PATHS.onboarding4);
-        }, 700);
       } catch (error) {
         setStatus(statusNode, error.message, "error");
       } finally {
