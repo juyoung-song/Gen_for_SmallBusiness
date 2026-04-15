@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brewgram - 시작하기</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Be+Vietnam+Pro:wght@400;500;600&display=swap"
+    />
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-stitch-page="welcome">
+    <main class="welcome-shell">
+      <section class="welcome-card">
+        <div class="welcome-mark">
+          <img class="brand-mark brand-mark--xl" src="./brand-badge.svg" alt="Brewgram 로고" />
+        </div>
+        <p class="welcome-eyebrow">welcome to brewgram</p>
+        <h1 class="welcome-title" id="welcome-title">사장님만의 홍보 도우미를 시작해볼까요?</h1>
+        <p class="welcome-copy" id="welcome-copy">
+          몇 가지 기본 정보만 알려주시면 메인 화면에서 바로 홍보물 생성을 시작할 수 있습니다.
+        </p>
+
+        <div class="welcome-points">
+          <div class="welcome-point">
+            <span class="material-symbols-outlined">storefront</span>
+            브랜드 이름과 분위기 설정
+          </div>
+          <div class="welcome-point">
+            <span class="material-symbols-outlined">imagesmode</span>
+            참고 스타일과 레퍼런스 추가
+          </div>
+          <div class="welcome-point">
+            <span class="material-symbols-outlined">link</span>
+            인스타 계정 연결은 마지막에 선택
+          </div>
+        </div>
+
+        <button class="welcome-button" id="welcome-start" type="button">
+          시작하기
+          <span class="material-symbols-outlined">arrow_forward</span>
+        </button>
+
+        <div class="hidden" id="welcome-status"></div>
+      </section>
+    </main>
+    <script src="./shared.js"></script>
+  </body>
+</html>

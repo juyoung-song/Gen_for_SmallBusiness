@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brewgram - 보관함</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Be+Vietnam+Pro:wght@400;500;600&display=swap"
+    />
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-stitch-page="archive">
+    <header class="app-topbar">
+      <div class="brand-lockup">
+        <img class="brand-mark" src="./brand-badge.svg" alt="Brewgram 로고" />
+        <div>
+          <div class="app-topbar__title">보관함</div>
+          <div class="app-topbar__meta">최근 생성한 홍보물을 다시 보기</div>
+        </div>
+      </div>
+      <a class="icon-circle" href="/stitch/4._2/code.html" aria-label="새 홍보 만들기">
+        <span class="material-symbols-outlined">add</span>
+      </a>
+    </header>
+
+    <main class="app-shell">
+      <section class="app-section panel">
+        <div class="panel-head">
+          <h1 class="panel-title" id="archive-title">보관함 · 0개</h1>
+          <span class="mini-tag" id="archive-sync-status">세션 기반 저장</span>
+        </div>
+        <p class="panel-copy">
+          지금은 브라우저 세션 기준으로 최근 생성 결과를 보관합니다. 자동 업로드 이력은 연결 전이라 표시만 준비되어 있습니다.
+        </p>
+      </section>
+
+      <section class="app-section">
+        <div class="history-stack" id="archive-list"></div>
+      </section>
+
+      <div class="hidden" id="archive-status"></div>
+    </main>
+
+    <nav class="app-nav" aria-label="앱 탐색">
+      <a class="app-nav__item" href="/stitch/index.html">
+        <span class="material-symbols-outlined">home</span>
+        <span class="app-nav__label">홈</span>
+      </a>
+      <a class="app-nav__item app-nav__item--fab" href="/stitch/4._2/code.html">
+        <span class="material-symbols-outlined">add</span>
+        <span class="app-nav__label">만들기</span>
+      </a>
+      <a class="app-nav__item app-nav__item--active" href="/stitch/archive.html">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <span class="app-nav__label">보관함</span>
+      </a>
+    </nav>
+
+    <script src="./shared.js"></script>
+  </body>
+</html>

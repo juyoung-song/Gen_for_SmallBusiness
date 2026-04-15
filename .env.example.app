@@ -30,6 +30,11 @@ OPENAI_API_KEY=<CHANGE_ME>
 TEXT_MODEL=gpt-5-mini
 TEXT_TIMEOUT=30.0
 
+# ── Langfuse (선택: OpenAI 호출 trace 수집) ──
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
+LANGFUSE_HOST=https://cloud.langfuse.com
+
 # ── 원격 이미지 워커 (IMAGE_BACKEND_KIND=remote_worker 시 필수) ──
 IMAGE_WORKER_URL=http://YOUR_VM_IP:8006/
 IMAGE_WORKER_TOKEN=<CHANGE_ME_LONG_RANDOM>
@@ -45,3 +50,13 @@ IMAGE_TIMEOUT=60.0
 META_ACCESS_TOKEN=<CHANGE_ME>
 INSTAGRAM_ACCOUNT_ID=<CHANGE_ME>
 FREEIMAGE_API_KEY=6d207e02198a847aa98d0a2a901485a5    # 공용 키 기본값, 변경 안 해도 됨
+
+# ── 인스타그램 OAuth (사장님 계정 직접 연결) ──
+# Streamlit 과 Stitch 모바일을 둘 다 쓸 경우 아래 2개 redirect URI 를 Meta 앱에 모두 등록
+META_APP_ID=
+META_APP_SECRET=
+TOKEN_ENCRYPTION_KEY=
+META_REDIRECT_URI_STREAMLIT=http://localhost:8501/
+META_REDIRECT_URI_MOBILE=http://localhost:8007/api/mobile/instagram/callback
+# legacy fallback (가능하면 비워두고 위 2개를 사용)
+META_REDIRECT_URI=

@@ -10,7 +10,7 @@ docs/schema.md §3.5 기준 재작성:
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 import httpx
@@ -25,6 +25,10 @@ from utils.crypto import encrypt_token
 logger = logging.getLogger(__name__)
 
 
+class InstagramPageConnectionRequiredError(ValueError):
+    """Instagram professional account 와 Facebook Page 연결이 필요한 상태."""
+
+
 class InstagramAuthService:
     """Meta OAuth를 통한 인스타그램 계정 연결/관리 서비스."""
 
@@ -36,11 +40,17 @@ class InstagramAuthService:
 
     # ── Step 1: OAuth URL 생성 ──
 
-    def generate_oauth_url(self, state: str) -> str:
+    def generate_oauth_url(
+        self,
+        state: str,
+        *,
+        surface: Literal["streamlit", "mobile"] = "mobile",
+    ) -> str:
         """Meta OAuth 인증 시작 URL 생성."""
         from urllib.parse import quote
 
-        encoded_uri = quote(self.settings.META_REDIRECT_URI, safe="")
+        redirect_uri = self.settings.get_meta_redirect_uri(surface)
+        encoded_uri = quote(redirect_uri, safe="")
         return (
             f"https://www.facebook.com/{self.GRAPH_API_VERSION}/dialog/oauth"
             f"?client_id={self.settings.META_APP_ID}"
@@ -52,14 +62,20 @@ class InstagramAuthService:
 
     # ── Step 2: code → Short-lived Token ──
 
-    async def exchange_code_for_token(self, code: str) -> str:
+    async def exchange_code_for_token(
+        self,
+        code: str,
+        *,
+        surface: Literal["streamlit", "mobile"] = "mobile",
+    ) -> str:
         """Authorization code를 short-lived access token으로 교환."""
+        redirect_uri = self.settings.get_meta_redirect_uri(surface)
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 f"{self.BASE_URL}/oauth/access_token",
                 params={
                     "client_id": self.settings.META_APP_ID,
-                    "redirect_uri": self.settings.META_REDIRECT_URI,
+                    "redirect_uri": redirect_uri,
                     "client_secret": self.settings.META_APP_SECRET,
                     "code": code,
                 },
@@ -120,6 +136,12 @@ class InstagramAuthService:
                 raise ValueError("Facebook 페이지 목록을 가져오는 데 실패했습니다 (data 필드 누락).")
 
             pages_data = resp_json.get("data", [])
+            if not pages_data:
+                raise InstagramPageConnectionRequiredError(
+                    "Meta 로그인은 완료됐지만 접근 가능한 Facebook Page를 찾지 못했습니다. "
+                    "Facebook에서 Page 권한을 확인하거나 새 Page를 만든 뒤 다시 시도해 주세요."
+                )
+
             found_accounts = []
 
             for page in pages_data:
@@ -134,9 +156,9 @@ class InstagramAuthService:
                     })
 
             if not found_accounts:
-                raise ValueError(
-                    "연결된 Instagram 비즈니스 계정을 자동으로 찾을 수 없습니다. "
-                    "수동 연결을 이용해 주세요."
+                raise InstagramPageConnectionRequiredError(
+                    "Facebook Page는 확인됐지만 Instagram professional account가 연결되지 않았습니다. "
+                    "Instagram 앱에서 프로필 편집 > 페이지에서 Facebook Page를 연결한 뒤 다시 시도해 주세요."
                 )
 
             if len(found_accounts) > 1:
