@@ -1,7 +1,7 @@
 # Plan
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-08 (Phase 2 완료)
+> **마지막 갱신:** 2026-04-15 (CP17/18 스모크 완료, merge/main 통합 진행 중)
 > **베이스:** `docs/design.md`
 > **이전 버전 폐기:** IP-Adapter 코드 리뷰 작업 계획(2026-04-03)은 본 문서로 대체됨
 
@@ -461,7 +461,7 @@ Phase 2 — MVP 완성 (기능 추가)
 ### ✅ 머지 완료 (CP14~16 → refactor/flow)
 - PR #12 머지 완료 (2026-04-15). `logo_gen_exp/` 제거 후 머지.
 
-### 🚧 CP17 — mobile_app 백엔드 기능 보존 통합 (진행 중)
+### ✅ CP17/18 — mobile_app 백엔드 기능 보존 + 신상품 사진 주입 (2026-04-15 완료)
 
 **배경**: `merge/main` 브랜치에서 `refactor/flow` (CP14~16) + `codex/final-merge` (Stitch mobile UI + FastAPI) 통합 직후 상태. Streamlit (`app.py`) 는 곧 제거 예정 → `mobile_app.py` 가 단독 진입점이 되는데, **`logo_service` (CP14) / `reference_service` 가 mobile_app 에서 빠져 있어 백엔드 기능이 회귀**.
 
@@ -482,12 +482,18 @@ Phase 2 — MVP 완성 (기능 추가)
   - `ImageGenerationRequest` 에 `reference_analysis`, `logo_path` 주입
 - **Phase 3 (REFACTOR)**: 헬퍼 분리 검토
 
-**📱 백엔드 동등성 체크리스트** (Streamlit ≡ mobile):
-- [ ] 온보딩: 로고 업로드 안 함 → 자동 생성됨
-- [ ] 광고 생성: 컵에 워드마크 각인됨 (CP15 동작)
-- [ ] 광고 생성: 다른 프롭은 blank (CP16 동작)
-- [ ] 광고 생성: 참조 이미지의 구도가 결과에 반영됨
+**📱 스모크 결과** (2026-04-15):
+- [x] 17.S.1 ✅ 온보딩 로고 자동 생성
+- [x] 17.S.2 ✅ 컵에 워드마크 각인
+- [x] 17.S.3 ✅ 다른 프롭 blank
+- [x] 17.S.4 △ reference_analysis 주입 동작, 구도 품질 개선 필요 (별도 이슈)
+- [x] UI.1 ✅ AI 분석 패널 + "다음" 버튼 전환
+- [x] UI.2 ✅ 신상품 사진 패널 표시 + 주입
 
-**알려진 후속**: `source_output_id` 기반 reference 풀 (Streamlit 에는 이미 있음, mobile payload 확장 필요), Streamlit 정식 제거.
+**CP18 추가**: `MobileGenerateRequest.product_image` 필드 추가 → `ImageGenerationRequest.image_data` 주입 (154 passed)
 
-**상세 계획 파일**: `/Users/won/.claude/plans/magical-snuggling-biscuit.md`
+**알려진 후속**:
+- 참조 이미지 구도 반영 프롬프트 품질 개선
+- `source_output_id` 기반 reference 풀 (mobile payload 확장 필요)
+- Langfuse 브라우저 헤더(`buildTraceHeaders`) 검증 후 이식
+- Streamlit(`app.py`, `ui/`) 정식 제거

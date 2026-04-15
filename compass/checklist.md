@@ -225,7 +225,27 @@
 - [ ] **17.3.1** inline 충분한지 vs `_resolve_reference_analysis` 헬퍼 분리 판단
 
 ### 📱 백엔드 동등성 스모크 (uvicorn mobile_app:app)
-- [ ] **17.S.1** 온보딩(로고 미업로드) → `data/brand_assets/<uuid>.png` 생성 + `brands.logo_path` 채워짐
-- [ ] **17.S.2** 광고 생성 → 컵에 워드마크 각인 (CP15 동작)
-- [ ] **17.S.3** 광고 생성 → 다른 프롭 blank (CP16 동작)
-- [ ] **17.S.4** 광고 생성(참조 이미지 제공) → 결과 이미지에 참조 구도 반영 + Langfuse trace 의 prompt 에 `reference_analysis` 텍스트 포함
+- [x] **17.S.1** 온보딩(로고 미업로드) → `data/brand_assets/<uuid>.png` 생성 + `brands.logo_path` 채워짐
+- [x] **17.S.2** 광고 생성 → 컵에 워드마크 각인 (CP15 동작)
+- [x] **17.S.3** 광고 생성 → 다른 프롭 blank (CP16 동작)
+- [x] **17.S.4** 광고 생성(참조 이미지 제공) → reference_analysis 주입 자체는 동작. 결과 이미지 구도 반영은 프롬프트 품질 이슈 — 별도 개선 예정
+
+### CP18 — 신상품 사진(product_image) API 주입 (2026-04-15)
+- [x] **18.1** `MobileGenerateRequest`에 `product_image: DataUrlFile | None` 추가
+- [x] **18.2** `mobile_generate()`에서 `product_image_bytes` 디코딩 → `ImageGenerationRequest.image_data` 주입
+- [x] **18.3** `is_new_product = product_image_bytes is not None` 자동 설정
+- [x] **18.4** RED→GREEN: `TestCP18ProductImageInjection` (154 passed)
+
+### UI 보충 — codex/infra 선별 이식 (2026-04-15)
+- [x] **UI.1** `stitch/3./code.html`: AI Brand Analysis 패널 추가 (분석 결과 표시 + "다음" 버튼 전환)
+- [x] **UI.2** `stitch/4._2/code.html`: 신상품 사진 업로드 패널 추가 + 참고 이미지 라벨 개선
+- [x] **UI.3** `stitch/shared.js`: `isNewProductGoal()`, `syncProductImageUi()`, `applyAnalysisContent()` 추가
+- [ ] **UI.4** Langfuse 브라우저 헤더(`buildTraceHeaders`) — 테스트 미완, 별도 이슈로 분리
+
+### 📱 통합 스모크 최종 결과 (2026-04-15)
+- [x] 17.S.1 ✅
+- [x] 17.S.2 ✅
+- [x] 17.S.3 ✅
+- [x] 17.S.4 △ (연결 동작, 구도 품질 개선 필요)
+- [x] UI.1 ✅
+- [x] UI.2 ✅

@@ -144,6 +144,7 @@ class MobileGenerateRequest(BaseModel):
     generation_type: Literal["text", "image", "both"] = "both"
     tone: str = "기본"
     style: str = "기본"
+    product_image: DataUrlFile | None = None
     reference_url: str = ""
     reference_image: DataUrlFile | None = None
 
@@ -901,6 +902,10 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
         raise HTTPException(status_code=409, detail="온보딩이 아직 완료되지 않았습니다.")
     brand_prompt = _build_brand_prompt(brand)
 
+    product_image_bytes: bytes | None = None
+    if payload.product_image is not None:
+        product_image_bytes, _ = _decode_data_url(payload.product_image.data_url)
+
     reference_bytes: bytes | None = None
     if payload.reference_image is not None:
         reference_bytes, _ = _decode_data_url(payload.reference_image.data_url)
@@ -964,9 +969,9 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
                         description=payload.description.strip(),
                         goal=payload.goal.strip(),
                         style=payload.style,
-                        image_data=reference_bytes,
+                        image_data=product_image_bytes,
                         brand_prompt=brand_prompt,
-                        is_new_product=False,
+                        is_new_product=product_image_bytes is not None,
                         reference_analysis=composition_prompt,
                         logo_path=brand.logo_path,
                     ),

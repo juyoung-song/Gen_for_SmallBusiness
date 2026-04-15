@@ -808,3 +808,66 @@ class TestCP17TextRequestKeepsReferenceAnalysisEmpty:
         )
 
         assert captured["text_request"].reference_analysis == ""
+
+
+class TestCP18ProductImageInjection:
+    """신상품 사진(product_image)이 ImageGenerationRequest.image_data 로 주입돼야 한다."""
+
+    async def test_product_image_passed_to_image_request(self, monkeypatch):
+        brand = SimpleNamespace(
+            id=uuid4(),
+            name="구름 베이커리",
+            color_hex="#ff7448",
+            style_prompt="따뜻한 브랜드 가이드",
+            logo_path=None,
+        )
+
+        captured: dict = {}
+
+        async def fake_load_brand():
+            return brand
+
+        async def fake_run_in_threadpool(func, *args, **kwargs):
+            return func(*args, **kwargs)
+
+        async def fake_save_generation_outputs(**kwargs):
+            return uuid4(), uuid4()
+
+        def fake_generate_ad_image(self, request):
+            captured["image_request"] = request
+            return ImageGenerationResponse(
+                image_data=b"fake-image",
+                revised_prompt="warm bakery prompt",
+            )
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+        monkeypatch.setattr(mobile_app, "run_in_threadpool", fake_run_in_threadpool)
+        monkeypatch.setattr(
+            mobile_app, "_save_generation_outputs", fake_save_generation_outputs
+        )
+        monkeypatch.setattr(
+            mobile_app.ImageService, "generate_ad_image", fake_generate_ad_image
+        )
+        monkeypatch.setattr(
+            mobile_app, "_langfuse_trace_span", lambda _name: nullcontext()
+        )
+        monkeypatch.setattr(mobile_app, "_capture_langfuse_trace_id", lambda: "trace")
+
+        tiny_png_b64 = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z"
+            "wTu+EAAAAASUVORK5CYII="
+        )
+        await mobile_app.mobile_generate(
+            mobile_app.MobileGenerateRequest(
+                product_name="신상 크루아상",
+                description="버터 듬뿍",
+                generation_type="image",
+                product_image=mobile_app.DataUrlFile(
+                    name="product.png",
+                    data_url=f"data:image/png;base64,{tiny_png_b64}",
+                ),
+            )
+        )
+
+        assert captured["image_request"].image_data is not None
+        assert len(captured["image_request"].image_data) > 0
