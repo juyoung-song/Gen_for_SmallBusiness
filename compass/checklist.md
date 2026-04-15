@@ -249,3 +249,34 @@
 - [x] 17.S.4 △ (연결 동작, 구도 품질 개선 필요)
 - [x] UI.1 ✅
 - [x] UI.2 ✅
+
+---
+
+## CP19 — 신상품 토글 + 기존 상품 선택 UI ✅ (2026-04-15 완료)
+
+### Phase 1 — RED
+- [x] **19.1.1** `TestCP19NewProductRequestSchema::test_request_has_is_new_product_field`
+- [x] **19.1.2** `TestCP19NewProductValidation::test_new_product_without_image_returns_400`
+- [x] **19.1.3** `TestCP19SaveGenerationPersistsProductImage::test_product_image_path_and_is_new_product_persisted`
+- [x] **19.1.4** `TestCP19ExistingProductSkipsProductImage::test_existing_product_has_null_product_image_path`
+- [x] **19.1.5** `TestCP19ExistingProductsEndpoint::test_lists_products_for_brand`
+- [x] **19.1.6** `TestCP19ExistingProductImageLoad::test_existing_product_bytes_injected_into_image_request`
+
+### Phase 2 — GREEN (mobile_app.py)
+- [x] **19.2.1** `MobileGenerateRequest.is_new_product` + `existing_product_name` 필드 추가
+- [x] **19.2.2** 신상품 + 사진 없음 검증 → 400
+- [x] **19.2.3** `_save_generation_outputs()` 파라미터 확장 (`product_image_bytes`, `is_new_product`)
+- [x] **19.2.4** 기존 상품 분기: DB `product_image_path` → bytes 로드 → `image_data` 주입
+- [x] **19.2.5** `GET /api/mobile/products` 엔드포인트 + `MobileProductGroup` 스키마
+
+### Phase 3 — Stitch UI
+- [x] **19.3.1** `stitch/4._2/code.html`: 신상품 토글 + 기존 상품 드롭다운/썸네일
+- [x] **19.3.2** `stitch/shared.js`: state + 토글 리스너 + `/products` fetch + 폼 검증
+- [x] **19.3.3** 토글 OFF 시 "신제품 출시" goal 버튼 비활성화 + 자동 리셋 (Streamlit 동등, `syncGoalAvailability`)
+
+### 📱 스모크
+- [x] **19.S.1** 신상품 ON + 사진 → 생성 성공, DB `is_new_product=1`, `product_image_path=<경로>`
+- [x] **19.S.2** 신상품 ON + 사진 없음 → 400 토스트
+- [x] **19.S.3** 신상품 OFF + 기존 상품 선택 → 드롭다운 + 썸네일 + 결과 이미지에 과거 상품 반영
+- [x] **19.S.4** 신상품 OFF + 미선택 → 에러
+- [x] **19.S.5** 회귀: CP17/CP18 기능 유지

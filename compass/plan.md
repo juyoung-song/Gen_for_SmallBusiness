@@ -1,7 +1,7 @@
 # Plan
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-15 (CP17/18 스모크 완료, merge/main 통합 진행 중)
+> **마지막 갱신:** 2026-04-15 (CP19 스모크 완료 — 신상품 토글 + 기존 상품 선택 UI)
 > **베이스:** `docs/design.md`
 > **이전 버전 폐기:** IP-Adapter 코드 리뷰 작업 계획(2026-04-03)은 본 문서로 대체됨
 
@@ -460,6 +460,22 @@ Phase 2 — MVP 완성 (기능 추가)
 
 ### ✅ 머지 완료 (CP14~16 → refactor/flow)
 - PR #12 머지 완료 (2026-04-15). `logo_gen_exp/` 제거 후 머지.
+
+### ✅ CP19 — 신상품 토글 + 기존 상품 선택 UI (2026-04-15 완료)
+
+**배경**: Streamlit (`app.py`) 에서 정상 동작하던 신상품 토글 / 기존 상품 선택 흐름이 mobile 에 일부 누락. `_save_generation_outputs()` 가 `product_image_path=None`, `is_new_product=False` 하드코딩 중이라 DB 저장도 미동작. codex/infra `198579e` 가 동일 기능 구현했지만 LogoAutoGenerator 제거 + Langfuse 헤더가 섞여 있어 수동 선별 포팅.
+
+**구현 완료** (161 passed):
+- `MobileGenerateRequest.is_new_product`, `existing_product_name` 추가
+- `_save_generation_outputs()` `product_image_bytes` / `is_new_product` 파라미터 확장 → staging 저장 + DB 정상 기록
+- `_load_existing_product_bytes()` 헬퍼 — 기존 상품 분기: DB `product_image_path` → bytes → `image_data` 주입
+- `GET /api/mobile/products` 엔드포인트 + `MobileProductGroup/MobileProductsResponse` 스키마
+- Stitch: 신상품 토글 스위치, 기존 상품 드롭다운/썸네일, `syncGoalAvailability()` — 토글 OFF 시 "신제품 출시" goal 버튼 비활성화 (Streamlit 동등)
+- 기본 goal → "브랜드 인지도" (토글 OFF 기본값과 정합)
+
+**뺀 것**: LogoAutoGenerator 제거(우리 유지), Langfuse trace 헤더(미검증), `reference_image_id` FK(CP21 로 분리)
+
+---
 
 ### ✅ CP17/18 — mobile_app 백엔드 기능 보존 + 신상품 사진 주입 (2026-04-15 완료)
 

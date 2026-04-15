@@ -31,13 +31,16 @@
     create: {
       productName: "",
       productDescription: "",
-      goal: "신제품 출시",
+      goal: "브랜드 인지도",
       generationType: "both",
       tone: "감성",
       style: "감성",
       productImage: null,
       referenceUrl: "",
       referenceImage: null,
+      isNewProduct: false,
+      selectedProductName: "",
+      selectedProductImageUrl: null,
     },
     preferences: {
       notificationsEnabled: true,
@@ -1688,11 +1691,17 @@
         inactiveText: "text-on-surface-variant",
       });
 
-    const syncProductImageUi = (goal) => {
-      const isVisible = isNewProductGoal(goal);
-      productImagePanel?.classList.toggle("hidden", !isVisible);
+    const newProductToggle = selectOne("#create-new-product-toggle");
+    const existingProductPanel = selectOne("#create-existing-product-panel");
+    const existingProductSelect = selectOne("#create-existing-product-select");
+    const existingProductThumbWrap = selectOne("#create-existing-product-thumb-wrap");
+    const existingProductThumb = selectOne("#create-existing-product-thumb");
+
+    const syncProductImageUi = (isNewProduct) => {
+      productImagePanel?.classList.toggle("hidden", !isNewProduct);
+      existingProductPanel?.classList.toggle("hidden", isNewProduct);
       if (!productImageStatus) return;
-      if (!isVisible) {
+      if (!isNewProduct) {
         productImageStatus.textContent = "";
         return;
       }
@@ -1700,23 +1709,71 @@
         productImageStatus.textContent = `${readState().create.productImage.name} 파일이 상품 사진으로 준비되었습니다.`;
         return;
       }
-      productImageStatus.textContent = "신상품 출시 목표를 선택하면 상품 사진 업로드가 필요합니다.";
+      productImageStatus.textContent = "신상품 사진을 업로드해주세요.";
     };
+
+    // 신상품 토글 OFF → "신제품 출시" goal 버튼 비활성화 + 선택 시 자동 리셋
+    const syncGoalAvailability = (isNewProduct) => {
+      goalButtons.forEach((btn) => {
+        if (btn.dataset.goalChoice === NEW_PRODUCT_GOAL_PREFIX) {
+          btn.disabled = !isNewProduct;
+          btn.classList.toggle("opacity-30", !isNewProduct);
+          btn.classList.toggle("cursor-not-allowed", !isNewProduct);
+        }
+      });
+      // 토글 OFF인데 현재 goal이 "신제품 출시"면 첫 번째 허용 goal로 리셋
+      if (!isNewProduct && readState().create.goal === NEW_PRODUCT_GOAL_PREFIX) {
+        const fallback = PRESET_GOALS.find((g) => g !== NEW_PRODUCT_GOAL_PREFIX) || PRESET_GOALS[1];
+        patchState({ create: { goal: fallback } });
+        applyGoalStyles(fallback);
+      }
+    };
+
+    // 기존 상품 목록 fetch → 드롭다운 채우기
+    try {
+      const productsData = await api("/products");
+      if (productsData.products && existingProductSelect) {
+        productsData.products.forEach((pg) => {
+          const opt = document.createElement("option");
+          opt.value = pg.product_name;
+          opt.textContent = `${pg.product_name} (${pg.generation_count}회)`;
+          opt.dataset.imageUrl = pg.product_image_url || "";
+          opt.dataset.description = pg.product_description || "";
+          existingProductSelect.appendChild(opt);
+        });
+      }
+    } catch (_e) {
+      // 상품 목록 로드 실패 시 무시 (드롭다운 비어있게 됨)
+    }
+
+    // 토글 초기값 적용
+    if (newProductToggle) {
+      newProductToggle.checked = state.create.isNewProduct;
+    }
 
     applyGoalStyles(state.create.goal);
     applyGenerationStyles(state.create.generationType);
-    syncProductImageUi(state.create.goal);
+    syncProductImageUi(state.create.isNewProduct);
+    syncGoalAvailability(state.create.isNewProduct);
 
     goalButtons.forEach((button) => {
       button.addEventListener("click", () => {
+        if (button.disabled) return;
         const value = button.dataset.goalChoice;
         patchState({ create: { goal: value } });
         applyGoalStyles(value);
-        syncProductImageUi(value);
         if (customGoalInput) {
           customGoalInput.value = "";
         }
       });
+    });
+
+    // 신상품 토글 리스너
+    newProductToggle?.addEventListener("change", () => {
+      const checked = newProductToggle.checked;
+      patchState({ create: { isNewProduct: checked, selectedProductName: "", selectedProductImageUrl: null } });
+      syncProductImageUi(checked);
+      syncGoalAvailability(checked);
     });
 
     generationButtons.forEach((button) => {
@@ -1737,7 +1794,6 @@
       const nextGoal = event.target.value.trim() || PRESET_GOALS[0];
       patchState({ create: { goal: nextGoal } });
       applyGoalStyles(nextGoal);
-      syncProductImageUi(nextGoal);
     });
     toneSelect?.addEventListener("change", (event) => {
       patchState({ create: { tone: event.target.value } });
@@ -1747,6 +1803,28 @@
     });
     referenceUrlInput?.addEventListener("input", (event) => {
       patchState({ create: { referenceUrl: event.target.value } });
+    });
+
+    existingProductSelect?.addEventListener("change", () => {
+      const selected = existingProductSelect.options[existingProductSelect.selectedIndex];
+      const name = selected?.value || "";
+      const imageUrl = selected?.dataset.imageUrl || null;
+      const description = selected?.dataset.description || "";
+      patchState({ create: { selectedProductName: name, selectedProductImageUrl: imageUrl || null } });
+      // 설명 프리필 (사용자가 직접 수정 가능)
+      if (name && description && descriptionInput && !descriptionInput.value.trim()) {
+        descriptionInput.value = description;
+        patchState({ create: { productDescription: description } });
+      }
+      // 썸네일
+      if (existingProductThumbWrap && existingProductThumb) {
+        if (imageUrl) {
+          existingProductThumb.src = imageUrl;
+          existingProductThumbWrap.classList.remove("hidden");
+        } else {
+          existingProductThumbWrap.classList.add("hidden");
+        }
+      }
     });
 
     productImageTrigger?.addEventListener("click", () => productImageInput?.click());
@@ -1777,8 +1855,12 @@
         setStatus(bootstrapStatus, "상품명을 먼저 입력해주세요.", "error");
         return;
       }
-      if (isNewProductGoal(latestState.create.goal) && !latestState.create.productImage) {
-        setStatus(bootstrapStatus, "신제품 출시 목적이면 상품 사진을 먼저 업로드해주세요.", "error");
+      if (latestState.create.isNewProduct && !latestState.create.productImage) {
+        setStatus(bootstrapStatus, "신상품 사진을 먼저 업로드해주세요.", "error");
+        return;
+      }
+      if (!latestState.create.isNewProduct && !latestState.create.selectedProductName) {
+        setStatus(bootstrapStatus, "기존 상품을 선택하거나 신상품 토글을 켜주세요.", "error");
         return;
       }
 
@@ -1795,9 +1877,13 @@
             generation_type: latestState.create.generationType,
             tone: latestState.create.tone,
             style: latestState.create.style,
-            product_image: isNewProductGoal(latestState.create.goal)
+            is_new_product: latestState.create.isNewProduct,
+            product_image: latestState.create.isNewProduct
               ? latestState.create.productImage
               : null,
+            existing_product_name: latestState.create.isNewProduct
+              ? null
+              : latestState.create.selectedProductName || null,
             reference_url: latestState.create.referenceUrl,
             reference_image: latestState.create.referenceImage,
           },

@@ -871,3 +871,301 @@ class TestCP18ProductImageInjection:
 
         assert captured["image_request"].image_data is not None
         assert len(captured["image_request"].image_data) > 0
+
+
+# ---------------------------------------------------------------------------
+# CP19 — 신상품 토글 + 상품 사진 DB 저장
+# ---------------------------------------------------------------------------
+
+_TINY_PNG_B64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z"
+    "wTu+EAAAAASUVORK5CYII="
+)
+_TINY_PNG_BYTES = __import__("base64").b64decode(_TINY_PNG_B64)
+
+
+class TestCP19NewProductRequestSchema:
+    """MobileGenerateRequest 에 is_new_product 필드가 존재해야 한다."""
+
+    def test_request_has_is_new_product_field(self):
+        req = mobile_app.MobileGenerateRequest(
+            product_name="신상 라떼",
+            is_new_product=True,
+        )
+        assert req.is_new_product is True
+
+    def test_default_is_false(self):
+        req = mobile_app.MobileGenerateRequest(product_name="기본 라떼")
+        assert req.is_new_product is False
+
+
+class TestCP19NewProductValidation:
+    """신상품 + 사진 미업로드 조합은 서버 400을 반환해야 한다."""
+
+    async def test_new_product_without_image_returns_400(self, monkeypatch):
+        async def fake_load_brand():
+            return SimpleNamespace(
+                id=uuid4(),
+                name="테스트",
+                color_hex="#000",
+                style_prompt="",
+                logo_path=None,
+            )
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await mobile_app.mobile_generate(
+                mobile_app.MobileGenerateRequest(
+                    product_name="신상 케이크",
+                    description="달콤",
+                    generation_type="image",
+                    is_new_product=True,
+                    product_image=None,
+                )
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "사진" in exc_info.value.detail
+
+
+class TestCP19SaveGenerationPersistsProductImage:
+    """is_new_product=True 일 때 create_with_outputs 에 product_image_path·is_new_product 가 전달돼야 한다."""
+
+    async def test_product_image_path_and_is_new_product_persisted(self, monkeypatch):
+        captured: dict = {}
+
+        fake_brand = SimpleNamespace(
+            id=uuid4(),
+            name="테스트",
+            color_hex="#abc",
+            style_prompt="",
+            logo_path=None,
+        )
+
+        async def fake_create_with_outputs(**kwargs):
+            captured.update(kwargs)
+            gen = SimpleNamespace(
+                id=uuid4(),
+                outputs=[SimpleNamespace(id=uuid4(), kind="image")],
+            )
+            return gen
+
+        from pathlib import Path
+        monkeypatch.setattr(
+            mobile_app,
+            "save_to_staging",
+            lambda data, extension="": Path("/staging/fake_product.png"),
+        )
+
+        from unittest.mock import AsyncMock, patch
+        mock_service = AsyncMock()
+        mock_service.create_with_outputs.side_effect = fake_create_with_outputs
+
+        async def fake_session_ctx():
+            return mock_service
+
+        # AsyncSessionLocal context manager mock
+        import contextlib
+
+        @contextlib.asynccontextmanager
+        async def fake_session():
+            yield SimpleNamespace(
+                __aenter__=lambda s: s,
+                __aexit__=lambda *a: None,
+            )
+
+        with patch("mobile_app.AsyncSessionLocal") as mock_sl:
+            mock_sl.return_value.__aenter__ = AsyncMock(return_value=mock_service)
+            mock_sl.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            with patch("mobile_app.GenerationService", return_value=mock_service):
+                await mobile_app._save_generation_outputs(
+                    brand=fake_brand,
+                    product_name="신상 케이크",
+                    description="달콤",
+                    goal="신제품 출시",
+                    tone="기본",
+                    text_result=None,
+                    image_bytes=_TINY_PNG_BYTES,
+                    product_image_bytes=_TINY_PNG_BYTES,
+                    is_new_product=True,
+                )
+
+        assert captured.get("is_new_product") is True
+        assert captured.get("product_image_path") is not None
+
+
+class TestCP19ExistingProductSkipsProductImage:
+    """is_new_product=False 일 때 create_with_outputs 에 product_image_path=None, is_new_product=False 가 전달돼야 한다."""
+
+    async def test_existing_product_has_null_product_image_path(self, monkeypatch):
+        captured: dict = {}
+
+        fake_brand = SimpleNamespace(
+            id=uuid4(),
+            name="테스트",
+            color_hex="#abc",
+            style_prompt="",
+            logo_path=None,
+        )
+
+        async def fake_create_with_outputs(**kwargs):
+            captured.update(kwargs)
+            gen = SimpleNamespace(
+                id=uuid4(),
+                outputs=[SimpleNamespace(id=uuid4(), kind="ad_copy")],
+            )
+            return gen
+
+        from unittest.mock import AsyncMock, patch
+
+        mock_service = AsyncMock()
+        mock_service.create_with_outputs.side_effect = fake_create_with_outputs
+
+        with patch("mobile_app.AsyncSessionLocal") as mock_sl:
+            mock_sl.return_value.__aenter__ = AsyncMock(return_value=mock_service)
+            mock_sl.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            with patch("mobile_app.GenerationService", return_value=mock_service):
+                await mobile_app._save_generation_outputs(
+                    brand=fake_brand,
+                    product_name="기존 아메리카노",
+                    description="깊은 풍미",
+                    goal="일반 홍보",
+                    tone="기본",
+                    text_result={"ad_copies": ["맛있는 커피"], "promo_sentences": [], "story_copies": []},
+                    image_bytes=None,
+                    product_image_bytes=None,
+                    is_new_product=False,
+                )
+
+        assert captured.get("is_new_product") is False
+        assert captured.get("product_image_path") is None
+
+
+class TestCP19ExistingProductsEndpoint:
+    """GET /api/mobile/products 는 브랜드의 상품 목록을 반환해야 한다."""
+
+    async def test_lists_products_for_brand(self, monkeypatch):
+        from uuid import uuid4 as _uuid4
+
+        fake_brand = SimpleNamespace(
+            id=_uuid4(),
+            name="구름 카페",
+            color_hex="#abc",
+            style_prompt="",
+            logo_path=None,
+        )
+
+        from services.generation_service import ProductGroup
+
+        fake_products = [
+            ProductGroup(
+                product_name="아메리카노",
+                product_description="진한 커피",
+                product_image_path=None,
+                latest_generation_id=_uuid4(),
+                generation_count=3,
+            ),
+            ProductGroup(
+                product_name="카페라떼",
+                product_description="부드러운 우유",
+                product_image_path=None,
+                latest_generation_id=_uuid4(),
+                generation_count=1,
+            ),
+        ]
+
+        async def fake_load_brand():
+            return fake_brand
+
+        async def fake_list_products(brand_id):
+            return fake_products
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+
+        from unittest.mock import AsyncMock, patch
+
+        mock_service = AsyncMock()
+        mock_service.list_products.side_effect = fake_list_products
+
+        with patch("mobile_app.AsyncSessionLocal") as mock_sl:
+            mock_sl.return_value.__aenter__ = AsyncMock(return_value=mock_service)
+            mock_sl.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            with patch("mobile_app.GenerationService", return_value=mock_service):
+                response = await mobile_app.mobile_list_products()
+
+        assert len(response.products) == 2
+        assert response.products[0].product_name == "아메리카노"
+        assert response.products[1].product_name == "카페라떼"
+
+
+class TestCP19ExistingProductImageLoad:
+    """기존 상품 선택 시 product_image_path 의 bytes 가 ImageGenerationRequest.image_data 에 주입돼야 한다."""
+
+    async def test_existing_product_bytes_injected_into_image_request(self, monkeypatch):
+        from uuid import uuid4 as _uuid4
+
+        captured: dict = {}
+
+        fake_brand = SimpleNamespace(
+            id=_uuid4(),
+            name="구름 카페",
+            color_hex="#abc",
+            style_prompt="",
+            logo_path=None,
+        )
+
+        async def fake_load_brand():
+            return fake_brand
+
+        async def fake_run_in_threadpool(func, *args, **kwargs):
+            return func(*args, **kwargs)
+
+        async def fake_save_generation_outputs(**kwargs):
+            return _uuid4(), _uuid4()
+
+        from schemas.image_schema import ImageGenerationResponse
+
+        def fake_generate_ad_image(self, request):
+            captured["image_request"] = request
+            return ImageGenerationResponse(
+                image_data=b"fake",
+                revised_prompt="prompt",
+            )
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+        monkeypatch.setattr(mobile_app, "run_in_threadpool", fake_run_in_threadpool)
+        monkeypatch.setattr(
+            mobile_app, "_save_generation_outputs", fake_save_generation_outputs
+        )
+        monkeypatch.setattr(
+            mobile_app.ImageService, "generate_ad_image", fake_generate_ad_image
+        )
+        monkeypatch.setattr(
+            mobile_app, "_langfuse_trace_span", lambda _name: nullcontext()
+        )
+        monkeypatch.setattr(mobile_app, "_capture_langfuse_trace_id", lambda: "trace")
+
+        # 기존 상품 → product_image=None, existing_product_name 설정
+        # _load_existing_product_bytes 가 bytes 반환하도록 mock
+        monkeypatch.setattr(
+            mobile_app,
+            "_load_existing_product_bytes",
+            lambda brand_id, product_name: _TINY_PNG_BYTES,
+        )
+
+        await mobile_app.mobile_generate(
+            mobile_app.MobileGenerateRequest(
+                product_name="아메리카노",
+                description="진한 커피",
+                generation_type="image",
+                is_new_product=False,
+                product_image=None,
+                existing_product_name="아메리카노",
+            )
+        )
+
+        assert captured["image_request"].image_data == _TINY_PNG_BYTES

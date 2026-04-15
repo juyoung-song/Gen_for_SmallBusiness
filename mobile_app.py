@@ -147,6 +147,8 @@ class MobileGenerateRequest(BaseModel):
     product_image: DataUrlFile | None = None
     reference_url: str = ""
     reference_image: DataUrlFile | None = None
+    is_new_product: bool = False
+    existing_product_name: str | None = None
 
 
 class MobileGenerateResponse(BaseModel):
@@ -211,6 +213,18 @@ class MobileUploadResponse(BaseModel):
     posted_at: datetime | None = None
     account_username: str | None = None
     generated_upload_id: UUID | None = None
+
+
+class MobileProductGroup(BaseModel):
+    product_name: str
+    product_description: str | None = None
+    product_image_url: str | None = None
+    latest_generation_id: UUID | None = None
+    generation_count: int = 0
+
+
+class MobileProductsResponse(BaseModel):
+    products: list[MobileProductGroup]
 
 
 _DATA_URL_RE = re.compile(r"^data:(?P<mime>[\w/+.-]+);base64,(?P<data>.+)$")
@@ -537,6 +551,42 @@ async def _resolve_upload_context() -> tuple[Brand, object]:
     return brand, upload_settings
 
 
+def _load_existing_product_bytes(brand_id: UUID, product_name: str) -> bytes | None:
+    """기존 상품의 최근 Generation 에서 product_image_path 를 읽어 bytes 반환.
+
+    파일이 없거나 오류 시 None 반환 (폴백: 텍스트 프롬프트만으로 생성 계속).
+    """
+    import asyncio
+
+    async def _fetch() -> bytes | None:
+        async with AsyncSessionLocal() as session:
+            service = GenerationService(session)
+            products = await service.list_products(brand_id)
+        matched = next((p for p in products if p.product_name == product_name), None)
+        if matched is None or matched.product_image_path is None:
+            return None
+        try:
+            return Path(matched.product_image_path).read_bytes()
+        except OSError as exc:
+            logger.warning("기존 상품 사진 로드 실패 (%s): %s", product_name, exc)
+            return None
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # FastAPI 이벤트 루프 안 — run_coroutine_threadsafe 사용 불가이므로
+            # asyncio.ensure_future 대신 nest_asyncio 없이 새 루프에서 실행
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, _fetch())
+                return future.result()
+        return loop.run_until_complete(_fetch())
+    except Exception as exc:  # pragma: no cover
+        logger.warning("기존 상품 사진 로드 실패 (%s): %s", product_name, exc)
+        return None
+
+
 async def _save_generation_outputs(
     *,
     brand: Brand,
@@ -547,6 +597,8 @@ async def _save_generation_outputs(
     text_result: dict | None,
     image_bytes: bytes | None,
     langfuse_trace_id: str | None = None,
+    product_image_bytes: bytes | None = None,
+    is_new_product: bool = False,
 ) -> tuple[UUID | None, UUID | None]:
     outputs: list[OutputSpec] = []
     if image_bytes:
@@ -563,6 +615,10 @@ async def _save_generation_outputs(
     if not outputs:
         return None, None
 
+    product_image_path: str | None = None
+    if product_image_bytes:
+        product_image_path = str(save_to_staging(product_image_bytes, extension=".png"))
+
     async with AsyncSessionLocal() as session:
         generation_service = GenerationService(session)
         generation = await generation_service.create_with_outputs(
@@ -570,10 +626,10 @@ async def _save_generation_outputs(
             reference_image_id=None,
             product_name=product_name,
             product_description=description,
-            product_image_path=None,
+            product_image_path=product_image_path,
             goal=goal,
             tone=tone,
-            is_new_product=False,
+            is_new_product=is_new_product,
             outputs=outputs,
             langfuse_trace_id=langfuse_trace_id,
         )
@@ -639,6 +695,33 @@ async def health() -> dict:
 @app.get("/api/mobile/bootstrap", response_model=MobileBootstrapResponse)
 async def mobile_bootstrap() -> MobileBootstrapResponse:
     return await _load_bootstrap()
+
+
+@app.get("/api/mobile/products", response_model=MobileProductsResponse)
+async def mobile_list_products() -> MobileProductsResponse:
+    brand = await _load_brand()
+    if brand is None:
+        return MobileProductsResponse(products=[])
+
+    async with AsyncSessionLocal() as session:
+        service = GenerationService(session)
+        product_groups = await service.list_products(brand.id)
+
+    result: list[MobileProductGroup] = []
+    for pg in product_groups:
+        image_url: str | None = None
+        if pg.product_image_path:
+            image_url = _relative_data_url(pg.product_image_path)
+        result.append(
+            MobileProductGroup(
+                product_name=pg.product_name,
+                product_description=pg.product_description,
+                product_image_url=image_url,
+                latest_generation_id=pg.latest_generation_id,
+                generation_count=pg.generation_count,
+            )
+        )
+    return MobileProductsResponse(products=result)
 
 
 @app.get("/api/mobile/instagram/status", response_model=MobileInstagramSummary)
@@ -905,6 +988,14 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
     product_image_bytes: bytes | None = None
     if payload.product_image is not None:
         product_image_bytes, _ = _decode_data_url(payload.product_image.data_url)
+    elif not payload.is_new_product and payload.existing_product_name:
+        product_image_bytes = _load_existing_product_bytes(
+            brand.id, payload.existing_product_name
+        )
+
+    # 신상품인데 사진이 없으면 400
+    if payload.is_new_product and product_image_bytes is None:
+        raise HTTPException(status_code=400, detail="신상품 등록 시 상품 사진을 먼저 업로드해주세요.")
 
     reference_bytes: bytes | None = None
     if payload.reference_image is not None:
@@ -971,7 +1062,7 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
                         style=payload.style,
                         image_data=product_image_bytes,
                         brand_prompt=brand_prompt,
-                        is_new_product=product_image_bytes is not None,
+                        is_new_product=payload.is_new_product,
                         reference_analysis=composition_prompt,
                         logo_path=brand.logo_path,
                     ),
@@ -987,6 +1078,8 @@ async def mobile_generate(payload: MobileGenerateRequest) -> MobileGenerateRespo
             text_result=text_payload,
             image_bytes=image_result.image_data if image_result is not None else None,
             langfuse_trace_id=langfuse_trace_id,
+            product_image_bytes=product_image_bytes if payload.is_new_product else None,
+            is_new_product=payload.is_new_product,
         )
     except TextServiceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

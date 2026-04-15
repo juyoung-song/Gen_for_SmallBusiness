@@ -158,6 +158,27 @@
 <label class="text-sm font-bold text-on-surface-variant px-1">상품 설명</label>
 <textarea class="w-full p-6 bg-surface-container-highest border-none rounded-xl text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/30 transition-all outline-none resize-none" id="create-product-description" placeholder="상품의 특징이나 정성이 들어간 포인트를 적어주세요. (예: 48시간 저온 숙성으로 깊은 풍미를 담았습니다)" rows="4" style="background-image:linear-gradient(135deg,rgba(255,179,71,0.10),rgba(143,102,255,0.05));"></textarea>
 </div>
+<!-- New Product Toggle -->
+<div class="flex items-center justify-between px-1 py-2">
+<div>
+<p class="text-sm font-bold text-on-surface-variant">신상품으로 등록</p>
+<p class="text-xs text-outline mt-0.5">처음 소개하는 상품이면 켜주세요</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" id="create-new-product-toggle" role="switch" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-outline after:border-outline after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary peer-checked:after:bg-white"></div>
+</label>
+</div>
+<!-- Existing Product Select (toggle OFF) -->
+<div class="space-y-3 hidden" id="create-existing-product-panel">
+<label class="text-sm font-bold text-on-surface-variant px-1">기존 상품 선택</label>
+<select class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary/30 text-on-surface font-medium" id="create-existing-product-select">
+<option value="">-- 상품을 선택해주세요 --</option>
+</select>
+<div class="hidden" id="create-existing-product-thumb-wrap">
+<img alt="상품 미리보기" class="rounded-xl w-full max-h-40 object-cover" id="create-existing-product-thumb"/>
+</div>
+</div>
 </div>
 <!-- Detailed Options Toggle -->
 <button aria-controls="detail-options" aria-expanded="false" class="w-full py-4 flex items-center justify-center gap-2 text-on-surface-variant hover:text-primary transition-colors group" id="detail-toggle" type="button">
@@ -169,8 +190,8 @@
 <div class="space-y-3">
 <label class="text-sm font-bold text-on-surface-variant px-1">홍보 목적</label>
 <div class="flex flex-wrap gap-2">
-<button class="px-4 py-2 rounded-full bg-tertiary-container text-on-tertiary-container font-semibold text-sm" data-goal-choice="신제품 출시" type="button">신제품 출시</button>
-<button class="px-4 py-2 rounded-full bg-surface-container-highest text-on-surface-variant font-medium text-sm" data-goal-choice="브랜드 인지도" type="button">브랜드 인지도</button>
+<button class="px-4 py-2 rounded-full bg-surface-container-highest text-on-surface-variant font-medium text-sm opacity-30 cursor-not-allowed" data-goal-choice="신제품 출시" type="button">신제품 출시</button>
+<button class="px-4 py-2 rounded-full bg-tertiary-container text-on-tertiary-container font-semibold text-sm" data-goal-choice="브랜드 인지도" type="button">브랜드 인지도</button>
 <button class="px-4 py-2 rounded-full bg-surface-container-highest text-on-surface-variant font-medium text-sm" data-goal-choice="이벤트 홍보" type="button">이벤트 홍보</button>
 <button class="px-4 py-2 rounded-full bg-surface-container-highest text-on-surface-variant font-medium text-sm" data-goal-choice="매장 방문 유도" type="button">매장 방문 유도</button>
 </div>
