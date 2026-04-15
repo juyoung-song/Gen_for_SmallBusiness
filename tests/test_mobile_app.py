@@ -112,11 +112,6 @@ class TestMobileCaption:
 
 
 class TestMobileGenerate:
-    def test_is_new_product_goal_matches_prefix(self):
-        assert mobile_app._is_new_product_goal("신제품 출시") is True
-        assert mobile_app._is_new_product_goal("신제품 출시 · 봄 시즌") is True
-        assert mobile_app._is_new_product_goal("브랜드 인지도") is False
-
     def test_request_trace_attributes_extracts_client_and_session(self):
         request = Request(
             {
@@ -183,6 +178,7 @@ class TestMobileGenerate:
                     product_name="딸기 크루아상",
                     description="봄 시즌 한정 신메뉴",
                     goal="신제품 출시",
+                    is_new_product=True,
                     generation_type="both",
                 )
             )
@@ -273,6 +269,7 @@ class TestMobileGenerate:
                 product_name="소금빵",
                 description="겉은 바삭하고 속은 촉촉한 대표 메뉴",
                 goal="신제품 출시",
+                is_new_product=True,
                 generation_type="both",
                 product_image=mobile_app.DataUrlFile(
                     name="product.jpg",

@@ -158,6 +158,48 @@
 <label class="text-sm font-bold text-on-surface-variant px-1">상품 설명</label>
 <textarea class="w-full p-6 bg-surface-container-highest border-none rounded-xl text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/30 transition-all outline-none resize-none" id="create-product-description" placeholder="상품의 특징이나 정성이 들어간 포인트를 적어주세요. (예: 48시간 저온 숙성으로 깊은 풍미를 담았습니다)" rows="4" style="background-image:linear-gradient(135deg,rgba(255,179,71,0.10),rgba(143,102,255,0.05));"></textarea>
 </div>
+<div class="rounded-xl border border-outline-variant/20 bg-surface-container-low p-5 space-y-4 paper-card">
+<div class="flex items-start justify-between gap-4">
+<div>
+<p class="text-sm font-bold text-on-surface">신상품으로 등록할까요?</p>
+<p class="mt-1 text-xs text-on-surface-variant leading-relaxed">신상품이면 상품 원본 사진을 먼저 받고, 이후 생성 이력에 상품 사진을 함께 저장합니다.</p>
+</div>
+<label class="relative inline-flex cursor-pointer items-center">
+<input class="peer sr-only" id="create-new-product-toggle" type="checkbox"/>
+<span class="h-8 w-14 rounded-full bg-surface-container-highest shadow-inner transition peer-checked:bg-primary"></span>
+<span class="absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow transition peer-checked:translate-x-6"></span>
+</label>
+</div>
+<p class="text-xs text-on-surface-variant" id="create-product-mode-hint">기존 상품으로 홍보합니다. 상품 사진 없이 광고 무드 참고 이미지/링크만 선택할 수 있습니다.</p>
+</div>
+<div class="space-y-3 hidden" id="create-product-image-panel">
+<div class="flex items-center justify-between px-1">
+<label class="text-sm font-bold text-on-surface-variant">신상품 사진 업로드</label>
+<span class="text-xs text-primary font-semibold">필수</span>
+</div>
+<div class="rounded-xl border-2 border-dashed border-primary/20 bg-surface-container-lowest/70 px-5 py-8 text-center soft-dash" id="create-product-image-trigger">
+<span class="material-symbols-outlined text-3xl text-primary">add_photo_alternate</span>
+<p class="mt-3 text-sm font-semibold text-on-surface">상품 원본 사진을 업로드해주세요</p>
+<p class="mt-1 text-xs text-on-surface-variant">이 사진은 상품의 생김새를 맞추는 데만 사용됩니다.</p>
+</div>
+<input accept="image/*" class="hidden" id="create-product-image-input" type="file"/>
+<p class="text-xs text-primary font-medium" id="create-product-image-status"></p>
+</div>
+<div class="space-y-3">
+<div class="flex items-center justify-between px-1">
+<label class="text-sm font-bold text-on-surface-variant">광고 무드 참고 이미지/링크</label>
+<span class="text-xs text-on-surface-variant">선택 입력</span>
+</div>
+<div class="rounded-xl border-2 border-dashed border-outline-variant/35 bg-surface-container-lowest/50 px-5 py-8 text-center soft-dash" id="create-reference-trigger">
+<span class="material-symbols-outlined text-3xl text-outline-variant">cloud_upload</span>
+<p class="mt-3 text-sm font-semibold text-on-surface">이미지를 드래그하거나 눌러서 업로드</p>
+<p class="mt-1 text-xs text-on-surface-variant">원하는 연출, 구도, 소품 분위기를 참고할 이미지 한 장이면 충분해요.</p>
+</div>
+<input accept="image/*" class="hidden" id="create-reference-input" type="file"/>
+<p class="text-xs text-primary font-medium" id="create-reference-status"></p>
+<p class="text-xs text-on-surface-variant" id="reference-pool-hint"></p>
+<input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary/30 text-on-surface text-sm placeholder:text-outline-variant" id="create-reference-url" placeholder="https://example.com/reference" type="text"/>
+</div>
 </div>
 <!-- Detailed Options Toggle -->
 <button aria-controls="detail-options" aria-expanded="false" class="w-full py-4 flex items-center justify-center gap-2 text-on-surface-variant hover:text-primary transition-colors group" id="detail-toggle" type="button">
@@ -175,19 +217,6 @@
 <button class="px-4 py-2 rounded-full bg-surface-container-highest text-on-surface-variant font-medium text-sm" data-goal-choice="매장 방문 유도" type="button">매장 방문 유도</button>
 </div>
 <input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary/30 text-on-surface text-sm placeholder:text-outline-variant" id="create-goal-custom" placeholder="직접 입력" type="text"/>
-</div>
-<div class="space-y-3 hidden" id="create-product-image-panel">
-<div class="flex items-center justify-between px-1">
-<label class="text-sm font-bold text-on-surface-variant">신상품 사진 업로드</label>
-<span class="text-xs text-primary font-semibold">필수</span>
-</div>
-<div class="rounded-xl border-2 border-dashed border-primary/20 bg-surface-container-lowest/70 px-5 py-8 text-center soft-dash" id="create-product-image-trigger">
-<span class="material-symbols-outlined text-3xl text-primary">add_photo_alternate</span>
-<p class="mt-3 text-sm font-semibold text-on-surface">상품 원본 사진을 업로드해주세요</p>
-<p class="mt-1 text-xs text-on-surface-variant">이 사진은 상품의 생김새를 맞추는 데만 사용됩니다.</p>
-</div>
-<input accept="image/*" class="hidden" id="create-product-image-input" type="file"/>
-<p class="text-xs text-primary font-medium" id="create-product-image-status"></p>
 </div>
 <div class="space-y-3">
 <label class="text-sm font-bold text-on-surface-variant px-1">생성 타입</label>
@@ -224,21 +253,6 @@
 <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
 </div>
 </div>
-</div>
-<div class="space-y-3">
-<div class="flex items-center justify-between px-1">
-<label class="text-sm font-bold text-on-surface-variant">광고 무드 참고 이미지/링크</label>
-<span class="text-xs text-on-surface-variant">선택 입력</span>
-</div>
-<div class="rounded-xl border-2 border-dashed border-outline-variant/35 bg-surface-container-lowest/50 px-5 py-8 text-center soft-dash" id="create-reference-trigger">
-<span class="material-symbols-outlined text-3xl text-outline-variant">cloud_upload</span>
-<p class="mt-3 text-sm font-semibold text-on-surface">이미지를 드래그하거나 눌러서 업로드</p>
-<p class="mt-1 text-xs text-on-surface-variant">원하는 연출, 구도, 소품 분위기를 참고할 이미지 한 장이면 충분해요.</p>
-</div>
-<input accept="image/*" class="hidden" id="create-reference-input" type="file"/>
-<p class="text-xs text-primary font-medium" id="create-reference-status"></p>
-<p class="text-xs text-on-surface-variant" id="reference-pool-hint"></p>
-<input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary/30 text-on-surface text-sm placeholder:text-outline-variant" id="create-reference-url" placeholder="https://example.com/reference" type="text"/>
 </div>
 </section>
 <!-- CTA Button -->

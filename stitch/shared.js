@@ -16,8 +16,9 @@
     onboarding3: "/stitch/3./code.html",
     onboarding4: "/stitch/onboarding-instagram.html",
   };
-  const PRESET_GOALS = ["신제품 출시", "브랜드 인지도", "이벤트 홍보", "매장 방문 유도"];
-  const NEW_PRODUCT_GOAL_PREFIX = "신제품 출시";
+  const PRODUCT_LAUNCH_GOAL = "신제품 출시";
+  const DEFAULT_EXISTING_PRODUCT_GOAL = "브랜드 인지도";
+  const PRESET_GOALS = [PRODUCT_LAUNCH_GOAL, DEFAULT_EXISTING_PRODUCT_GOAL, "이벤트 홍보", "매장 방문 유도"];
 
   const defaultState = {
     onboarding: {
@@ -33,7 +34,8 @@
     create: {
       productName: "",
       productDescription: "",
-      goal: "신제품 출시",
+      isNewProduct: false,
+      goal: DEFAULT_EXISTING_PRODUCT_GOAL,
       generationType: "both",
       tone: "감성",
       style: "감성",
@@ -563,10 +565,10 @@
     return "✨";
   }
 
-  function isNewProductGoal(goal) {
+  function isProductLaunchGoal(goal) {
     return String(goal || "")
       .trim()
-      .startsWith(NEW_PRODUCT_GOAL_PREFIX);
+      .startsWith(PRODUCT_LAUNCH_GOAL);
   }
 
   function buildHistoryEntry(createState, result) {
@@ -1694,6 +1696,8 @@
     const bootstrapStatus = selectOne("#create-status");
     const productNameInput = selectOne("#create-product-name");
     const descriptionInput = selectOne("#create-product-description");
+    const newProductToggle = selectOne("#create-new-product-toggle");
+    const productModeHint = selectOne("#create-product-mode-hint");
     const toneSelect = selectOne("#create-tone-select");
     const styleSelect = selectOne("#create-style-select");
     const customGoalInput = selectOne("#create-goal-custom");
@@ -1729,10 +1733,17 @@
 
     const effectiveTone = state.create.tone || state.preferences.defaultTone || "감성";
     const effectiveStyle = state.create.style || state.preferences.defaultStyle || "감성";
-    const customGoalValue = PRESET_GOALS.includes(state.create.goal) ? "" : state.create.goal || "";
+    const initialIsNewProduct = Boolean(state.create.isNewProduct);
+    let effectiveGoal = state.create.goal || (initialIsNewProduct ? PRODUCT_LAUNCH_GOAL : DEFAULT_EXISTING_PRODUCT_GOAL);
+    if (!initialIsNewProduct && isProductLaunchGoal(effectiveGoal)) {
+      effectiveGoal = DEFAULT_EXISTING_PRODUCT_GOAL;
+      patchState({ create: { goal: effectiveGoal } });
+    }
+    const customGoalValue = PRESET_GOALS.includes(effectiveGoal) ? "" : effectiveGoal || "";
 
     productNameInput.value = state.create.productName || "";
     descriptionInput.value = state.create.productDescription || "";
+    if (newProductToggle) newProductToggle.checked = initialIsNewProduct;
     toneSelect.value = effectiveTone;
     styleSelect.value = effectiveStyle;
     if (customGoalInput) customGoalInput.value = customGoalValue;
@@ -1768,9 +1779,14 @@
         activeText: "text-primary",
         inactiveText: "text-on-surface-variant",
       });
-    const syncProductImageUi = (goal) => {
-      const isVisible = isNewProductGoal(goal);
+    const syncProductImageUi = (isNewProduct) => {
+      const isVisible = Boolean(isNewProduct);
       productImagePanel?.classList.toggle("hidden", !isVisible);
+      if (productModeHint) {
+        productModeHint.textContent = isVisible
+          ? "신상품으로 등록합니다. 상품 사진은 생김새를 맞추는 용도로만 사용됩니다."
+          : "기존 상품으로 홍보합니다. 상품 사진 없이 광고 무드 참고 이미지/링크만 선택할 수 있습니다.";
+      }
       if (!productImageStatus) return;
       if (!isVisible) {
         productImageStatus.textContent = "";
@@ -1780,23 +1796,56 @@
         productImageStatus.textContent = `${readState().create.productImage.name} 파일이 상품 사진으로 준비되었습니다.`;
         return;
       }
-      productImageStatus.textContent = "신상품 출시 목표를 선택하면 상품 사진 업로드가 필요합니다.";
+      productImageStatus.textContent = "신상품 등록을 선택하면 상품 사진 업로드가 필요합니다.";
+    };
+    const syncGoalAvailability = (isNewProduct) => {
+      const latest = readState();
+      const launchButtons = goalButtons.filter((button) => button.dataset.goalChoice === PRODUCT_LAUNCH_GOAL);
+      launchButtons.forEach((button) => {
+        button.classList.toggle("hidden", !isNewProduct);
+      });
+
+      let nextGoal = latest.create.goal || (isNewProduct ? PRODUCT_LAUNCH_GOAL : DEFAULT_EXISTING_PRODUCT_GOAL);
+      if (!isNewProduct && isProductLaunchGoal(nextGoal)) {
+        nextGoal = DEFAULT_EXISTING_PRODUCT_GOAL;
+        patchState({ create: { goal: nextGoal } });
+        if (customGoalInput) customGoalInput.value = "";
+      }
+      applyGoalStyles(nextGoal);
     };
 
-    applyGoalStyles(state.create.goal);
+    applyGoalStyles(effectiveGoal);
     applyGenerationStyles(state.create.generationType);
-    syncProductImageUi(state.create.goal);
+    syncProductImageUi(initialIsNewProduct);
+    syncGoalAvailability(initialIsNewProduct);
 
     goalButtons.forEach((button) => {
       button.addEventListener("click", () => {
         const value = button.dataset.goalChoice;
         patchState({ create: { goal: value } });
         applyGoalStyles(value);
-        syncProductImageUi(value);
         if (customGoalInput) {
           customGoalInput.value = "";
         }
       });
+    });
+
+    newProductToggle?.addEventListener("change", (event) => {
+      const isNewProduct = Boolean(event.target.checked);
+      const latestGoal = readState().create.goal;
+      let nextGoal = latestGoal || (isNewProduct ? PRODUCT_LAUNCH_GOAL : DEFAULT_EXISTING_PRODUCT_GOAL);
+      if (isNewProduct && (!latestGoal || latestGoal === DEFAULT_EXISTING_PRODUCT_GOAL)) {
+        nextGoal = PRODUCT_LAUNCH_GOAL;
+      }
+      if (!isNewProduct && isProductLaunchGoal(nextGoal)) {
+        nextGoal = DEFAULT_EXISTING_PRODUCT_GOAL;
+      }
+      patchState({ create: { isNewProduct, goal: nextGoal } });
+      if (customGoalInput) {
+        customGoalInput.value = PRESET_GOALS.includes(nextGoal) ? "" : nextGoal;
+      }
+      syncProductImageUi(isNewProduct);
+      syncGoalAvailability(isNewProduct);
     });
 
     generationButtons.forEach((button) => {
@@ -1814,10 +1863,12 @@
       patchState({ create: { productDescription: event.target.value } });
     });
     customGoalInput?.addEventListener("input", (event) => {
-      const nextGoal = event.target.value.trim() || PRESET_GOALS[0];
+      const fallbackGoal = readState().create.isNewProduct
+        ? PRODUCT_LAUNCH_GOAL
+        : DEFAULT_EXISTING_PRODUCT_GOAL;
+      const nextGoal = event.target.value.trim() || fallbackGoal;
       patchState({ create: { goal: nextGoal } });
       applyGoalStyles(nextGoal);
-      syncProductImageUi(nextGoal);
     });
     toneSelect?.addEventListener("change", (event) => {
       patchState({ create: { tone: event.target.value } });
@@ -1857,8 +1908,8 @@
         setStatus(bootstrapStatus, "상품명을 먼저 입력해주세요.", "error");
         return;
       }
-      if (isNewProductGoal(latestState.create.goal) && !latestState.create.productImage) {
-        setStatus(bootstrapStatus, "신제품 출시 목적이면 상품 사진을 먼저 업로드해주세요.", "error");
+      if (latestState.create.isNewProduct && !latestState.create.productImage) {
+        setStatus(bootstrapStatus, "신상품으로 등록하려면 상품 사진을 먼저 업로드해주세요.", "error");
         return;
       }
 
@@ -1872,10 +1923,11 @@
             product_name: latestState.create.productName,
             description: latestState.create.productDescription,
             goal: latestState.create.goal,
+            is_new_product: Boolean(latestState.create.isNewProduct),
             generation_type: latestState.create.generationType,
             tone: latestState.create.tone,
             style: latestState.create.style,
-            product_image: isNewProductGoal(latestState.create.goal)
+            product_image: latestState.create.isNewProduct
               ? latestState.create.productImage
               : null,
             reference_url: latestState.create.referenceUrl,
@@ -1911,7 +1963,7 @@
             description: readState().create.productDescription,
             style: readState().create.tone,
             ad_copies: lastGenerateResult.text_result.ad_copies,
-            is_new_product: isNewProductGoal(readState().create.goal),
+            is_new_product: Boolean(readState().create.isNewProduct),
           },
         });
         lastCaptionResult = caption;

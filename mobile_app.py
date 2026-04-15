@@ -63,7 +63,6 @@ from utils.staging_storage import save_to_brand_assets, save_to_staging
 DATA_DIR = get_app_data_dir()
 STITCH_DIR = ROOT_DIR / "stitch"
 ONBOARDING_DIR = DATA_DIR / "onboarding" / "mobile"
-NEW_PRODUCT_GOAL_PREFIX = "신제품 출시"
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -143,6 +142,7 @@ class MobileGenerateRequest(BaseModel):
     product_name: str
     description: str = ""
     goal: str = "일반 홍보"
+    is_new_product: bool = False
     generation_type: Literal["text", "image", "both"] = "both"
     tone: str = "기본"
     style: str = "기본"
@@ -624,10 +624,6 @@ def _langfuse_trace_span(name: str):
         return contextlib.nullcontext()
 
 
-def _is_new_product_goal(goal: str) -> bool:
-    return goal.strip().startswith(NEW_PRODUCT_GOAL_PREFIX)
-
-
 async def _prepare_mobile_reference_analysis(
     reference_bytes: bytes | None,
     *,
@@ -1025,7 +1021,7 @@ async def mobile_generate(
     if brand is None:
         raise HTTPException(status_code=409, detail="온보딩이 아직 완료되지 않았습니다.")
     brand_prompt = _build_brand_prompt(brand)
-    is_new_product = _is_new_product_goal(payload.goal)
+    is_new_product = payload.is_new_product
 
     product_image_bytes: bytes | None = None
     product_image_extension = ".png"
