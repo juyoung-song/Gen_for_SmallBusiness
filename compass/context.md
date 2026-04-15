@@ -1,9 +1,11 @@
 # Context
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-09 (업종을 카페·베이커리·디저트로 좁힘)
-> **브랜치:** `refactor/won/main` (분기점: `2c808e0`, 2026-04-06)
+> **마지막 갱신:** 2026-04-15 (CP17 시작 — codex/infra 통합 + mobile_app 백엔드 기능 보존)
+> **브랜치:** `merge/main` (refactor/flow + codex/final-merge 통합 완료, codex/infra 통합 진행 중)
 > **이전 버전 폐기:** IP-Adapter 리뷰 컨텍스트(2026-04-03)는 본 문서로 대체됨
+
+> **진입점 전환 (2026-04-15)**: 기존 Streamlit 단독에서 **FastAPI (`mobile_app.py`) + Stitch PWA** 로 전환. Streamlit (`app.py`, `ui/`) 은 곧 제거 예정. 백엔드(서비스/모델/생성 로직) 는 그대로 재사용 — mobile_app 으로 import 만 바뀜.
 
 ---
 

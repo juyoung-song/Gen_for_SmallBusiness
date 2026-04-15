@@ -195,3 +195,37 @@
 - [ ] **M-3** Phase 2 시작 전 사용자 검수
 - [ ] **M-4** Phase 2 종료 후 사용자 검수 + design.md 정합성 확인
 - [ ] **M-5** PRD.md / architecture.md 와 design.md 정합성 작업 (선택, 후순위)
+
+---
+
+## CP17 — mobile_app 백엔드 기능 보존 통합 (2026-04-15)
+
+### Phase 0 — codex/infra 통합 (선결)
+- [ ] **17.0.1** `git fetch --all` 후 `git merge origin/codex/infra --no-ff` (브랜치: merge/main)
+- [ ] **17.0.2** `config/settings.py` 충돌 시 둘 다 살리는 방향으로 수동 해결
+- [ ] **17.0.3** `python -m pytest -q` 회귀 통과
+
+### Phase 1 — RED (TDD 명세 박기)
+- [ ] **17.1.1** `tests/test_mobile_app.py::test_complete_onboarding_auto_generates_logo` 추가
+- [ ] **17.1.2** `tests/test_mobile_app.py::test_mobile_generate_passes_logo_path_to_image_request` 추가
+- [ ] **17.1.3** `tests/test_mobile_app.py::test_mobile_generate_passes_reference_analysis_to_image_request` 추가
+- [ ] **17.1.4** `tests/test_mobile_app.py::test_mobile_generate_text_request_keeps_reference_analysis_empty` 추가
+- [ ] **17.1.5** 4개 모두 RED 확인
+
+### Phase 2 — GREEN (mobile_app.py 통합)
+- [ ] **17.2.1** import 추가: `LogoAutoGenerator`, `ReferenceAnalyzer`
+- [ ] **17.2.2** 상수 신설: `LOGO_FONT_PATH`, `BRAND_ASSETS_DIR`
+- [ ] **17.2.3** `complete_onboarding` else 블록: 로고 미업로드 시 `LogoAutoGenerator.generate_and_save` 호출
+- [ ] **17.2.4** `mobile_generate` 에서 `reference_bytes` → `ReferenceAnalyzer.analyze` 호출, `composition_prompt` 추출
+- [ ] **17.2.5** `ImageGenerationRequest` 에 `reference_analysis=composition_prompt`, `logo_path=brand.logo_path` 주입
+- [ ] **17.2.6** `TextGenerationRequest` 의 `reference_analysis=""` 정책 유지
+- [ ] **17.2.7** RED 4개 GREEN 전환 + 전체 회귀 통과
+
+### Phase 3 — REFACTOR
+- [ ] **17.3.1** inline 충분한지 vs `_resolve_reference_analysis` 헬퍼 분리 판단
+
+### 📱 백엔드 동등성 스모크 (uvicorn mobile_app:app)
+- [ ] **17.S.1** 온보딩(로고 미업로드) → `data/brand_assets/<uuid>.png` 생성 + `brands.logo_path` 채워짐
+- [ ] **17.S.2** 광고 생성 → 컵에 워드마크 각인 (CP15 동작)
+- [ ] **17.S.3** 광고 생성 → 다른 프롭 blank (CP16 동작)
+- [ ] **17.S.4** 광고 생성(참조 이미지 제공) → 결과 이미지에 참조 구도 반영 + Langfuse trace 의 prompt 에 `reference_analysis` 텍스트 포함

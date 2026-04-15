@@ -458,5 +458,36 @@ Phase 2 — MVP 완성 (기능 추가)
 - 📱 스모크 통과 — 머그에만 `goorm` 각인, 봉투/냅킨/접시 전부 blank
 - 단일 실험으로 효과 확인 → 바로 머지
 
-### 🔜 다음 — 머지
-- `refactor/flow-logo` → `refactor/flow`, `logo_gen_exp/` 는 제외
+### ✅ 머지 완료 (CP14~16 → refactor/flow)
+- PR #12 머지 완료 (2026-04-15). `logo_gen_exp/` 제거 후 머지.
+
+### 🚧 CP17 — mobile_app 백엔드 기능 보존 통합 (진행 중)
+
+**배경**: `merge/main` 브랜치에서 `refactor/flow` (CP14~16) + `codex/final-merge` (Stitch mobile UI + FastAPI) 통합 직후 상태. Streamlit (`app.py`) 는 곧 제거 예정 → `mobile_app.py` 가 단독 진입점이 되는데, **`logo_service` (CP14) / `reference_service` 가 mobile_app 에서 빠져 있어 백엔드 기능이 회귀**.
+
+- 로고 미업로드 시 자동 생성 안 됨 → CP15 OpenAIImageBackend 가 logo_path 필수라 광고 생성 깨짐
+- `ImageGenerationRequest.logo_path` 미주입 → CP15 multi-input 활용 불가
+- `reference_analysis` 가 항상 `""` → 참조 이미지 영향 사라짐
+
+**계획**:
+- **Phase 0**: `codex/infra` 머지 (PWA shell, infra deploy, `runtime_paths.py` 신설). codex 계열의 최신.
+- **Phase 1 (RED)**: `tests/test_mobile_app.py` 에 4개 테스트 추가
+  1. `complete_onboarding` payload.logo=None → brand.logo_path 자동 생성
+  2. `mobile_generate` → `ImageGenerationRequest.logo_path == brand.logo_path`
+  3. `mobile_generate` reference 제공 → `ImageGenerationRequest.reference_analysis` non-empty
+  4. `mobile_generate` → `TextGenerationRequest.reference_analysis == ""` 정책 검증
+- **Phase 2 (GREEN)**: `mobile_app.py` 변경
+  - `LogoAutoGenerator` import + `complete_onboarding` else 블록 (logo 자동 생성)
+  - `ReferenceAnalyzer` import + `mobile_generate` 에서 reference_bytes → composition_prompt 분석
+  - `ImageGenerationRequest` 에 `reference_analysis`, `logo_path` 주입
+- **Phase 3 (REFACTOR)**: 헬퍼 분리 검토
+
+**📱 백엔드 동등성 체크리스트** (Streamlit ≡ mobile):
+- [ ] 온보딩: 로고 업로드 안 함 → 자동 생성됨
+- [ ] 광고 생성: 컵에 워드마크 각인됨 (CP15 동작)
+- [ ] 광고 생성: 다른 프롭은 blank (CP16 동작)
+- [ ] 광고 생성: 참조 이미지의 구도가 결과에 반영됨
+
+**알려진 후속**: `source_output_id` 기반 reference 풀 (Streamlit 에는 이미 있음, mobile payload 확장 필요), Streamlit 정식 제거.
+
+**상세 계획 파일**: `/Users/won/.claude/plans/magical-snuggling-biscuit.md`
