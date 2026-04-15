@@ -343,6 +343,7 @@ class TestInstagramOnboardingFlow:
         )
 
     async def test_callback_redirects_with_page_required_feedback(self, monkeypatch):
+        """IG 연결 계정 0개 → manual_required 리디렉트 (구 page_required 동등)."""
         state = mobile_app._issue_instagram_state(uuid4(), "settings")
 
         async def fake_exchange_code_for_token(self, _code, **_kwargs):
@@ -351,10 +352,8 @@ class TestInstagramOnboardingFlow:
         async def fake_exchange_for_long_lived_token(self, _short_token):
             return "long-token", 3600
 
-        async def fake_fetch_instagram_account(self, _access_token):
-            raise InstagramPageConnectionRequiredError(
-                "Facebook Page 연결이 필요합니다."
-            )
+        async def fake_list_candidates(self, _access_token):
+            return []  # IG 연결 계정 없음
 
         monkeypatch.setattr(
             mobile_app.InstagramAuthService,
@@ -368,8 +367,8 @@ class TestInstagramOnboardingFlow:
         )
         monkeypatch.setattr(
             mobile_app.InstagramAuthService,
-            "fetch_instagram_account",
-            fake_fetch_instagram_account,
+            "list_candidate_accounts",
+            fake_list_candidates,
         )
 
         response = await mobile_app.mobile_instagram_callback(
@@ -377,8 +376,9 @@ class TestInstagramOnboardingFlow:
             state=state,
         )
 
+        # 후보 0개 → 수동 입력 유도 (구 page_required 와 동등한 흐름)
         assert response.headers["location"].startswith(
-            "/stitch/settings.html?ig=page_required"
+            "/stitch/settings.html?ig=manual_required"
         )
 
 
@@ -1169,3 +1169,246 @@ class TestCP19ExistingProductImageLoad:
         )
 
         assert captured["image_request"].image_data == _TINY_PNG_BYTES
+
+
+# ---------------------------------------------------------------------------
+# CP20 — 인스타 계정 선택 UI (다중 페이지 선택 + 수동 입력 fallback)
+# ---------------------------------------------------------------------------
+
+from services.instagram_auth_service import InstagramAuthService
+
+
+class TestCP20FetchDefensive:
+    """현재 구현에 이미 포함된 방어 코드 회귀 검증 (3828c19 이식본)."""
+
+    async def test_missing_data_field_raises(self, monkeypatch):
+        class FakeResp:
+            status_code = 200
+            def raise_for_status(self):
+                pass
+            def json(self):
+                return {"paging": {}}  # data 필드 없음
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+            async def __aexit__(self, *_):
+                return False
+            async def get(self, *_args, **_kwargs):
+                return FakeResp()
+
+        monkeypatch.setattr("services.instagram_auth_service.httpx.AsyncClient", lambda: FakeClient())
+
+        service = InstagramAuthService(mobile_app.settings)
+        with pytest.raises(ValueError) as exc_info:
+            await service.fetch_instagram_account("token")
+        assert "data" in str(exc_info.value).lower() or "페이지 목록" in str(exc_info.value)
+
+    async def test_username_fetch_failure_raises(self, monkeypatch):
+        """IG username 조회가 200이 아니면 ValueError."""
+        calls = {"count": 0}
+
+        class FakeResp:
+            def __init__(self, status, payload):
+                self.status_code = status
+                self._payload = payload
+                self.text = str(payload)
+            def raise_for_status(self):
+                if self.status_code >= 400:
+                    raise httpx.HTTPStatusError("err", request=None, response=None)
+            def json(self):
+                return self._payload
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+            async def __aexit__(self, *_):
+                return False
+            async def get(self, url, **_kwargs):
+                calls["count"] += 1
+                if "/me/accounts" in url:
+                    return FakeResp(200, {"data": [{"id": "pg1", "name": "P", "instagram_business_account": {"id": "ig1"}}]})
+                # username 조회 실패
+                return FakeResp(500, {"error": "boom"})
+
+        monkeypatch.setattr("services.instagram_auth_service.httpx.AsyncClient", lambda: FakeClient())
+
+        service = InstagramAuthService(mobile_app.settings)
+        with pytest.raises(ValueError):
+            await service.fetch_instagram_account("token")
+
+
+class TestCP20ListCandidates:
+    """여러 후보 반환 + username 각각 조회."""
+
+    async def test_returns_all_accounts_with_username(self, monkeypatch):
+        class FakeResp:
+            def __init__(self, payload):
+                self.status_code = 200
+                self._payload = payload
+                self.text = str(payload)
+            def raise_for_status(self):
+                pass
+            def json(self):
+                return self._payload
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+            async def __aexit__(self, *_):
+                return False
+            async def get(self, url, **_kwargs):
+                if "/me/accounts" in url:
+                    return FakeResp({
+                        "data": [
+                            {"id": "pg1", "name": "페이지A", "instagram_business_account": {"id": "ig1"}},
+                            {"id": "pg2", "name": "페이지B", "instagram_business_account": {"id": "ig2"}},
+                            {"id": "pg3", "name": "페이지C"},  # IG 없음 — 제외
+                        ]
+                    })
+                if url.endswith("/ig1"):
+                    return FakeResp({"username": "cafe_a"})
+                if url.endswith("/ig2"):
+                    return FakeResp({"username": "cafe_b"})
+                return FakeResp({})
+
+        monkeypatch.setattr("services.instagram_auth_service.httpx.AsyncClient", lambda: FakeClient())
+
+        service = InstagramAuthService(mobile_app.settings)
+        candidates = await service.list_candidate_accounts("token")
+
+        assert len(candidates) == 2
+        assert candidates[0]["instagram_account_id"] == "ig1"
+        assert candidates[0]["instagram_username"] == "cafe_a"
+        assert candidates[0]["facebook_page_name"] == "페이지A"
+        assert candidates[1]["instagram_account_id"] == "ig2"
+        assert candidates[1]["instagram_username"] == "cafe_b"
+
+
+class TestCP20CandidatesEndpoint:
+    """GET /api/mobile/instagram/candidates — pending 토큰에서 후보 목록 반환."""
+
+    async def test_get_candidates_returns_list(self, monkeypatch):
+        brand_id = uuid4()
+
+        async def fake_load_brand():
+            return SimpleNamespace(id=brand_id)
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+
+        # pending 토큰을 메모리 dict 에 세팅
+        mobile_app.PENDING_IG_TOKENS[brand_id] = SimpleNamespace(
+            access_token="long-token",
+            expires_in=5184000,
+            source="settings",
+        )
+
+        fake_candidates = [
+            {"instagram_account_id": "ig1", "instagram_username": "cafe_a", "facebook_page_id": "pg1", "facebook_page_name": "A"},
+            {"instagram_account_id": "ig2", "instagram_username": "cafe_b", "facebook_page_id": "pg2", "facebook_page_name": "B"},
+        ]
+
+        async def fake_list(self, token):
+            return fake_candidates
+
+        monkeypatch.setattr(InstagramAuthService, "list_candidate_accounts", fake_list)
+
+        response = await mobile_app.mobile_instagram_candidates()
+
+        assert len(response.candidates) == 2
+        assert response.candidates[0].instagram_account_id == "ig1"
+        assert response.candidates[1].instagram_username == "cafe_b"
+
+        # 정리
+        mobile_app.PENDING_IG_TOKENS.pop(brand_id, None)
+
+
+class TestCP20SelectAccount:
+    """POST /api/mobile/instagram/select-account — 선택된 계정으로 save_connection."""
+
+    async def test_post_select_saves_connection(self, monkeypatch):
+        brand_id = uuid4()
+
+        async def fake_load_brand():
+            return SimpleNamespace(id=brand_id)
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+
+        mobile_app.PENDING_IG_TOKENS[brand_id] = SimpleNamespace(
+            access_token="long-token",
+            expires_in=5184000,
+            source="settings",
+        )
+
+        fake_candidates = [
+            {"instagram_account_id": "ig1", "instagram_username": "cafe_a", "facebook_page_id": "pg1", "facebook_page_name": "A"},
+            {"instagram_account_id": "ig2", "instagram_username": "cafe_b", "facebook_page_id": "pg2", "facebook_page_name": "B"},
+        ]
+
+        async def fake_list(self, token):
+            return fake_candidates
+
+        captured: dict = {}
+
+        async def fake_save(self, brand_id, access_token, expires_in, ig_info):
+            captured["brand_id"] = brand_id
+            captured["ig_info"] = ig_info
+            return SimpleNamespace(id=uuid4(), brand_id=brand_id)
+
+        monkeypatch.setattr(InstagramAuthService, "list_candidate_accounts", fake_list)
+        monkeypatch.setattr(InstagramAuthService, "save_connection", fake_save)
+
+        response = await mobile_app.mobile_instagram_select_account(
+            mobile_app.MobileInstagramSelectRequest(instagram_account_id="ig2")
+        )
+
+        assert captured["brand_id"] == brand_id
+        assert captured["ig_info"]["instagram_account_id"] == "ig2"
+        assert captured["ig_info"]["instagram_username"] == "cafe_b"
+        assert response.status == "connected"
+        # pending 소진
+        assert brand_id not in mobile_app.PENDING_IG_TOKENS
+
+
+class TestCP20ManualAccount:
+    """POST /api/mobile/instagram/manual-account — 직접 입력 IG ID 로 save_connection."""
+
+    async def test_post_manual_saves_connection(self, monkeypatch):
+        brand_id = uuid4()
+
+        async def fake_load_brand():
+            return SimpleNamespace(id=brand_id)
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+
+        mobile_app.PENDING_IG_TOKENS[brand_id] = SimpleNamespace(
+            access_token="long-token",
+            expires_in=5184000,
+            source="settings",
+        )
+
+        async def fake_manual(self, token, ig_id):
+            return {
+                "instagram_account_id": ig_id,
+                "instagram_username": "manual_user",
+                "facebook_page_id": None,
+                "facebook_page_name": "수동 연결",
+            }
+
+        captured: dict = {}
+
+        async def fake_save(self, brand_id, access_token, expires_in, ig_info):
+            captured["ig_info"] = ig_info
+            return SimpleNamespace(id=uuid4(), brand_id=brand_id)
+
+        monkeypatch.setattr(InstagramAuthService, "fetch_instagram_account_manually", fake_manual)
+        monkeypatch.setattr(InstagramAuthService, "save_connection", fake_save)
+
+        response = await mobile_app.mobile_instagram_manual_account(
+            mobile_app.MobileInstagramManualRequest(instagram_business_account_id="17841499999999999")
+        )
+
+        assert captured["ig_info"]["instagram_account_id"] == "17841499999999999"
+        assert captured["ig_info"]["instagram_username"] == "manual_user"
+        assert response.status == "connected"
+        assert brand_id not in mobile_app.PENDING_IG_TOKENS

@@ -138,6 +138,63 @@
             </div>
           </div>
         </div>
+
+        <!-- CP20: 다중 IG 계정 선택 패널 (ig=select_required 시 표시) -->
+        <div class="settings-card hidden" id="settings-ig-select-panel">
+          <div class="panel-head">
+            <h3 class="panel-title">Instagram 계정을 선택해주세요</h3>
+          </div>
+          <p class="panel-copy">
+            연결된 Facebook Page 중 Instagram 계정이 여러 개 발견되었습니다. 업로드에 사용할 계정을 선택하세요.
+          </p>
+          <div class="settings-row settings-row--stack">
+            <select class="settings-select" id="settings-ig-account-select" style="width:100%">
+              <option value="">로딩 중...</option>
+            </select>
+          </div>
+          <div class="settings-row settings-row--stack">
+            <div class="settings-actions">
+              <button
+                class="action-button action-button--primary settings-action"
+                id="settings-ig-select-confirm"
+                type="button"
+              >
+                이 계정으로 연결
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CP20: 수동 IG ID 입력 패널 (ig=manual_required 시 표시) -->
+        <div class="settings-card hidden" id="settings-ig-manual-panel">
+          <div class="panel-head">
+            <h3 class="panel-title">Instagram 계정 ID를 직접 입력해주세요</h3>
+          </div>
+          <p class="panel-copy">
+            Facebook Page와 연결된 Instagram professional account를 찾지 못했습니다.
+            Instagram 비즈니스 계정 ID(숫자)를 직접 입력해 연결할 수 있습니다.
+          </p>
+          <div class="settings-row settings-row--stack">
+            <input
+              class="settings-input"
+              id="settings-ig-manual-input"
+              type="text"
+              placeholder="예: 17841499999999999"
+              style="width:100%; box-sizing:border-box;"
+            />
+          </div>
+          <div class="settings-row settings-row--stack">
+            <div class="settings-actions">
+              <button
+                class="action-button action-button--primary settings-action"
+                id="settings-ig-manual-confirm"
+                type="button"
+              >
+                연결하기
+              </button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="settings-group">
