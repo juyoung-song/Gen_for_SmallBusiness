@@ -7,6 +7,9 @@ API 연동 및 데이터베이스(히스토리) 완성:
 실행: streamlit run app.py
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import asyncio
 import logging
 import os
