@@ -1,0 +1,10 @@
+[Unit]
+Description=Run DuckDNS refresh every 5 minutes
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=5m
+Unit=duckdns-refresh.service
+
+[Install]
+WantedBy=timers.target

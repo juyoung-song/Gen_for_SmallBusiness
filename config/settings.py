@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     # ── Application ──
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
+    APP_DATA_DIR: str = ""
+    SQLITE_DB_PATH: str = ""
 
     # ── 이미지 백엔드 모드 (Stage 2 단일 enum) ──
     # CP15: 기본값을 OPENAI_IMAGE 로 전환 — 상품 사진 + 로고 multi-input.

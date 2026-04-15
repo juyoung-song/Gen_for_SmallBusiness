@@ -52,6 +52,7 @@
   let lastCaptionResult = null;
   let lastStoryResult = null;
   let lastBootstrap = null;
+  let deferredInstallPrompt = null;
 
   function cloneDefaults() {
     return JSON.parse(JSON.stringify(defaultState));
@@ -155,6 +156,51 @@
 
   function navigate(path) {
     window.location.href = path;
+  }
+
+  function isStandaloneDisplay() {
+    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  }
+
+  function isIOSDevice() {
+    return /iphone|ipad|ipod/i.test(window.navigator.userAgent || "");
+  }
+
+  function getPwaInstallState() {
+    if (isStandaloneDisplay()) {
+      return "installed";
+    }
+    if (deferredInstallPrompt) {
+      return "available";
+    }
+    if (isIOSDevice()) {
+      return "ios_manual";
+    }
+    if (window.isSecureContext) {
+      return "manual";
+    }
+    return "unsupported";
+  }
+
+  function notifyPwaInstallStatusChange() {
+    window.dispatchEvent(
+      new CustomEvent("brewgram:pwa-install-state", {
+        detail: { state: getPwaInstallState() },
+      }),
+    );
+  }
+
+  async function registerPwaServiceWorker() {
+    if (!("serviceWorker" in navigator)) {
+      notifyPwaInstallStatusChange();
+      return;
+    }
+    try {
+      await navigator.serviceWorker.register("/stitch/service-worker.js", { scope: "/stitch/" });
+    } catch (_) {
+      // Installation still works without SW on some platforms, but offline caching won't.
+    }
+    notifyPwaInstallStatusChange();
   }
 
   function clearQueryFromCurrentPath() {
@@ -1243,6 +1289,10 @@
     const instagramConnectButton = selectOne("#settings-instagram-connect");
     const instagramReconnectButton = selectOne("#settings-instagram-reconnect");
     const instagramDisconnectButton = selectOne("#settings-instagram-disconnect");
+    const installStatusNode = selectOne("#settings-install-status");
+    const installCopyNode = selectOne("#settings-install-copy");
+    const installButton = selectOne("#settings-install-button");
+    const installHintNode = selectOne("#settings-install-hint");
 
     if (toneSelect) toneSelect.value = state.preferences.defaultTone;
     if (styleSelect) styleSelect.value = state.preferences.defaultStyle;
@@ -1281,6 +1331,56 @@
 
     const feedback = consumeInstagramFeedback();
     setInstagramPageGuide("#settings-page-guide", feedback);
+
+    const applyPwaInstallState = () => {
+      const installState = getPwaInstallState();
+      if (!installStatusNode || !installCopyNode || !installButton || !installHintNode) {
+        return;
+      }
+
+      if (installState === "installed") {
+        installStatusNode.textContent = "설치됨";
+        installCopyNode.textContent = "홈 화면 아이콘으로 바로 열 수 있습니다. 주소창 없이 앱처럼 실행됩니다.";
+        installHintNode.textContent = "이미 홈 화면에 추가되어 있습니다.";
+        installButton.textContent = "이미 설치됨";
+        installButton.disabled = true;
+        return;
+      }
+
+      installButton.disabled = false;
+
+      if (installState === "available") {
+        installStatusNode.textContent = "설치 가능";
+        installCopyNode.textContent = "이 기기에서는 설치 프롬프트를 바로 열 수 있습니다.";
+        installHintNode.textContent = "버튼을 누르면 홈 화면 설치 안내가 바로 열립니다.";
+        installButton.textContent = "홈 화면에 설치하기";
+        return;
+      }
+
+      if (installState === "ios_manual") {
+        installStatusNode.textContent = "수동 추가";
+        installCopyNode.textContent = "iPhone/iPad는 Safari 공유 메뉴에서 홈 화면에 추가해야 합니다.";
+        installHintNode.textContent = "Safari 공유 버튼 -> 홈 화면에 추가 순서로 진행하세요.";
+        installButton.textContent = "설치 방법 보기";
+        return;
+      }
+
+      if (installState === "manual") {
+        installStatusNode.textContent = "브라우저 메뉴";
+        installCopyNode.textContent = "브라우저 메뉴의 설치 또는 홈 화면에 추가 기능을 사용하세요.";
+        installHintNode.textContent = "Android Chrome, Samsung Internet 등에서 메뉴의 설치 항목을 확인하세요.";
+        installButton.textContent = "설치 안내 보기";
+        return;
+      }
+
+      installStatusNode.textContent = "설치 제한";
+      installCopyNode.textContent = "홈 화면 설치는 HTTPS 환경과 지원 브라우저가 필요합니다.";
+      installHintNode.textContent = "운영 도메인에서 HTTPS를 붙인 뒤 다시 확인하면 설치 조건이 충족됩니다.";
+      installButton.textContent = "설치 조건 보기";
+    };
+
+    applyPwaInstallState();
+    window.addEventListener("brewgram:pwa-install-state", applyPwaInstallState);
 
     const applyInstagramSettings = (instagram, bootstrap) => {
       const onboardingCompleted = Boolean(bootstrap?.onboarding_completed);
@@ -1397,6 +1497,39 @@
       } catch (error) {
         setStatus(statusNode, error.message, "error");
       }
+    });
+
+    installButton?.addEventListener("click", async () => {
+      const installState = getPwaInstallState();
+      if (installState === "installed") {
+        setStatus(statusNode, "이미 홈 화면에 설치되어 있습니다.", "success");
+        return;
+      }
+
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice.catch(() => null);
+        deferredInstallPrompt = null;
+        notifyPwaInstallStatusChange();
+        if (choice?.outcome === "accepted") {
+          setStatus(statusNode, "홈 화면 설치를 시작했습니다. 설치가 끝나면 앱 목록에서 Brewgram을 확인하세요.", "success");
+          return;
+        }
+        setStatus(statusNode, "설치를 취소했습니다. 나중에 다시 시도할 수 있습니다.", "neutral");
+        return;
+      }
+
+      if (isIOSDevice()) {
+        setStatus(statusNode, "Safari 공유 메뉴에서 '홈 화면에 추가'를 선택해주세요.", "neutral");
+        return;
+      }
+
+      if (window.isSecureContext) {
+        setStatus(statusNode, "브라우저 메뉴에서 '설치' 또는 '홈 화면에 추가'를 선택해주세요.", "neutral");
+        return;
+      }
+
+      setStatus(statusNode, "현재 환경은 설치 조건을 충족하지 않습니다. 운영 도메인에 HTTPS를 붙인 뒤 다시 시도해주세요.", "neutral");
     });
 
     try {
@@ -1747,7 +1880,19 @@
     });
   }
 
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    notifyPwaInstallStatusChange();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    notifyPwaInstallStatusChange();
+  });
+
   document.addEventListener("DOMContentLoaded", () => {
+    registerPwaServiceWorker();
     if (PAGE === "welcome") bindWelcome();
     if (PAGE === "onboarding-1") bindStep1();
     if (PAGE === "onboarding-2") bindStep2();

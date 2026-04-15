@@ -442,6 +442,26 @@ nav {
     linear-gradient(180deg, rgba(255, 249, 245, 0.98), rgba(255, 255, 255, 0.96));
 }
 
+.settings-install-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.settings-install-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -1.2rem -1.2rem auto;
+  width: 5rem;
+  height: 5rem;
+  border-radius: 9999px;
+  background: rgba(255, 107, 87, 0.08);
+}
+
+.settings-install-hint {
+  position: relative;
+  z-index: 1;
+}
+
 .settings-checklist {
   display: grid;
   gap: 0.7rem;

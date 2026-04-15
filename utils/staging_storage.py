@@ -17,7 +17,9 @@
 from pathlib import Path
 from uuid import uuid4
 
-_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+from config.runtime_paths import get_app_data_dir
+
+_DATA_DIR = get_app_data_dir()
 
 # 임시 파일 (업로드 raw 이미지 등)
 STAGING_DIR: Path = _DATA_DIR / "staging"

@@ -4,16 +4,14 @@
 """
 
 from collections.abc import AsyncGenerator
-from pathlib import Path
 
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-# SQLite 데이터베이스 파일 경로 — 프로젝트 루트 기준 절대경로 (S-1)
-# 실행 디렉토리에 의존하지 않도록 __file__ 기준으로 잡는다.
-DB_DIR = Path(__file__).resolve().parent.parent / "data"
-DB_DIR.mkdir(parents=True, exist_ok=True)
-DB_URL = f"sqlite+aiosqlite:///{DB_DIR / 'history.db'}"
+from config.runtime_paths import get_sqlite_db_path
+
+DB_PATH = get_sqlite_db_path()
+DB_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 
 
 def attach_sqlite_fk_listener(async_engine) -> None:

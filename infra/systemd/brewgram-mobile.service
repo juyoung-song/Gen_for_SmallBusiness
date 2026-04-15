@@ -1,0 +1,18 @@
+[Unit]
+Description=Brewgram mobile_app FastAPI
+After=network-online.target brewgram-worker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=spai0608
+Group=spai0608
+WorkingDirectory=/home/spai0608/Gen_for_SmallBusiness
+EnvironmentFile=/etc/brewgram/mobile_app.env
+ExecStart=/home/spai0608/.local/bin/uv run uvicorn mobile_app:app --host 127.0.0.1 --port 8011
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

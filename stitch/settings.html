@@ -3,7 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ff6b57" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Brewgram - 설정</title>
+    <link rel="manifest" href="/stitch/manifest.webmanifest" />
+    <link rel="icon" href="/stitch/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/stitch/icons/apple-touch-icon.png" />
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
@@ -169,6 +175,35 @@
               <p class="settings-sub">생성 결과 화면에서 피드 업로드 버튼을 표시할지 정합니다.</p>
             </div>
             <button class="settings-toggle" id="settings-upload-toggle" type="button" aria-pressed="false"></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h2 class="settings-group__title">앱 설치</h2>
+        <div class="settings-card settings-install-card">
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">홈 화면 앱으로 설치</p>
+              <p class="settings-sub" id="settings-install-copy">
+                지원 브라우저에서는 홈 화면에 추가해 주소창 없이 앱처럼 실행할 수 있습니다.
+              </p>
+            </div>
+            <span class="settings-value" id="settings-install-status">확인 중</span>
+          </div>
+          <div class="settings-row settings-row--stack">
+            <div class="settings-actions">
+              <button
+                class="action-button action-button--primary settings-action"
+                id="settings-install-button"
+                type="button"
+              >
+                홈 화면에 설치하기
+              </button>
+            </div>
+            <p class="settings-inline-note settings-install-hint" id="settings-install-hint">
+              iPhone에서는 Safari 공유 메뉴의 ‘홈 화면에 추가’를 사용합니다.
+            </p>
           </div>
         </div>
       </section>
