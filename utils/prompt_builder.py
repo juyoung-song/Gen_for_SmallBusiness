@@ -18,12 +18,32 @@ _STYLE_GUIDE: dict[str, str] = {
     "심플": "짧고 핵심만 간단하게 전달하는 문구를 작성하세요.",
 }
 
-_IMAGE_STYLE_MAP: dict[str, str] = {
-    "기본": "깔끔한 구성",
-    "감성": "따뜻한 색감",
-    "고급": "세련된 분위기",
-    "유머": "밝고 재밌는 느낌",
-    "심플": "최소한의 요소",
+# gpt-image-1 전용 전문 사진작가 촬영 디렉션
+_IMAGE_STYLE_DIRECTIVE: dict[str, str] = {
+    "기본": (
+        "Commercial Standard: Clean, balanced setup with eye-level perspective. "
+        "High-quality diffused lighting, neutral textures, and professional focus on product details."
+    ),
+    "감성": (
+        "Sentimental Lifestyle: Warm, soft-focus photography. "
+        "Side natural window light, shallow depth of field with creamy bokeh, "
+        "and cozy, inviting morning mood."
+    ),
+    "고급": (
+        "Premium Noir: Moody, high-contrast photography. "
+        "Dramatic chiaroscuro lighting, deep-toned matte backgrounds, "
+        "and extreme focus on the premium material and surface detail."
+    ),
+    "유머": (
+        "Pop & Playful: High-energy pop photography. "
+        "Vibrant saturated colors, hard direct flash with sharp shadows, "
+        "and dynamic diagonal overhead arrangement."
+    ),
+    "심플": (
+        "Ultimate Minimalism: Austere product portrait. "
+        "Solid monochromatic background, shadowless soft lighting, "
+        "centered composition with ample negative space."
+    ),
 }
 
 
@@ -158,60 +178,41 @@ def build_image_prompt(
     is_new_product: bool = False,
     reference_analysis: str = "",
 ) -> str:
-    """상품 정보와 홍보 목적을 포함한 시각적 광고 컨셉이미지 프롬프트를 생성합니다.
-
-    Loah 프롬프트 이식 — 상품 상태 + reference_analysis 추가.
+    """gpt-image-1 최적화 비주얼 컨셉 지시서를 생성합니다.
+    
+    SD/FLUX 방식의 키워드 번역을 폐기하고,
+    gpt-image-1이 이해하는 자연어 명령문 형태로 재구성합니다.
+    스타일 디렉션이 핵심 축이며, 브랜드 가이드라인이 보조합니다.
     """
-    style_desc = _IMAGE_STYLE_MAP.get(style, _IMAGE_STYLE_MAP["기본"])
+    # 전문 사진작가 촬영 디렉션 (5대 스타일)
+    style_directive = _IMAGE_STYLE_DIRECTIVE.get(style, _IMAGE_STYLE_DIRECTIVE["기본"])
     product_status = _product_status_label(is_new_product)
-
-    # H1 fix: GOAL_CATEGORIES 6종 라벨과 일치시킴. 이전엔 구 라벨(신상품 홍보 등)
-    # 로 남아 있어서 모든 입력이 fallback 으로만 선택되는 조용한 회귀 버그였음.
-    goal_visual_map = {
-        "신메뉴 출시":     "Hero shot of a freshly launched bakery item, bright clean background, soft yet dramatic spotlight conveying first-reveal novelty and anticipation.",
-        "주말·시즌 한정": "Seasonal color palette, thematic props matching the time of year, atmospheric warm lighting, limited-edition cue.",
-        "할인·이벤트":     "Vibrant and energetic mood with appetizing composition, subtle promotional accent, inviting framing without on-image text.",
-        "일상·감성":      "Candid cafe or bakery ambience, natural window light, shallow depth of field, everyday warm scene evoking quiet comfort.",
-        "영업 안내":      "Clean storefront or interior framing, subdued neutral tone, generous legible negative space suitable for announcement overlays.",
-        "감사·안부":      "Warm close-up with soft golden lighting, gift-like composition, gentle grateful mood conveying appreciation.",
-    }
-    visual_strategy = goal_visual_map.get(goal, "Clean, commercial grade product photography.")
-
-    reference_guide = ""
-    if has_reference:
-        reference_guide = "Respect the composition and color scheme of the provided reference image. Maintain product identity. "
 
     brand_section = ""
     if brand_prompt.strip():
-        brand_section = f"Brand guidelines (MUST follow): {brand_prompt.strip()}\n\n"
+        brand_section = f"[Brand Guidelines — MUST follow]: {brand_prompt.strip()}\n\n"
 
-    reference_analysis_guide = ""
+    composition_section = ""
     if reference_analysis.strip():
-        reference_analysis_guide = (
-            f"Selected reference analysis: {reference_analysis.strip()}. "
-            "Use this as the primary visual synthesis for the new image while avoiding direct duplication. "
+        composition_section = (
+            f"[Composition Guideline from Reference]: {reference_analysis.strip()}\n"
+            "Strictly apply only the camera angle, lens distance, and subject placement "
+            "described above. Ignore the color and subject matter of the reference.\n\n"
         )
 
     product_status_guide = (
-        f"Product status: {product_status}. "
-        + (
-            "Emphasize the novelty, anticipation, and launch energy of the product. "
-            if is_new_product
-            else "Emphasize trusted quality, signature appeal, and established brand confidence. "
-        )
+        "Emphasize the novelty, first-reveal anticipation, and launch energy. "
+        if is_new_product
+        else "Emphasize trusted quality, signature appeal, and established brand confidence. "
     )
 
     return (
         f"{brand_section}"
-        f"A professional commercial advertisement visual concept for '{product_name}'. "
-        f"{reference_guide}"
-        f"{reference_analysis_guide}"
+        f"{composition_section}"
+        f"[Product]: '{product_name}' — {product_status}. "
         f"{product_status_guide}"
-        f"Promotional Context: {goal}. "
-        f"Visual Strategy: {visual_strategy} "
-        f"Style: {style_desc}. "
-        f"Inspiration: {ad_copy} {description}. "
-        "The image should clearly reflect the marketing goal AND the brand guidelines above. "
-        "Clean composition, high-end product photography, commercial lighting. "
-        "High resolution, cinematic quality, no text on image."
+        f"[Photography Style Directive]: {style_directive} "
+        "[Output rules]: High-resolution commercial photography, no floating text or "
+        "decorative overlays on the background. No text on image. "
+        "Cinematic quality, ultra-sharp product focus."
     )

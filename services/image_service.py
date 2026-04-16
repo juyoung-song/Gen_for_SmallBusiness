@@ -14,6 +14,8 @@
 
 import io
 import logging
+import base64
+from pathlib import Path
 
 import httpx
 from openai import (
@@ -73,7 +75,15 @@ class ImageService:
         Raises:
             ImageServiceError: 백엔드/번역 실패 시 사용자 친화적 메시지
         """
-        # 참조 이미지 해석: raw image 가 없으면 reference_image_paths 의 첫 장을 주입
+        # 1. 참조 이미지 경로를 image_data에 담기 전에, 참조 이미지 파일 자체를 분석
+        if request.reference_image_paths and not request.reference_analysis:
+            try:
+                request = self._analyze_reference_composition(request)
+            except Exception as e:
+                logger.warning("참조 이미지 구도 분석 실패 (무시하고 진행): %s", e)
+
+        # 2. 참조 이미지 해석: raw image 가 없으면 reference_image_paths 의 첫 장을 주입
+        # (이 단계는 하위 호환 및 1-input 백엔드용으로 유지)
         request = self._resolve_reference_image_data(request)
 
         backend = select_image_backend(
@@ -90,23 +100,15 @@ class ImageService:
         if self.settings.is_mock_image:
             return self._call_backend(backend, request)
 
-        # 그 외 모든 백엔드는 영문 프롬프트 입력 가정 → 번역 수행
-        translated_request = self._translate_to_english(request)
-        return self._call_backend(backend, translated_request)
+        # 3. gpt-image-1 전용 지시서(Optimization) 생성
+        optimized_request = self._optimize_image_prompt(request)
+        return self._call_backend(backend, optimized_request)
 
     @staticmethod
     def _resolve_reference_image_data(
         request: ImageGenerationRequest,
     ) -> ImageGenerationRequest:
-        """참조 이미지 경로를 읽어 image_data 에 주입.
-
-        우선순위:
-        1) 이미 image_data 가 있으면 그대로 유지 (raw 이미지가 최우선)
-        2) reference_image_paths 의 첫 장이 존재하면 읽어서 image_data 로 주입
-        3) 그 외 → image_data=None 유지
-
-        MVP 에서는 백엔드가 다중 참조를 지원하지 않으므로 첫 1장만 사용.
-        """
+        """참조 이미지 경로를 읽어 image_data 에 주입."""
         from pathlib import Path
 
         if request.image_data is not None:
@@ -122,14 +124,59 @@ class ImageService:
         logger.info("참조 이미지 %s 를 image_data 로 로드", first)
         return request.model_copy(update={"image_data": first.read_bytes()})
 
-    # ──────────────────────────────────────────
-    # 프롬프트 한국어 → 영문 번역 (서비스 책임)
-    # ──────────────────────────────────────────
-    def _translate_to_english(
+    def _analyze_reference_composition(
         self, request: ImageGenerationRequest
     ) -> ImageGenerationRequest:
-        """build_image_prompt 결과 한국어 프롬프트를 GPT 로 영문화한 후
-        request.prompt 를 갱신한 새 객체를 반환한다."""
+        """GPT Vision을 사용하여 참조 이미지의 비주얼 구도만 분석합니다."""
+        import base64
+        from pathlib import Path
+
+        if not request.reference_image_paths:
+            return request
+
+        ref_path = Path(request.reference_image_paths[0])
+        if not ref_path.exists():
+            return request
+
+        base64_image = base64.b64encode(ref_path.read_bytes()).decode("utf-8")
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.settings.TEXT_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a professional cinematographer. Analyze the provided image "
+                            "and describe ONLY the visual composition. "
+                            "Include: 1) Camera Angle (e.g., Top view, Eye level, Low angle), "
+                            "2) Lens Distance (e.g., Macro, Close-up, Wide shot), "
+                            "3) Subject Placement (e.g., Rule of thirds, Centered). "
+                            "Do NOT describe colors, lighting, or the product itself. "
+                            "Keep it under 30 words in English."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Analyze the composition of this reference image."},
+                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}},
+                        ],
+                    },
+                ],
+                timeout=self.settings.TEXT_TIMEOUT,
+            )
+            analysis = (response.choices[0].message.content or "").strip()
+            logger.info("참조 이미지 구도 분석 완료: %s", analysis)
+            return request.model_copy(update={"reference_analysis": analysis})
+        except Exception as e:
+            logger.error("Vision 구도 분석 중 오류: %s", e)
+            return request
+
+    def _optimize_image_prompt(
+        self, request: ImageGenerationRequest
+    ) -> ImageGenerationRequest:
+        """build_image_prompt 결과를 gpt-image-1 전용 자연어 비주얼 지시서로 최적화합니다."""
         raw_prompt = build_image_prompt(
             product_name=request.product_name,
             description=request.description,
@@ -143,39 +190,30 @@ class ImageService:
         )
 
         try:
-            translation = self.client.chat.completions.create(
-                name="image.translate_ko_to_en",  # Langfuse observation 이름
+            optimization = self.client.chat.completions.create(
                 model=self.settings.TEXT_MODEL,
                 messages=[
                     {
                         "role": "system",
                         "content": (
-                            "Translate the given Korean description into a concise English prompt "
-                            "for Stable Diffusion / FLUX. STRICT LIMIT: under 60 words "
-                            "(comma-separated keywords). Output ONLY the English keywords."
+                            "You are an expert prompt engineer for gpt-image-1. "
+                            "Rewrite the user's input into a 100% natural language English visual directive. "
+                            "Explicitly instruct the model to transform the first image's product, "
+                            "engrave the second image's logo onto a prop with natural perspective, "
+                            "and strictly follow any given composition guidelines."
                         ),
                     },
                     {"role": "user", "content": raw_prompt},
                 ],
                 timeout=self.settings.TEXT_TIMEOUT,
             )
-        except (
-            AuthenticationError,
-            RateLimitError,
-            APITimeoutError,
-            BadRequestError,
-            APIConnectionError,
-        ) as e:
-            logger.error("프롬프트 번역 실패 (OpenAI 에러): %s", e)
-            raise ImageServiceError(f"프롬프트 번역 중 오류가 발생했습니다: {e}")
+            optimized_prompt = (optimization.choices[0].message.content or "").strip()
+            logger.info("영문 프롬프트 최적화 완료: %s", optimized_prompt[:80])
+            return request.model_copy(update={"prompt": optimized_prompt})
         except Exception as e:
-            logger.error("프롬프트 번역 실패 (알 수 없는 오류): %s", e)
-            raise ImageServiceError(f"프롬프트 번역 중 오류가 발생했습니다: {e}")
-
-        english_prompt = (translation.choices[0].message.content or "").strip()
-        logger.info("영문 프롬프트 번역 완료: %s", english_prompt[:80])
-
-        return request.model_copy(update={"prompt": english_prompt})
+            logger.error("프롬프트 최적화 실패: %s", e)
+            # 실패 시 원본 조합 프롬프트 사용
+            return request.model_copy(update={"prompt": raw_prompt})
 
     # ──────────────────────────────────────────
     # 백엔드 호출 + 예외 래핑
