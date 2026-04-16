@@ -115,7 +115,7 @@ sudo systemctl daemon-reload
 
 ## 6. 수동 배포 절차
 
-자동배포가 불안정하거나 아직 안 붙어 있으면, 아래 명령으로 수동 배포한다.
+아래 명령으로 VM에 수동 배포한다.
 
 실행 위치: `VM SSH`
 
@@ -217,36 +217,16 @@ Meta 앱의 `Valid OAuth Redirect URIs`에는 최소 아래 둘을 유지하는 
 - `http://brewgram.duckdns.org`는 현재 코드 기준으로 맞지 않는다.
 - 루트 도메인이 아니라 callback path까지 정확히 등록돼야 한다.
 
-## 10. GitHub Actions 자동배포
+## 10. 배포 운영 기준
 
-현재 repo에는 아래 흐름의 자동배포가 들어가 있다.
-
-```text
-push to merge/dev
-  -> GitHub Actions
-  -> SSH to VM
-  -> /usr/local/bin/deploy-brewgram.sh
-  -> git pull --ff-only
-  -> uv sync
-  -> playwright install chromium
-  -> systemd restart
-```
+현재 repo에서는 GitHub Actions 자동배포를 사용하지 않는다.
+VM 반영은 6번의 수동 배포 절차를 기준으로 한다.
 
 주의:
+- `/usr/local/bin/deploy-brewgram.sh`는 VM에 남겨둘 수 있다. 필요하면 VM SSH에서 직접 실행한다.
 - `deploy-brewgram.sh`는 `uv sync` 후 Playwright 브라우저 바이너리(`chromium`)를 설치한다.
-- OS 패키지 설치가 필요한 `playwright install-deps chromium`은 `sudo apt`를 건드리므로 자동배포에 넣지 않는다. VM 최초 세팅 때만 수동 실행한다.
-
-필요 secret:
-- `VM_HOST`
-- `VM_USER`
-- `VM_SSH_KEY`
-
-워크플로 파일:
-- `.github/workflows/deploy-infra.yml`
-
-주의:
-- 현재 저장소가 개인 저장소면 `production` environment secret 수정은 owner가 해야 할 수 있다.
-- 자동배포가 실패하면 수동 배포 절차를 기준으로 운영하면 된다.
+- OS 패키지 설치가 필요한 `playwright install-deps chromium`은 `sudo apt`를 건드리므로 VM 최초 세팅 때만 수동 실행한다.
+- VM 작업 트리에 수동 수정이 남아 있으면 `git pull --ff-only`가 실패할 수 있다.
 
 ## 11. 자주 보는 확인 명령
 

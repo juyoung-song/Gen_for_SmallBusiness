@@ -151,27 +151,29 @@ curl -I https://brewgram.duckdns.org/stitch/service-worker.js
   `https://brewgram.duckdns.org/api/mobile/instagram/callback` 추가
 - 테스트 계정 App Role / Facebook Page 권한 확인
 
-## 9. GitHub Actions 자동 배포
+## 9. 배포 운영 기준
 
-자동 배포 방식:
+현재 repo에서는 GitHub Actions 자동 배포를 사용하지 않는다.
+VM 반영은 SSH로 접속한 뒤 수동 배포 스크립트 또는 수동 명령을 실행한다.
 
-```text
-push to merge/dev
-  -> GitHub Actions
-  -> SSH to VM
-  -> /usr/local/bin/deploy-brewgram.sh
-  -> git pull --ff-only + uv sync + playwright install chromium + systemd restart
+수동 배포 스크립트:
+
+```bash
+deploy-brewgram.sh
 ```
 
-GitHub repo secrets:
-- `VM_HOST`
-- `VM_USER`
-- `VM_SSH_KEY`
+수동 명령:
 
-워크플로 파일:
-- `.github/workflows/deploy-infra.yml`
+```bash
+cd ~/Gen_for_SmallBusiness
+git fetch origin
+git switch merge/dev
+git pull --ff-only origin merge/dev
+uv sync
+uv run python -m playwright install chromium
+sudo systemctl restart brewgram-mobile.service
+```
 
 주의:
-- VM 사용자 계정이 `sudo systemctl`을 비밀번호 없이 실행할 수 있어야 한다.
 - Playwright Chromium 실행에 필요한 OS 패키지는 VM 최초 세팅 때 `sudo env PATH="$PATH" /home/spai0608/.local/bin/uv run python -m playwright install-deps chromium`으로 1회 설치한다.
 - VM 작업 트리에 수동 수정이 남아 있으면 `git pull --ff-only`가 실패할 수 있다.
