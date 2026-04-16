@@ -500,22 +500,12 @@ async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary
                 connect_available=True,
                 connected=False,
                 expired=True,
-                upload_ready=settings.is_instagram_ready,
-                connection_source="env" if settings.is_instagram_ready else "none",
+                upload_ready=False,
+                connection_source="none",
                 username=username,
                 page_name=connection.facebook_page_name,
                 expires_at=expires_at,
             )
-
-    if settings.is_instagram_ready:
-        return MobileInstagramSummary(
-            oauth_available=oauth_available,
-            connect_available=True,
-            connected=False,
-            expired=False,
-            upload_ready=True,
-            connection_source="env",
-        )
 
     return MobileInstagramSummary(
         oauth_available=oauth_available,
@@ -581,6 +571,28 @@ async def _resolve_upload_context() -> tuple[Brand, object]:
         )
 
     upload_settings = settings.model_copy(deep=True)
+    if not getattr(brand, "instagram_account_id", None):
+        raise HTTPException(
+            status_code=409,
+            detail="인스타그램 계정을 먼저 연결한 뒤 업로드를 진행해주세요.",
+        )
+
+    connection = await InstagramAuthService(settings).get_connection(brand.id)
+    if connection is None or not connection.is_active:
+        raise HTTPException(
+            status_code=409,
+            detail="인스타그램 계정을 먼저 연결한 뒤 업로드를 진행해주세요.",
+        )
+
+    expires_at = connection.token_expires_at
+    if expires_at is not None and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at is not None and expires_at <= datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=409,
+            detail="인스타그램 연결이 만료되었습니다. 다시 연결한 뒤 업로드를 진행해주세요.",
+        )
+
     try:
         upload_ready = await apply_user_token_async(upload_settings, brand)
     except RuntimeError as exc:
@@ -588,7 +600,7 @@ async def _resolve_upload_context() -> tuple[Brand, object]:
     if not upload_ready:
         raise HTTPException(
             status_code=409,
-            detail="인스타그램 계정을 먼저 연결하거나 관리자 업로드 설정을 준비해야 합니다.",
+            detail="인스타그램 계정을 먼저 연결한 뒤 업로드를 진행해주세요.",
         )
     return brand, upload_settings
 

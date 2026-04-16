@@ -254,7 +254,7 @@ class TestInstagramSummary:
         assert summary.connection_source == "oauth"
         assert summary.username == "bakery_owner"
 
-    async def test_falls_back_to_env_upload_state(self, monkeypatch):
+    async def test_requires_oauth_connection_even_when_env_upload_is_configured(self, monkeypatch):
         async def fake_get_connection(self, _brand_id):
             return None
 
@@ -274,8 +274,8 @@ class TestInstagramSummary:
         summary = await mobile_app._load_instagram_summary(None)
 
         assert summary.connected is False
-        assert summary.upload_ready is True
-        assert summary.connection_source == "env"
+        assert summary.upload_ready is False
+        assert summary.connection_source == "none"
 
 
 class TestInstagramOnboardingFlow:
@@ -432,13 +432,19 @@ class TestMobileUploads:
         assert "연결" in exc_info.value.detail
 
     async def test_feed_upload_returns_post_metadata(self, monkeypatch):
-        brand = SimpleNamespace(id=uuid4())
+        brand = SimpleNamespace(id=uuid4(), instagram_account_id="1784")
         upload_id = uuid4()
         generation_output_id = uuid4()
         posted_at = datetime.now(timezone.utc)
 
         async def fake_load_brand():
             return brand
+
+        async def fake_get_connection(self, _brand_id):
+            return SimpleNamespace(
+                is_active=True,
+                token_expires_at=datetime.now(timezone.utc) + timedelta(days=30),
+            )
 
         async def fake_apply_user_token_async(_settings, _brand):
             return True
@@ -488,6 +494,11 @@ class TestMobileUploads:
                 return False
 
         monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+        monkeypatch.setattr(
+            mobile_app.InstagramAuthService,
+            "get_connection",
+            fake_get_connection,
+        )
         monkeypatch.setattr(
             mobile_app,
             "apply_user_token_async",

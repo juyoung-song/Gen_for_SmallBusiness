@@ -373,9 +373,6 @@
     if (summary.expired) {
       return "재연결 필요";
     }
-    if (summary.connection_source === "env") {
-      return "기본 업로드 계정 사용 중";
-    }
     if (summary.oauth_available) {
       return "미연결";
     }
@@ -395,9 +392,6 @@
     }
     if (summary.expired) {
       return "이전 연결이 만료되었습니다. 다시 연결하면 이후 업로드 흐름에 그대로 이어붙일 수 있습니다.";
-    }
-    if (summary.connection_source === "env") {
-      return "현재는 기본 업로드 계정만 연결되어 있습니다. 사장님 계정을 직접 연결하려면 Meta 로그인 설정이 필요합니다.";
     }
     if (summary.oauth_available) {
       return "사장님 본인 계정을 한 번만 연결해두면 이후 피드와 스토리를 바로 업로드할 수 있습니다.";
@@ -435,9 +429,6 @@
     if (summary.expired) {
       return "이전 인스타그램 연결이 만료되었습니다. 설정에서 다시 연결해두면 이후 자동 업로드 흐름을 자연스럽게 붙일 수 있습니다.";
     }
-    if (summary.connection_source === "env") {
-      return "현재는 기본 업로드 계정으로만 게시할 수 있습니다. 사장님 계정 직접 연결은 설정에서 시작합니다.";
-    }
     if (summary.oauth_available) {
       return "사장님 계정을 한 번 연결해두면, 이후 피드와 스토리를 바로 업로드할 수 있습니다.";
     }
@@ -473,8 +464,8 @@
     }
     return {
       tone: "neutral",
-      html: `현재는 기본 업로드 계정으로 ${target} 업로드를 시도합니다. 사장님 계정으로 바로 올리려면 <a href="${PATHS.settings}">설정에서 Meta 계정 연결</a>을 먼저 진행해 주세요.`,
-      status: `${target} 업로드 준비가 완료되었습니다.`,
+      html: `자동 ${target} 업로드를 쓰려면 먼저 인스타그램 계정을 연결해주세요. <a href="${PATHS.settings}">설정에서 연결하기</a>`,
+      status: "인스타그램 계정을 먼저 연결해야 합니다.",
     };
   }
 
@@ -2243,6 +2234,7 @@
           uploadNote.className = "upload-note";
           uploadNote.classList.remove("hidden");
         }
+        window.alert(nextNote.status);
         setStatus(bootstrapStatus, nextNote.status, nextNote.tone);
         return;
       }
@@ -2290,6 +2282,7 @@
           uploadNote.className = "upload-note";
           uploadNote.classList.remove("hidden");
         }
+        window.alert(nextNote.status);
         setStatus(bootstrapStatus, nextNote.status, nextNote.tone);
         return;
       }
