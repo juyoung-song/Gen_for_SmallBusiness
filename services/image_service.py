@@ -14,6 +14,8 @@
 
 import io
 import logging
+import base64
+from pathlib import Path
 
 import httpx
 from openai import (
@@ -73,6 +75,9 @@ class ImageService:
         Raises:
             ImageServiceError: 백엔드/번역 실패 시 사용자 친화적 메시지
         """
+        # 참조 이미지 구도 선별 (Vision Analysis)
+        request = self._analyze_reference_image(request)
+
         # 참조 이미지 해석: raw image 가 없으면 reference_image_paths 의 첫 장을 주입
         request = self._resolve_reference_image_data(request)
 
@@ -90,9 +95,9 @@ class ImageService:
         if self.settings.is_mock_image:
             return self._call_backend(backend, request)
 
-        # 그 외 모든 백엔드는 영문 프롬프트 입력 가정 → 번역 수행
-        translated_request = self._translate_to_english(request)
-        return self._call_backend(backend, translated_request)
+        # 그 외 모든 백엔드는 최적화 수행
+        optimized_request = self._optimize_prompt(request)
+        return self._call_backend(backend, optimized_request)
 
     @staticmethod
     def _resolve_reference_image_data(
@@ -122,14 +127,50 @@ class ImageService:
         logger.info("참조 이미지 %s 를 image_data 로 로드", first)
         return request.model_copy(update={"image_data": first.read_bytes()})
 
+    def _analyze_reference_image(self, request: ImageGenerationRequest) -> ImageGenerationRequest:
+        """참조 이미지가 있을 경우, GPT Vision을 이용해 구도를 정밀 분석합니다."""
+        if not request.reference_image_paths:
+            return request
+
+        first_path = request.reference_image_paths[0]
+        try:
+            with Path(first_path).open("rb") as f:
+                base64_image = base64.b64encode(f.read()).decode("utf-8")
+
+            logger.info("참조 이미지 %s 에 대한 Vision 구도 분석 시작", first_path)
+            response = self.client.chat.completions.create(
+                model=self.settings.TEXT_MODEL,  # Requires Vision capable model
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Analyze the composition of this image. Extract ONLY the camera angle (e.g., top view), lens distance (e.g., macro close-up), and subject placement (e.g., bottom-left rule of thirds). Ignore colors and the actual subject/product entirely. Output a very short phrase in English."},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=60,
+                timeout=self.settings.TEXT_TIMEOUT,
+            )
+            analysis_text = response.choices[0].message.content.strip() if response.choices[0].message.content else ""
+            logger.info("참조 이미지 구도 분석 완료: %s", analysis_text)
+            return request.model_copy(update={"reference_analysis": analysis_text})
+        except Exception as e:
+            logger.error("Vision 분석 실패, 구도 분석 건너뜀: %s", e)
+            return request
+
     # ──────────────────────────────────────────
-    # 프롬프트 한국어 → 영문 번역 (서비스 책임)
+    # 프롬프트 gpt-image-1 맞춤 최적화 (Optimization)
     # ──────────────────────────────────────────
-    def _translate_to_english(
+    def _optimize_prompt(
         self, request: ImageGenerationRequest
     ) -> ImageGenerationRequest:
-        """build_image_prompt 결과 한국어 프롬프트를 GPT 로 영문화한 후
-        request.prompt 를 갱신한 새 객체를 반환한다."""
+        """build_image_prompt 결과물을 gpt-image-1 전용 자연어 비주얼 지시서로 최적화."""
         raw_prompt = build_image_prompt(
             product_name=request.product_name,
             description=request.description,
@@ -143,16 +184,18 @@ class ImageService:
         )
 
         try:
-            translation = self.client.chat.completions.create(
-                name="image.translate_ko_to_en",  # Langfuse observation 이름
+            optimization = self.client.chat.completions.create(
+                name="image.optimize_prompt",  # Langfuse observation 이름
                 model=self.settings.TEXT_MODEL,
                 messages=[
                     {
                         "role": "system",
                         "content": (
-                            "Translate the given Korean description into a concise English prompt "
-                            "for Stable Diffusion / FLUX. STRICT LIMIT: under 60 words "
-                            "(comma-separated keywords). Output ONLY the English keywords."
+                            "You are an expert prompt engineer for gpt-image-1. "
+                            "Rewrite the user's input into a 100% natural language English visual directive. "
+                            "Explicitly instruct the model to transform the first image's product, "
+                            "engrave the second image's logo onto a prop with natural perspective, "
+                            "and strictly follow any given composition guidelines."
                         ),
                     },
                     {"role": "user", "content": raw_prompt},
@@ -166,14 +209,14 @@ class ImageService:
             BadRequestError,
             APIConnectionError,
         ) as e:
-            logger.error("프롬프트 번역 실패 (OpenAI 에러): %s", e)
-            raise ImageServiceError(f"프롬프트 번역 중 오류가 발생했습니다: {e}")
+            logger.error("프롬프트 최적화 실패 (OpenAI 에러): %s", e)
+            raise ImageServiceError(f"프롬프트 최적화 중 오류가 발생했습니다: {e}")
         except Exception as e:
-            logger.error("프롬프트 번역 실패 (알 수 없는 오류): %s", e)
-            raise ImageServiceError(f"프롬프트 번역 중 오류가 발생했습니다: {e}")
+            logger.error("프롬프트 최적화 실패 (알 수 없는 오류): %s", e)
+            raise ImageServiceError(f"프롬프트 최적화 중 오류가 발생했습니다: {e}")
 
-        english_prompt = (translation.choices[0].message.content or "").strip()
-        logger.info("영문 프롬프트 번역 완료: %s", english_prompt[:80])
+        english_prompt = (optimization.choices[0].message.content or "").strip()
+        logger.info("영문 프롬프트 최적화 완료: %s", english_prompt[:80])
 
         return request.model_copy(update={"prompt": english_prompt})
 

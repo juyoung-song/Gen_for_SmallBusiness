@@ -94,8 +94,8 @@ class Settings(BaseSettings):
     IMAGE_WORKER_PORT: int = 8005
 
     # ── API 요청 설정 ──
-    TEXT_TIMEOUT: float = 90.0    # GPT 호출 타임아웃 (초)
-    IMAGE_TIMEOUT: float = 90.0   # HF API 호출 타임아웃 (초)
+    TEXT_TIMEOUT: float = 180.0    # GPT 호출 타임아웃 (초)
+    IMAGE_TIMEOUT: float = 180.0   # HF API / OpenAI Image 호출 타임아웃 (초)
     TEXT_TEMPERATURE: float = 0.8
     TEXT_MAX_TOKENS: int = 1000
 
