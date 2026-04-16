@@ -76,6 +76,19 @@ TRACE_PAGE_HEADER = "x-brewgram-page"
 TRACE_INSTALL_STATE_HEADER = "x-brewgram-install-state"
 
 
+class _PendingToken:
+    """OAuth 완료 후 계정 선택 대기 중인 토큰."""
+    __slots__ = ("access_token", "expires_in", "source")
+
+    def __init__(self, access_token: str, expires_in: int, source: str) -> None:
+        self.access_token = access_token
+        self.expires_in = expires_in
+        self.source = source
+
+
+PENDING_IG_TOKENS: dict[UUID, _PendingToken] = {}
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     setup_logging(settings)
@@ -193,6 +206,31 @@ class MobileInstagramConnectRequest(BaseModel):
 
 class MobileSimpleStatusResponse(BaseModel):
     status: Literal["ok"]
+
+
+class MobileInstagramCandidate(BaseModel):
+    instagram_account_id: str
+    instagram_username: str | None = None
+    facebook_page_id: str | None = None
+    facebook_page_name: str | None = None
+
+
+class MobileInstagramCandidatesResponse(BaseModel):
+    candidates: list[MobileInstagramCandidate]
+    env_account_id: str | None = None  # .env INSTAGRAM_ACCOUNT_ID — 수동 입력 기본값
+
+
+class MobileInstagramSelectRequest(BaseModel):
+    instagram_account_id: str
+
+
+class MobileInstagramManualRequest(BaseModel):
+    instagram_business_account_id: str
+
+
+class MobileInstagramConnectedResponse(BaseModel):
+    status: Literal["connected"]
+    username: str | None = None
 
 
 class MobileFeedUploadRequest(BaseModel):
@@ -916,17 +954,42 @@ async def mobile_instagram_callback(
         long_token, expires_in = await auth_service.exchange_for_long_lived_token(
             short_token
         )
-        instagram_info = await auth_service.fetch_instagram_account(long_token)
-        await auth_service.save_connection(
-            brand_id=brand_id,
-            access_token=long_token,
-            expires_in=expires_in,
-            ig_info=instagram_info,
-        )
-        return RedirectResponse(
-            url=f"{base_url}?{urlencode({'ig': 'connected'})}",
-            status_code=307,
-        )
+        candidates = await auth_service.list_candidate_accounts(long_token)
+
+        if len(candidates) == 1:
+            # 후보 1개 → 바로 저장
+            await auth_service.save_connection(
+                brand_id=brand_id,
+                access_token=long_token,
+                expires_in=expires_in,
+                ig_info=candidates[0],
+            )
+            return RedirectResponse(
+                url=f"{base_url}?{urlencode({'ig': 'connected'})}",
+                status_code=307,
+            )
+        elif len(candidates) >= 2:
+            # 후보 여러 개 → 대기 저장 후 선택 UI 로
+            PENDING_IG_TOKENS[brand_id] = _PendingToken(
+                access_token=long_token,
+                expires_in=expires_in,
+                source=source,
+            )
+            return RedirectResponse(
+                url=f"{base_url}?{urlencode({'ig': 'select_required'})}",
+                status_code=307,
+            )
+        else:
+            # IG 연결된 페이지 없음 → 수동 입력 UI 로
+            PENDING_IG_TOKENS[brand_id] = _PendingToken(
+                access_token=long_token,
+                expires_in=expires_in,
+                source=source,
+            )
+            return RedirectResponse(
+                url=f"{base_url}?{urlencode({'ig': 'manual_required'})}",
+                status_code=307,
+            )
     except InstagramPageConnectionRequiredError as exc:
         return RedirectResponse(
             url=f"{base_url}?{urlencode({'ig': 'page_required', 'ig_message': str(exc)[:180]})}",
@@ -938,6 +1001,105 @@ async def mobile_instagram_callback(
             url=f"{base_url}?{urlencode({'ig': 'error', 'ig_message': str(exc)[:180]})}",
             status_code=307,
         )
+
+
+@app.get(
+    "/api/mobile/instagram/candidates",
+    response_model=MobileInstagramCandidatesResponse,
+)
+async def mobile_instagram_candidates() -> MobileInstagramCandidatesResponse:
+    """OAuth 완료 후 선택 대기 중인 IG 후보 목록 반환."""
+    brand = await _load_brand()
+    if brand is None:
+        raise HTTPException(status_code=409, detail="브랜드 온보딩을 먼저 완료해야 합니다.")
+
+    pending = PENDING_IG_TOKENS.get(brand.id)
+    if pending is None:
+        raise HTTPException(status_code=404, detail="대기 중인 Instagram 연결 정보가 없습니다.")
+
+    auth_service = InstagramAuthService(settings)
+    raw_candidates = await auth_service.list_candidate_accounts(pending.access_token)
+
+    env_id = settings.INSTAGRAM_ACCOUNT_ID or None
+    return MobileInstagramCandidatesResponse(
+        candidates=[MobileInstagramCandidate(**c) for c in raw_candidates],
+        env_account_id=env_id,
+    )
+
+
+@app.post(
+    "/api/mobile/instagram/select-account",
+    response_model=MobileInstagramConnectedResponse,
+)
+async def mobile_instagram_select_account(
+    payload: MobileInstagramSelectRequest,
+) -> MobileInstagramConnectedResponse:
+    """후보 목록에서 계정을 선택해 저장."""
+    brand = await _load_brand()
+    if brand is None:
+        raise HTTPException(status_code=409, detail="브랜드 온보딩을 먼저 완료해야 합니다.")
+
+    pending = PENDING_IG_TOKENS.get(brand.id)
+    if pending is None:
+        raise HTTPException(status_code=404, detail="대기 중인 Instagram 연결 정보가 없습니다.")
+
+    auth_service = InstagramAuthService(settings)
+    candidates = await auth_service.list_candidate_accounts(pending.access_token)
+
+    selected = next(
+        (c for c in candidates if c["instagram_account_id"] == payload.instagram_account_id),
+        None,
+    )
+    if selected is None:
+        raise HTTPException(status_code=400, detail="선택한 Instagram 계정을 찾을 수 없습니다.")
+
+    await auth_service.save_connection(
+        brand_id=brand.id,
+        access_token=pending.access_token,
+        expires_in=pending.expires_in,
+        ig_info=selected,
+    )
+    PENDING_IG_TOKENS.pop(brand.id, None)
+
+    return MobileInstagramConnectedResponse(
+        status="connected",
+        username=selected.get("instagram_username"),
+    )
+
+
+@app.post(
+    "/api/mobile/instagram/manual-account",
+    response_model=MobileInstagramConnectedResponse,
+)
+async def mobile_instagram_manual_account(
+    payload: MobileInstagramManualRequest,
+) -> MobileInstagramConnectedResponse:
+    """수동 입력 IG ID 로 계정 연결."""
+    brand = await _load_brand()
+    if brand is None:
+        raise HTTPException(status_code=409, detail="브랜드 온보딩을 먼저 완료해야 합니다.")
+
+    pending = PENDING_IG_TOKENS.get(brand.id)
+    if pending is None:
+        raise HTTPException(status_code=404, detail="대기 중인 Instagram 연결 정보가 없습니다.")
+
+    auth_service = InstagramAuthService(settings)
+    ig_info = await auth_service.fetch_instagram_account_manually(
+        pending.access_token, payload.instagram_business_account_id
+    )
+
+    await auth_service.save_connection(
+        brand_id=brand.id,
+        access_token=pending.access_token,
+        expires_in=pending.expires_in,
+        ig_info=ig_info,
+    )
+    PENDING_IG_TOKENS.pop(brand.id, None)
+
+    return MobileInstagramConnectedResponse(
+        status="connected",
+        username=ig_info.get("instagram_username"),
+    )
 
 
 @app.post("/api/mobile/onboarding/complete", response_model=MobileOnboardingResponse)

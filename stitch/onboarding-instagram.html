@@ -120,6 +120,55 @@
         </div>
       </section>
 
+      <!-- CP20: 다중 IG 계정 선택 패널 -->
+      <section class="app-section panel hidden" id="onboarding-ig-select-panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Instagram 계정을 선택해주세요</h2>
+        </div>
+        <p class="panel-copy">
+          연결된 Facebook Page 중 Instagram 계정이 여러 개 발견되었습니다. 업로드에 사용할 계정을 선택하세요.
+        </p>
+        <select class="settings-select" id="onboarding-ig-account-select" style="width:100%; margin-bottom:1rem;">
+          <option value="">로딩 중...</option>
+        </select>
+        <div class="settings-actions">
+          <button
+            class="action-button action-button--primary settings-action"
+            id="onboarding-ig-select-confirm"
+            type="button"
+          >
+            이 계정으로 연결
+          </button>
+        </div>
+      </section>
+
+      <!-- CP20: 수동 IG ID 입력 패널 -->
+      <section class="app-section panel hidden" id="onboarding-ig-manual-panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Instagram 계정 ID를 직접 입력해주세요</h2>
+        </div>
+        <p class="panel-copy">
+          Facebook Page와 연결된 Instagram professional account를 찾지 못했습니다.
+          Instagram 비즈니스 계정 ID(숫자)를 직접 입력해 연결할 수 있습니다.
+        </p>
+        <input
+          class="settings-input"
+          id="onboarding-ig-manual-input"
+          type="text"
+          placeholder="예: 17841499999999999"
+          style="width:100%; box-sizing:border-box; margin-bottom:1rem;"
+        />
+        <div class="settings-actions">
+          <button
+            class="action-button action-button--primary settings-action"
+            id="onboarding-ig-manual-confirm"
+            type="button"
+          >
+            연결하기
+          </button>
+        </div>
+      </section>
+
       <section class="app-section panel">
         <div class="panel-head">
           <h2 class="panel-title">다음으로 이어지는 흐름</h2>
