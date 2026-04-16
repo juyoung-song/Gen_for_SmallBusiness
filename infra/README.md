@@ -65,6 +65,9 @@ Internet
 - `META_APP_SECRET=...`
 - `TOKEN_ENCRYPTION_KEY=...`
 - `META_REDIRECT_URI_MOBILE=https://brewgram.duckdns.org/api/mobile/instagram/callback`
+- `ALLOW_DEFAULT_INSTAGRAM_UPLOAD=false` (선택: VM 고정 계정 업로드 시 `true`)
+- `META_ACCESS_TOKEN=...` (선택: VM 고정 계정 업로드 시)
+- `INSTAGRAM_ACCOUNT_ID=...` (선택: VM 고정 계정 업로드 시)
 - `INSTAGRAM_CAPTURE_WORKER_URL=...` (선택, Mac 캡처 워커 사용 시)
 - `INSTAGRAM_CAPTURE_WORKER_TOKEN=...` (선택)
 
@@ -164,7 +167,7 @@ curl -I https://brewgram.duckdns.org/stitch/service-worker.js
 - Meta 앱의 Valid OAuth Redirect URIs 에
   `https://brewgram.duckdns.org/api/mobile/instagram/callback` 추가
 - 테스트 계정 App Role / Facebook Page 권한 확인
-- 모바일 업로드는 OAuth로 직접 연결된 계정만 사용. `.env`의 `META_ACCESS_TOKEN` fallback 업로드는 사용하지 않음
+- 모바일 업로드는 기본적으로 OAuth로 직접 연결된 계정만 사용. 내부 데모에서 VM 고정 계정을 쓰려면 `ALLOW_DEFAULT_INSTAGRAM_UPLOAD=true`, `META_ACCESS_TOKEN`, `INSTAGRAM_ACCOUNT_ID`를 함께 설정
 
 ## 9. 배포 운영 기준
 

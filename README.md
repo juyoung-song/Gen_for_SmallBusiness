@@ -34,7 +34,7 @@ IMAGE_BACKEND_KIND=remote_worker
 - 인스타 레퍼런스 캡처: VM IP가 Instagram 429에 막히는 경우를 피하기 위해 Mac 로컬 캡처 워커를 Cloudflare Tunnel로 연결할 수 있습니다.
 - 상품 생성 플로우: 신상품 여부를 먼저 선택하고, 신상품이면 상품 사진을 업로드합니다. 기존 상품이면 DB에 저장된 기존 상품 이미지를 재사용합니다.
 - 광고 생성: 텍스트만, 이미지만, 텍스트+이미지 생성을 지원합니다.
-- 인스타 업로드: `.env`의 기본 업로드 계정 fallback을 모바일 업로드에서 사용하지 않습니다. 반드시 사용자가 OAuth로 연결한 Instagram professional account에만 게시합니다.
+- 인스타 업로드: 기본은 사용자가 OAuth로 연결한 Instagram professional account에만 게시합니다. 내부 데모에서는 `ALLOW_DEFAULT_INSTAGRAM_UPLOAD=true`로 VM 고정 계정 업로드를 명시적으로 켤 수 있습니다.
 - Langfuse 추적: 브라우저별 익명 `client_id`와 세션 ID를 요청 헤더로 보내 모바일 생성·캡션·업로드 흐름을 추적합니다.
 
 ## 핵심 파일
@@ -82,6 +82,10 @@ META_APP_ID=...
 META_APP_SECRET=...
 TOKEN_ENCRYPTION_KEY=...
 META_REDIRECT_URI_MOBILE=https://brewgram.duckdns.org/api/mobile/instagram/callback
+# 선택: VM 고정 업로드 계정. 내부 데모에서만 사용.
+ALLOW_DEFAULT_INSTAGRAM_UPLOAD=false
+META_ACCESS_TOKEN=...
+INSTAGRAM_ACCOUNT_ID=...
 
 LANGFUSE_PUBLIC_KEY=...
 LANGFUSE_SECRET_KEY=...
@@ -178,11 +182,12 @@ cloudflared tunnel --url http://127.0.0.1:8020
 
 Tunnel URL을 VM의 `/etc/brewgram/mobile_app.env`에 `INSTAGRAM_CAPTURE_WORKER_URL`로 넣고 `mobile_app.py`를 재시작합니다.
 
-## OAuth 업로드 기준
+## Instagram 업로드 기준
 
-모바일 업로드는 OAuth 연결된 계정만 사용합니다.
+모바일 업로드는 기본적으로 OAuth 연결된 계정만 사용합니다.
 
-- `META_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID`가 env에 있어도 모바일 업로드 fallback으로 쓰지 않습니다.
+- `ALLOW_DEFAULT_INSTAGRAM_UPLOAD=false`이면 `META_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID`가 env에 있어도 모바일 업로드 fallback으로 쓰지 않습니다.
+- 내부 데모처럼 VM 고정 계정을 쓸 때만 `ALLOW_DEFAULT_INSTAGRAM_UPLOAD=true`, `META_ACCESS_TOKEN`, `INSTAGRAM_ACCOUNT_ID`를 함께 설정합니다.
 - 업로드 전 `brands.instagram_account_id`와 활성 `instagram_connections` 토큰이 필요합니다.
 - OAuth 자동 후보 목록에 원하는 계정이 없으면, UI에서 Instagram `@username`을 입력해 후보 중 해당 계정을 선택합니다.
 - 입력한 `@username`은 현재 Meta 로그인 계정이 접근 가능한 Facebook Page에 연결된 Instagram professional account 후보 안에서만 매칭됩니다.

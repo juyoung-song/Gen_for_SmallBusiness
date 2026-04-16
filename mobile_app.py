@@ -510,6 +510,11 @@ async def _load_brand() -> Brand | None:
 
 async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary:
     oauth_available = settings.is_instagram_oauth_configured_for("mobile")
+    default_upload_ready = bool(
+        settings.ALLOW_DEFAULT_INSTAGRAM_UPLOAD
+        and settings.META_ACCESS_TOKEN
+        and settings.INSTAGRAM_ACCOUNT_ID
+    )
 
     if brand is not None:
         connection = await InstagramAuthService(settings).get_connection(brand.id)
@@ -537,17 +542,29 @@ async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary
                     page_name=connection.facebook_page_name,
                     expires_at=expires_at,
                 )
-            return MobileInstagramSummary(
-                oauth_available=oauth_available,
-                connect_available=True,
-                connected=False,
-                expired=True,
-                upload_ready=False,
-                connection_source="none",
-                username=username,
-                page_name=connection.facebook_page_name,
-                expires_at=expires_at,
-            )
+            if not default_upload_ready:
+                return MobileInstagramSummary(
+                    oauth_available=oauth_available,
+                    connect_available=True,
+                    connected=False,
+                    expired=True,
+                    upload_ready=False,
+                    connection_source="none",
+                    username=username,
+                    page_name=connection.facebook_page_name,
+                    expires_at=expires_at,
+                )
+
+    if default_upload_ready:
+        return MobileInstagramSummary(
+            oauth_available=oauth_available,
+            connect_available=True,
+            connected=True,
+            expired=False,
+            upload_ready=True,
+            connection_source="env",
+            page_name="기본 업로드 계정",
+        )
 
     return MobileInstagramSummary(
         oauth_available=oauth_available,
@@ -613,38 +630,43 @@ async def _resolve_upload_context() -> tuple[Brand, object]:
         )
 
     upload_settings = settings.model_copy(deep=True)
-    if not getattr(brand, "instagram_account_id", None):
-        raise HTTPException(
-            status_code=409,
-            detail="인스타그램 계정을 먼저 연결한 뒤 업로드를 진행해주세요.",
-        )
+    default_upload_ready = bool(
+        upload_settings.ALLOW_DEFAULT_INSTAGRAM_UPLOAD
+        and upload_settings.META_ACCESS_TOKEN
+        and upload_settings.INSTAGRAM_ACCOUNT_ID
+    )
 
-    connection = await InstagramAuthService(settings).get_connection(brand.id)
-    if connection is None or not connection.is_active:
-        raise HTTPException(
-            status_code=409,
-            detail="인스타그램 계정을 먼저 연결한 뒤 업로드를 진행해주세요.",
-        )
+    if getattr(brand, "instagram_account_id", None):
+        connection = await InstagramAuthService(settings).get_connection(brand.id)
+        if connection is not None and connection.is_active:
+            expires_at = connection.token_expires_at
+            if expires_at is not None and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at is not None and expires_at <= datetime.now(timezone.utc):
+                if not default_upload_ready:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="인스타그램 연결이 만료되었습니다. 다시 연결한 뒤 업로드를 진행해주세요.",
+                    )
+            else:
+                try:
+                    upload_ready = await apply_user_token_async(upload_settings, brand)
+                except RuntimeError as exc:
+                    raise HTTPException(status_code=500, detail=str(exc)) from exc
+                if upload_ready:
+                    return brand, upload_settings
 
-    expires_at = connection.token_expires_at
-    if expires_at is not None and expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at is not None and expires_at <= datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=409,
-            detail="인스타그램 연결이 만료되었습니다. 다시 연결한 뒤 업로드를 진행해주세요.",
+    if default_upload_ready:
+        logger.warning(
+            "모바일 업로드가 VM 기본 Instagram 계정 fallback을 사용합니다. "
+            "ALLOW_DEFAULT_INSTAGRAM_UPLOAD=true"
         )
+        return brand, upload_settings
 
-    try:
-        upload_ready = await apply_user_token_async(upload_settings, brand)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    if not upload_ready:
-        raise HTTPException(
-            status_code=409,
-            detail="인스타그램 계정을 먼저 연결한 뒤 업로드를 진행해주세요.",
-        )
-    return brand, upload_settings
+    raise HTTPException(
+        status_code=409,
+        detail="인스타그램 계정을 먼저 연결한 뒤 업로드를 진행해주세요.",
+    )
 
 
 def _load_existing_product_bytes(

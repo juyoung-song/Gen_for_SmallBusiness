@@ -260,6 +260,7 @@ class TestInstagramSummary:
 
         monkeypatch.setattr(mobile_app.settings, "META_ACCESS_TOKEN", "fallback-token")
         monkeypatch.setattr(mobile_app.settings, "INSTAGRAM_ACCOUNT_ID", "1784")
+        monkeypatch.setattr(mobile_app.settings, "ALLOW_DEFAULT_INSTAGRAM_UPLOAD", False)
         monkeypatch.setattr(mobile_app.settings, "META_APP_ID", "")
         monkeypatch.setattr(mobile_app.settings, "META_APP_SECRET", "")
         monkeypatch.setattr(mobile_app.settings, "META_REDIRECT_URI", "")
@@ -276,6 +277,25 @@ class TestInstagramSummary:
         assert summary.connected is False
         assert summary.upload_ready is False
         assert summary.connection_source == "none"
+
+    async def test_reports_default_env_account_when_explicitly_enabled(self, monkeypatch):
+        async def fake_get_connection(self, _brand_id):
+            return None
+
+        monkeypatch.setattr(mobile_app.settings, "META_ACCESS_TOKEN", "fallback-token")
+        monkeypatch.setattr(mobile_app.settings, "INSTAGRAM_ACCOUNT_ID", "1784")
+        monkeypatch.setattr(mobile_app.settings, "ALLOW_DEFAULT_INSTAGRAM_UPLOAD", True)
+        monkeypatch.setattr(
+            mobile_app.InstagramAuthService,
+            "get_connection",
+            fake_get_connection,
+        )
+
+        summary = await mobile_app._load_instagram_summary(SimpleNamespace(id=uuid4()))
+
+        assert summary.connected is True
+        assert summary.upload_ready is True
+        assert summary.connection_source == "env"
 
 
 class TestInstagramOnboardingFlow:
@@ -430,6 +450,25 @@ class TestMobileUploads:
 
         assert exc_info.value.status_code == 409
         assert "연결" in exc_info.value.detail
+
+    async def test_resolve_upload_context_uses_default_env_account_when_enabled(
+        self, monkeypatch
+    ):
+        brand = SimpleNamespace(id=uuid4())
+
+        async def fake_load_brand():
+            return brand
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+        monkeypatch.setattr(mobile_app.settings, "META_ACCESS_TOKEN", "fallback-token")
+        monkeypatch.setattr(mobile_app.settings, "INSTAGRAM_ACCOUNT_ID", "1784")
+        monkeypatch.setattr(mobile_app.settings, "ALLOW_DEFAULT_INSTAGRAM_UPLOAD", True)
+
+        resolved_brand, upload_settings = await mobile_app._resolve_upload_context()
+
+        assert resolved_brand is brand
+        assert upload_settings.META_ACCESS_TOKEN == "fallback-token"
+        assert upload_settings.INSTAGRAM_ACCOUNT_ID == "1784"
 
     async def test_feed_upload_returns_post_metadata(self, monkeypatch):
         brand = SimpleNamespace(id=uuid4(), instagram_account_id="1784")

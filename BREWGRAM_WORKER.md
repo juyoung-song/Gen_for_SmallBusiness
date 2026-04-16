@@ -66,6 +66,15 @@ Internet
 APP_DATA_DIR=/srv/brewgram/data
 IMAGE_BACKEND_KIND=openai_image
 META_REDIRECT_URI_MOBILE=https://brewgram.duckdns.org/api/mobile/instagram/callback
+ALLOW_DEFAULT_INSTAGRAM_UPLOAD=false
+```
+
+내부 데모에서 VM 고정 업로드 계정을 쓰는 경우에만 추가:
+
+```env
+ALLOW_DEFAULT_INSTAGRAM_UPLOAD=true
+META_ACCESS_TOKEN=...
+INSTAGRAM_ACCOUNT_ID=...
 ```
 
 Mac 로컬 캡처 워커를 붙일 때 추가:
@@ -242,7 +251,7 @@ Meta 앱의 `Valid OAuth Redirect URIs`에는 최소 아래 둘을 유지하는 
 주의:
 - `http://brewgram.duckdns.org`는 현재 코드 기준으로 맞지 않는다.
 - 루트 도메인이 아니라 callback path까지 정확히 등록돼야 한다.
-- 모바일 업로드는 `.env`의 `META_ACCESS_TOKEN` fallback을 쓰지 않는다. 사용자가 OAuth로 직접 연결한 계정만 업로드 가능하다.
+- 모바일 업로드는 기본적으로 `.env`의 `META_ACCESS_TOKEN` fallback을 쓰지 않는다. 내부 데모에서 VM 고정 계정을 쓰려면 `ALLOW_DEFAULT_INSTAGRAM_UPLOAD=true`를 명시해야 한다.
 - 수동 연결 UI는 숫자 ID가 아니라 Instagram `@username`을 받는다. 단, 현재 Meta 로그인 계정이 접근 가능한 Page 후보 안에서만 매칭된다.
 
 ## 9.1 Mac Instagram 캡처 워커

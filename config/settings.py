@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     FREEIMAGE_API_KEY: str = "6d207e02198a847aa98d0a2a901485a5"
     META_ACCESS_TOKEN: str = ""
     INSTAGRAM_ACCOUNT_ID: str = ""
+    ALLOW_DEFAULT_INSTAGRAM_UPLOAD: bool = False
     META_APP_ID: str = ""
     META_APP_SECRET: str = ""
     # legacy fallback. Streamlit/Mobile 별 redirect 가 없을 때만 사용.

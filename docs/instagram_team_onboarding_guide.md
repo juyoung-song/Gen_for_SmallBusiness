@@ -92,8 +92,9 @@ META_REDIRECT_URI_MOBILE=https://brewgram.duckdns.org/api/mobile/instagram/callb
 
 ## 7. 업로드 정책
 
-모바일 업로드는 OAuth로 연결된 계정만 사용한다.
+모바일 업로드는 기본적으로 OAuth로 연결된 계정만 사용한다.
 
-- `.env`의 `META_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID` fallback은 모바일 업로드에서 사용하지 않는다.
+- `.env`의 `META_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID` fallback은 기본적으로 모바일 업로드에서 사용하지 않는다.
+- 내부 데모에서 VM 고정 업로드 계정을 쓰려면 `ALLOW_DEFAULT_INSTAGRAM_UPLOAD=true`, `META_ACCESS_TOKEN`, `INSTAGRAM_ACCOUNT_ID`를 함께 설정한다.
 - 연결된 계정이 없으면 업로드 API는 계정 연결이 필요하다는 메시지를 반환한다.
 - 업로드 성공 시 응답의 `account_username`이 실제 게시 대상 계정이다.
