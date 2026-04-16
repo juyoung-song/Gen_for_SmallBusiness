@@ -1382,7 +1382,7 @@ class TestCP20SelectAccount:
 
 
 class TestCP20ManualAccount:
-    """POST /api/mobile/instagram/manual-account — 직접 입력 IG ID 로 save_connection."""
+    """POST /api/mobile/instagram/manual-account — 직접 입력한 username 으로 save_connection."""
 
     async def test_post_manual_saves_connection(self, monkeypatch):
         brand_id = uuid4()
@@ -1398,12 +1398,12 @@ class TestCP20ManualAccount:
             source="settings",
         )
 
-        async def fake_manual(self, token, ig_id):
+        async def fake_resolve(self, token, username):
             return {
-                "instagram_account_id": ig_id,
-                "instagram_username": "manual_user",
-                "facebook_page_id": None,
-                "facebook_page_name": "수동 연결",
+                "instagram_account_id": "ig1",
+                "instagram_username": username.removeprefix("@"),
+                "facebook_page_id": "pg1",
+                "facebook_page_name": "A",
             }
 
         captured: dict = {}
@@ -1412,14 +1412,60 @@ class TestCP20ManualAccount:
             captured["ig_info"] = ig_info
             return SimpleNamespace(id=uuid4(), brand_id=brand_id)
 
-        monkeypatch.setattr(InstagramAuthService, "fetch_instagram_account_manually", fake_manual)
+        monkeypatch.setattr(InstagramAuthService, "resolve_instagram_username", fake_resolve)
         monkeypatch.setattr(InstagramAuthService, "save_connection", fake_save)
 
         response = await mobile_app.mobile_instagram_manual_account(
-            mobile_app.MobileInstagramManualRequest(instagram_business_account_id="17841499999999999")
+            mobile_app.MobileInstagramManualRequest(instagram_username="@manual_user")
         )
 
-        assert captured["ig_info"]["instagram_account_id"] == "17841499999999999"
+        assert captured["ig_info"]["instagram_account_id"] == "ig1"
         assert captured["ig_info"]["instagram_username"] == "manual_user"
         assert response.status == "connected"
         assert brand_id not in mobile_app.PENDING_IG_TOKENS
+
+    async def test_resolves_username_against_candidate_accounts(self, monkeypatch):
+        async def fake_list(self, token):
+            return [
+                {
+                    "instagram_account_id": "ig1",
+                    "instagram_username": "cafe_a",
+                    "facebook_page_id": "pg1",
+                    "facebook_page_name": "A",
+                },
+                {
+                    "instagram_account_id": "ig2",
+                    "instagram_username": "Cafe_B",
+                    "facebook_page_id": "pg2",
+                    "facebook_page_name": "B",
+                },
+            ]
+
+        monkeypatch.setattr(InstagramAuthService, "list_candidate_accounts", fake_list)
+
+        service = InstagramAuthService(mobile_app.settings)
+        resolved = await service.resolve_instagram_username("token", "@cafe_b")
+
+        assert resolved["instagram_account_id"] == "ig2"
+        assert resolved["facebook_page_name"] == "B"
+
+    async def test_username_not_in_candidates_raises_actionable_message(self, monkeypatch):
+        async def fake_list(self, token):
+            return [
+                {
+                    "instagram_account_id": "ig1",
+                    "instagram_username": "cafe_a",
+                    "facebook_page_id": "pg1",
+                    "facebook_page_name": "A",
+                }
+            ]
+
+        monkeypatch.setattr(InstagramAuthService, "list_candidate_accounts", fake_list)
+
+        service = InstagramAuthService(mobile_app.settings)
+
+        with pytest.raises(ValueError) as exc:
+            await service.resolve_instagram_username("token", "@missing_cafe")
+
+        assert "현재 Meta 로그인 계정에서 찾을 수 없습니다" in str(exc.value)
+        assert "앱 Role" in str(exc.value)

@@ -225,7 +225,7 @@ class MobileInstagramSelectRequest(BaseModel):
 
 
 class MobileInstagramManualRequest(BaseModel):
-    instagram_business_account_id: str
+    instagram_username: str
 
 
 class MobileInstagramConnectedResponse(BaseModel):
@@ -1086,7 +1086,7 @@ async def mobile_instagram_select_account(
 async def mobile_instagram_manual_account(
     payload: MobileInstagramManualRequest,
 ) -> MobileInstagramConnectedResponse:
-    """수동 입력 IG ID 로 계정 연결."""
+    """수동 입력 @username 으로 계정 연결."""
     brand = await _load_brand()
     if brand is None:
         raise HTTPException(status_code=409, detail="브랜드 온보딩을 먼저 완료해야 합니다.")
@@ -1096,8 +1096,8 @@ async def mobile_instagram_manual_account(
         raise HTTPException(status_code=404, detail="대기 중인 Instagram 연결 정보가 없습니다.")
 
     auth_service = InstagramAuthService(settings)
-    ig_info = await auth_service.fetch_instagram_account_manually(
-        pending.access_token, payload.instagram_business_account_id
+    ig_info = await auth_service.resolve_instagram_username(
+        pending.access_token, payload.instagram_username
     )
 
     await auth_service.save_connection(

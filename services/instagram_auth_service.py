@@ -263,6 +263,32 @@ class InstagramAuthService:
                 "facebook_page_name": "수동 연결",
             }
 
+    async def resolve_instagram_username(
+        self, access_token: str, username_input: str
+    ) -> dict:
+        """사용자가 입력한 @username 을 접근 가능한 Page 후보의 IG 계정으로 해석."""
+        username = username_input.strip().removeprefix("@").strip().lower()
+        if not username:
+            raise ValueError("Instagram @username을 입력해주세요.")
+
+        candidates = await self.list_candidate_accounts(access_token)
+        selected = next(
+            (
+                candidate
+                for candidate in candidates
+                if (candidate.get("instagram_username") or "").lower() == username
+            ),
+            None,
+        )
+        if selected is not None:
+            return selected
+
+        raise ValueError(
+            "입력한 @username을 현재 Meta 로그인 계정에서 찾을 수 없습니다. "
+            "Instagram 계정이 Facebook Page에 연결되어 있고, 이 Facebook 계정이 해당 Page 권한을 가진 "
+            "앱 테스트 계정인지 확인해주세요. 개발자 모드라면 앱 Role(관리자/개발자/테스터) 등록도 필요합니다."
+        )
+
     # ── Step 5: DB 저장 ──
 
     async def save_connection(
