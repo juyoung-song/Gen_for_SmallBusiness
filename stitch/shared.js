@@ -12,8 +12,8 @@
     settings: "/stitch/settings.html",
     create: "/stitch/4._2/code.html",
     onboarding1: "/stitch/1./code.html",
-    onboarding2: "/stitch/2./code.html",
-    onboarding3: "/stitch/3./code.html",
+    onboarding2: "/stitch/3./code.html",
+    onboarding3: "/stitch/2./code.html",
     onboarding4: "/stitch/onboarding-instagram.html",
   };
   const PRESET_GOALS = ["신제품 출시", "브랜드 인지도", "이벤트 홍보", "매장 방문 유도"];
@@ -873,73 +873,32 @@
   }
 
   function bindStep2() {
+    // step2 = 스타일 레퍼런스 페이지 (/stitch/2./code.html, STEP 03/04)
+    // 인스타 링크 입력 + "분석하기" → /onboarding/complete API 호출 → 결과 panel 표시
+    // → 다시 클릭 시 다음 단계(인스타 연결)로 이동.
     const state = readState();
     const instagramInput = selectOne("#instagram-url-input");
     const imageInput = selectOne("#reference-image-input");
     const imageTrigger = selectOne("#reference-image-trigger");
     const imageStatus = selectOne("#reference-image-status");
-
-    instagramInput.value = state.onboarding.instagramUrl || "";
-    if (state.onboarding.referenceImages.length && imageStatus) {
-      imageStatus.textContent = `${state.onboarding.referenceImages.length}장의 참고 이미지가 선택되어 있습니다.`;
-    }
-
-    instagramInput?.addEventListener("input", (event) => {
-      patchState({ onboarding: { instagramUrl: event.target.value } });
-    });
-
-    imageTrigger?.addEventListener("click", () => imageInput?.click());
-    imageInput?.addEventListener("change", async (event) => {
-      const files = Array.from(event.target.files || []).slice(0, 4);
-      if (!files.length) return;
-      const payloads = await Promise.all(files.map(fileToPayload));
-      patchState({ onboarding: { referenceImages: payloads } });
-      if (imageStatus) {
-        imageStatus.textContent = `${payloads.length}장의 참고 이미지를 저장했어요.`;
-      }
-    });
-
-    selectOne("#step2-next")?.addEventListener("click", () => {
-      navigate(PATHS.onboarding3);
-    });
-    selectOne("#step2-skip")?.addEventListener("click", () => {
-      patchState({ onboarding: { instagramUrl: "", referenceImages: [] } });
-      navigate(PATHS.onboarding3);
-    });
-    selectOne("#step2-back")?.addEventListener("click", () => {
-      navigate(PATHS.onboarding1);
-    });
-  }
-
-  function bindStep3() {
-    const state = readState();
-    const descriptionInput = selectOne("#brand-description");
-    const submitButton = selectOne("#step3-submit");
-    const prevButton = selectOne("#step3-prev");
+    const submitButton = selectOne("#step2-next");
+    const skipButton = selectOne("#step2-skip");
     const statusNode = selectOne("#onboarding-status");
     const analysisPanel = selectOne("#onboarding-analysis-panel");
     const analysisTextNode = selectOne("#onboarding-analysis-text");
     const analysisBadgeNode = selectOne("#onboarding-analysis-badge");
 
-    descriptionInput.value = state.onboarding.brandDescription || "";
-    descriptionInput?.addEventListener("input", (event) => {
-      patchState({
-        onboarding: {
-          brandDescription: event.target.value,
-          analysisContent: "",
-        },
-      });
-      analysisPanel?.classList.add("hidden");
-      if (analysisTextNode) {
-        analysisTextNode.textContent = "";
-      }
-      if (analysisBadgeNode) {
-        analysisBadgeNode.textContent = "분석 대기";
-      }
-      if (submitButton) {
-        submitButton.innerHTML = '분석하기 <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>';
-      }
-    });
+    if (instagramInput) {
+      instagramInput.value = state.onboarding.instagramUrl || "";
+    }
+    if (state.onboarding.referenceImages?.length && imageStatus) {
+      imageStatus.textContent = `${state.onboarding.referenceImages.length}장의 참고 이미지가 선택되어 있습니다.`;
+    }
+
+    const setSubmitLabel = (label) => {
+      if (!submitButton) return;
+      submitButton.innerHTML = `${label} <span class="material-symbols-outlined text-xl">arrow_forward</span>`;
+    };
 
     const applyAnalysisContent = (analysisContent, status = "created") => {
       const content = String(analysisContent || "").trim();
@@ -947,7 +906,6 @@
         analysisPanel?.classList.add("hidden");
         return;
       }
-
       if (analysisTextNode) {
         analysisTextNode.textContent = content;
       }
@@ -955,75 +913,142 @@
         analysisBadgeNode.textContent = status === "existing" ? "기존 분석" : "AI 분석 완료";
       }
       analysisPanel?.classList.remove("hidden");
-      if (submitButton) {
-        submitButton.innerHTML = '다음 <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>';
-      }
+      setSubmitLabel("다음");
     };
 
+    // 초기 상태: 기존 분석 결과 있으면 바로 보여줌
     if (state.onboarding.analysisContent) {
       applyAnalysisContent(state.onboarding.analysisContent, "existing");
+    } else {
+      setSubmitLabel("분석하기");
     }
 
-    const submit = async (skipDescription) => {
+    instagramInput?.addEventListener("input", (event) => {
+      patchState({
+        onboarding: {
+          instagramUrl: event.target.value,
+          analysisContent: "",
+        },
+      });
+      analysisPanel?.classList.add("hidden");
+      if (analysisTextNode) analysisTextNode.textContent = "";
+      if (analysisBadgeNode) analysisBadgeNode.textContent = "분석 대기";
+      setSubmitLabel("분석하기");
+    });
+
+    imageTrigger?.addEventListener("click", () => imageInput?.click());
+    imageInput?.addEventListener("change", async (event) => {
+      const files = Array.from(event.target.files || []).slice(0, 4);
+      if (!files.length) return;
+      const payloads = await Promise.all(files.map(fileToPayload));
+      patchState({
+        onboarding: {
+          referenceImages: payloads,
+          analysisContent: "",
+        },
+      });
+      analysisPanel?.classList.add("hidden");
+      setSubmitLabel("분석하기");
+      if (imageStatus) {
+        imageStatus.textContent = `${payloads.length}장의 참고 이미지를 저장했어요.`;
+      }
+    });
+
+    const runAnalysis = async () => {
       const currentState = readState();
       if (currentState.onboarding.analysisContent) {
         navigate(PATHS.onboarding4);
         return;
       }
 
-      const nextState = patchState({
-        onboarding: {
-          brandDescription: skipDescription ? "" : descriptionInput.value,
-        },
-      });
-
-      submitButton.disabled = true;
-      if (prevButton) prevButton.disabled = true;
+      if (submitButton) submitButton.disabled = true;
+      if (skipButton) skipButton.disabled = true;
       setStatus(statusNode, "브랜드 가이드를 만드는 중입니다. 잠시만 기다려주세요.", "loading");
 
       try {
         const result = await api("/onboarding/complete", {
           method: "POST",
           body: {
-            brand_name: nextState.onboarding.brandName,
-            brand_color: nextState.onboarding.brandColor,
-            brand_atmosphere: nextState.onboarding.brandAtmosphere,
-            freetext: nextState.onboarding.brandDescription,
-            instagram_url: nextState.onboarding.instagramUrl,
-            logo: nextState.onboarding.logo,
-            reference_images: nextState.onboarding.referenceImages,
+            brand_name: currentState.onboarding.brandName,
+            brand_color: currentState.onboarding.brandColor,
+            brand_atmosphere: currentState.onboarding.brandAtmosphere,
+            freetext: currentState.onboarding.brandDescription,
+            instagram_url: currentState.onboarding.instagramUrl,
+            logo: currentState.onboarding.logo,
+            reference_images: currentState.onboarding.referenceImages,
           },
         });
         const analysisContent = result.brand?.content || "";
-        patchState({
-          onboarding: {
-            analysisContent,
-          },
-        });
+        patchState({ onboarding: { analysisContent } });
         applyAnalysisContent(analysisContent, result.status);
         setStatus(
           statusNode,
           result.status === "updated"
-            ? "브랜드 정보를 새 입력값으로 업데이트했습니다. 아래 분석을 확인하고 다음 단계로 이동하세요."
+            ? "브랜드 정보를 업데이트했습니다. 분석 결과를 확인하고 다음 단계로 이동하세요."
             : result.status === "existing"
-              ? "이미 저장된 브랜드가 있어 기존 분석을 그대로 보여드립니다. 확인 후 다음 단계로 이동하세요."
-              : "브랜드 세팅이 완료되었습니다. 아래 분석을 확인하고 다음 단계로 이동하세요.",
+              ? "이미 저장된 브랜드가 있어 기존 분석을 그대로 보여드립니다."
+              : "브랜드 세팅이 완료되었습니다. 분석 결과를 확인하고 다음 단계로 이동하세요.",
           "success",
         );
       } catch (error) {
         setStatus(statusNode, error.message, "error");
       } finally {
-        submitButton.disabled = false;
-        if (prevButton) prevButton.disabled = false;
+        if (submitButton) submitButton.disabled = false;
+        if (skipButton) skipButton.disabled = false;
       }
     };
 
-    submitButton?.addEventListener("click", () => submit(false));
-    prevButton?.addEventListener("click", () => {
+    submitButton?.addEventListener("click", runAnalysis);
+    skipButton?.addEventListener("click", () => {
+      patchState({
+        onboarding: {
+          instagramUrl: "",
+          referenceImages: [],
+          analysisContent: "",
+        },
+      });
+      runAnalysis();
+    });
+    selectOne("#step2-back")?.addEventListener("click", () => {
       navigate(PATHS.onboarding2);
     });
+  }
+
+  function bindStep3() {
+    // step3 = 가게 설명 입력 페이지 (/stitch/3./code.html, STEP 02/04)
+    // 단순히 brandDescription 을 state 에 저장하고 다음 페이지(스타일 레퍼런스)로 이동.
+    // 분석(API 호출)은 다음 페이지(bindStep2)에서 수행.
+    const state = readState();
+    const descriptionInput = selectOne("#brand-description");
+    const submitButton = selectOne("#step3-submit");
+    const prevButton = selectOne("#step3-prev");
+
+    if (descriptionInput) {
+      descriptionInput.value = state.onboarding.brandDescription || "";
+      descriptionInput.addEventListener("input", (event) => {
+        patchState({
+          onboarding: {
+            brandDescription: event.target.value,
+            analysisContent: "",
+          },
+        });
+      });
+    }
+
+    submitButton?.addEventListener("click", () => {
+      patchState({
+        onboarding: {
+          brandDescription: descriptionInput?.value || "",
+        },
+      });
+      navigate(PATHS.onboarding3);
+    });
+
+    prevButton?.addEventListener("click", () => {
+      navigate(PATHS.onboarding1);
+    });
     selectOne("#step3-back")?.addEventListener("click", () => {
-      navigate(PATHS.onboarding2);
+      navigate(PATHS.onboarding1);
     });
   }
 
