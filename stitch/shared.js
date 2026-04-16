@@ -1339,8 +1339,11 @@
     actionRow?.classList.add("hidden");
     storyChooser?.classList.add("hidden");
     uploadNote?.classList.add("hidden");
-    // 피드 미리보기/업로드 버튼은 캡션 생성 후에만 노출
+    // 피드 미리보기/업로드 버튼/캡션 상태는 캡션 생성 후에만 노출
     uploadFeedButton?.classList.add("hidden");
+    const captionStatusResetNode = selectOne("#create-caption-status");
+    captionStatusResetNode?.classList.add("hidden");
+    if (captionStatusResetNode) captionStatusResetNode.textContent = "";
 
     if (captionBlock) captionBlock.innerHTML = "";
     if (storyBlock) storyBlock.innerHTML = "";
@@ -1437,10 +1440,10 @@
       applyUploadButtonState();
     }
 
+    // 업로드 안내 문구(@계정 연결됨 ...)는 캡션 생성 후에만 노출되므로 여기서는 show 하지 않는다.
     if (preferenceUploadEnabled && uploadNote) {
       uploadNote.innerHTML = buildUploadPlaceholder(instagram, "feed").html;
-      uploadNote.className = "upload-note";
-      uploadNote.classList.remove("hidden");
+      uploadNote.className = "upload-note hidden";
     }
 
     const storyCopies = result.text_result?.story_copies || [];
@@ -1975,6 +1978,7 @@
     const captionBlock = selectOne("#result-caption-block");
     const storyBlock = selectOne("#result-story-block");
     const previewBlock = selectOne("#result-preview-block");
+    const captionStatus = selectOne("#create-caption-status");
 
     try {
       const bootstrap = await api("/bootstrap");
@@ -2255,7 +2259,7 @@
       if (!lastGenerateResult?.text_result?.ad_copies) {
         return;
       }
-      setStatus(bootstrapStatus, "인스타그램 캡션을 만드는 중입니다.", "loading");
+      setStatus(captionStatus, "인스타그램 캡션을 만드는 중입니다.", "loading");
       try {
         const caption = await api("/caption", {
           method: "POST",
@@ -2276,13 +2280,16 @@
           </div>
         `;
         captionBlock.classList.remove("hidden");
-        // 캡션 생성 성공 시에만 인스타 피드 미리보기 + 업로드 버튼 노출
+        // 캡션 생성 성공 시에만 인스타 피드 미리보기 + 업로드 버튼 + 업로드 안내 노출
         previewBlock?.classList.remove("hidden");
         uploadFeedButton?.classList.remove("hidden");
+        if (uploadNote && uploadNote.innerHTML.trim()) {
+          uploadNote.classList.remove("hidden");
+        }
         updateLastHistory({ captionReady: true });
-        setStatus(bootstrapStatus, "피드 캡션이 준비되었습니다.", "success");
+        setStatus(captionStatus, "피드 캡션이 준비되었습니다.", "success");
       } catch (error) {
-        setStatus(bootstrapStatus, error.message, "error");
+        setStatus(captionStatus, error.message, "error");
       }
     });
 
