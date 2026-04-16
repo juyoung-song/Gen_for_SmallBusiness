@@ -1959,6 +1959,7 @@
     const storyBlock = selectOne("#result-story-block");
     const previewBlock = selectOne("#result-preview-block");
     const captionStatus = selectOne("#create-caption-status");
+    const uploadStatus = selectOne("#create-upload-status");
 
     try {
       const bootstrap = await api("/bootstrap");
@@ -2329,7 +2330,7 @@
     uploadFeedButton?.addEventListener("click", async () => {
       const instagram = getInstagramSummary(lastBootstrap);
       if (!lastGenerateResult?.image_data_url) {
-        setStatus(bootstrapStatus, "업로드할 피드 이미지를 먼저 생성해주세요.", "error");
+        setStatus(uploadStatus, "업로드할 피드 이미지를 먼저 생성해주세요.", "error");
         return;
       }
       if (instagram.expired || !instagram.upload_ready) {
@@ -2340,11 +2341,11 @@
           uploadNote.className = "upload-note";
           uploadNote.classList.remove("hidden");
         }
-        setStatus(bootstrapStatus, nextNote.status, nextNote.tone);
+        setStatus(uploadStatus, nextNote.status, nextNote.tone);
         return;
       }
 
-      setStatus(bootstrapStatus, "인스타그램 피드에 업로드하는 중입니다.", "loading");
+      setStatus(uploadStatus, "인스타그램 피드에 업로드하는 중입니다.", "loading");
       try {
         const latestState = readState();
         const response = await api("/upload/feed", {
@@ -2367,9 +2368,9 @@
           uploadNote.className = "upload-note";
           uploadNote.classList.remove("hidden");
         }
-        setStatus(bootstrapStatus, "인스타그램 피드 업로드가 완료되었습니다.", "success");
+        setStatus(uploadStatus, "인스타그램 피드 업로드가 완료되었습니다.", "success");
       } catch (error) {
-        setStatus(bootstrapStatus, error.message, "error");
+        setStatus(uploadStatus, error.message, "error");
       }
     });
 
