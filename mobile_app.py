@@ -647,22 +647,35 @@ async def _resolve_upload_context() -> tuple[Brand, object]:
     return brand, upload_settings
 
 
-def _load_existing_product_bytes(brand_id: UUID, product_name: str) -> bytes | None:
-    """기존 상품의 최근 Generation 에서 product_image_path 를 읽어 bytes 반환.
+def _load_existing_product_bytes(
+    brand_id: UUID, product_name: str
+) -> tuple[bytes, str] | None:
+    """기존 상품의 product_image_path 가 살아있는 최근 Generation 에서 bytes + path 반환.
+
+    list_products() 는 "가장 최근" Generation 을 반환하므로 product_image_path 가 NULL
+    일 수 있다. 여기서는 경로가 있는 첫 번째 Generation 을 찾는다.
 
     파일이 없거나 오류 시 None 반환 (폴백: 텍스트 프롬프트만으로 생성 계속).
     """
     import asyncio
 
-    async def _fetch() -> bytes | None:
+    async def _fetch() -> tuple[bytes, str] | None:
         async with AsyncSessionLocal() as session:
             service = GenerationService(session)
             products = await service.list_products(brand_id)
-        matched = next((p for p in products if p.product_name == product_name), None)
+        # 같은 이름 상품 중 product_image_path 가 있는 첫 번째 선택
+        matched = next(
+            (
+                p
+                for p in products
+                if p.product_name == product_name and p.product_image_path
+            ),
+            None,
+        )
         if matched is None or matched.product_image_path is None:
             return None
         try:
-            return Path(matched.product_image_path).read_bytes()
+            return Path(matched.product_image_path).read_bytes(), matched.product_image_path
         except OSError as exc:
             logger.warning("기존 상품 사진 로드 실패 (%s): %s", product_name, exc)
             return None
@@ -694,6 +707,7 @@ async def _save_generation_outputs(
     image_bytes: bytes | None,
     langfuse_trace_id: str | None = None,
     product_image_bytes: bytes | None = None,
+    existing_product_image_path: str | None = None,
     is_new_product: bool = False,
 ) -> tuple[UUID | None, UUID | None]:
     outputs: list[OutputSpec] = []
@@ -714,6 +728,9 @@ async def _save_generation_outputs(
     product_image_path: str | None = None
     if product_image_bytes:
         product_image_path = str(save_to_staging(product_image_bytes, extension=".png"))
+    elif existing_product_image_path:
+        # 기존 상품 재생성: 원본 경로 그대로 승계 (새로 staging 저장하지 않음)
+        product_image_path = existing_product_image_path
 
     async with AsyncSessionLocal() as session:
         generation_service = GenerationService(session)
@@ -1323,12 +1340,15 @@ async def mobile_generate(
     brand_prompt = _build_brand_prompt(brand)
 
     product_image_bytes: bytes | None = None
+    existing_product_image_path: str | None = None
     if payload.product_image is not None:
         product_image_bytes, _ = _decode_data_url(payload.product_image.data_url)
     elif not payload.is_new_product and payload.existing_product_name:
-        product_image_bytes = _load_existing_product_bytes(
+        loaded = _load_existing_product_bytes(
             brand.id, payload.existing_product_name
         )
+        if loaded is not None:
+            product_image_bytes, existing_product_image_path = loaded
 
     # 신상품인데 사진이 없으면 400
     if payload.is_new_product and product_image_bytes is None:
@@ -1437,6 +1457,7 @@ async def mobile_generate(
             image_bytes=image_result.image_data if image_result is not None else None,
             langfuse_trace_id=langfuse_trace_id,
             product_image_bytes=product_image_bytes if payload.is_new_product else None,
+            existing_product_image_path=existing_product_image_path,
             is_new_product=payload.is_new_product,
         )
     except TextServiceError as exc:

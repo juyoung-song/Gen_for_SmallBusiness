@@ -1161,11 +1161,11 @@ class TestCP19ExistingProductImageLoad:
         monkeypatch.setattr(mobile_app, "_capture_langfuse_trace_id", lambda: "trace")
 
         # 기존 상품 → product_image=None, existing_product_name 설정
-        # _load_existing_product_bytes 가 bytes 반환하도록 mock
+        # _load_existing_product_bytes 가 (bytes, path) 튜플 반환하도록 mock
         monkeypatch.setattr(
             mobile_app,
             "_load_existing_product_bytes",
-            lambda brand_id, product_name: _TINY_PNG_BYTES,
+            lambda brand_id, product_name: (_TINY_PNG_BYTES, "/tmp/existing.png"),
         )
 
         await mobile_app.mobile_generate(
@@ -1180,6 +1180,102 @@ class TestCP19ExistingProductImageLoad:
         )
 
         assert captured["image_request"].image_data == _TINY_PNG_BYTES
+
+
+# ---------------------------------------------------------------------------
+# CP22 — 기존 상품 재생성 시 product_image_path 승계
+# ---------------------------------------------------------------------------
+
+
+class TestCP22ExistingProductImagePathInherited:
+    """기존 상품으로 재생성 시 DB에 원본 product_image_path 가 그대로 유지돼야 한다.
+
+    현재 버그: `_save_generation_outputs()` 가 기존 상품 선택 시 경로 없이 저장하여
+    다음 재생성 때 `list_products()` 가 product_image_path=None 을 돌려줘 400 에러.
+    """
+
+    async def test_save_generation_inherits_existing_product_image_path(
+        self, monkeypatch, db_session, brand_factory
+    ):
+        brand = await brand_factory()
+
+        class DummySessionContext:
+            async def __aenter__(self):
+                return db_session
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        monkeypatch.setattr(
+            mobile_app, "AsyncSessionLocal", lambda: DummySessionContext()
+        )
+
+        # 기존 상품 선택 시 _load_existing_product_bytes 가 경로를 함께 반환한다고 가정
+        existing_path = "/tmp/existing-product-fixture.png"
+
+        generation_id, _ = await mobile_app._save_generation_outputs(
+            brand=brand,
+            product_name="아메리카노",
+            description="진한 커피",
+            goal="일반 홍보",
+            tone="기본",
+            text_result={"ad_copies": ["광고"], "promo_sentences": [], "story_copies": []},
+            image_bytes=b"gen-image",
+            langfuse_trace_id=None,
+            product_image_bytes=None,  # 기존 상품이라 새 bytes 없음
+            existing_product_image_path=existing_path,  # 신규 파라미터
+            is_new_product=False,
+        )
+
+        saved = await GenerationService(db_session).get_with_outputs(generation_id)
+        assert saved is not None
+        # product_image_path 가 NULL 이 아닌 원본 경로를 그대로 승계
+        assert saved.product_image_path == existing_path
+        assert saved.is_new_product is False
+
+
+class TestCP22LoadExistingProductReturnsPath:
+    """`_load_existing_product_bytes()` 가 bytes + path 튜플을 반환해야 한다."""
+
+    async def test_returns_bytes_and_path_tuple(self, monkeypatch, tmp_path):
+        from uuid import uuid4 as _uuid4
+
+        fake_brand_id = _uuid4()
+        # tmp 파일 생성
+        fake_path = tmp_path / "existing.png"
+        fake_path.write_bytes(b"\x89PNG-EXISTING")
+
+        from services.generation_service import ProductGroup
+
+        fake_products = [
+            ProductGroup(
+                product_name="아메리카노",
+                product_description="진한 커피",
+                product_image_path=str(fake_path),
+                latest_generation_id=_uuid4(),
+                generation_count=1,
+            )
+        ]
+
+        from unittest.mock import AsyncMock, patch
+
+        mock_service = AsyncMock()
+        mock_service.list_products.return_value = fake_products
+
+        with patch("mobile_app.AsyncSessionLocal") as mock_sl:
+            mock_sl.return_value.__aenter__ = AsyncMock(return_value=mock_service)
+            mock_sl.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            with patch("mobile_app.GenerationService", return_value=mock_service):
+                result = mobile_app._load_existing_product_bytes(
+                    fake_brand_id, "아메리카노"
+                )
+
+        # tuple (bytes, path) 반환
+        assert isinstance(result, tuple)
+        bytes_data, path = result
+        assert bytes_data == b"\x89PNG-EXISTING"
+        assert path == str(fake_path)
 
 
 # ---------------------------------------------------------------------------

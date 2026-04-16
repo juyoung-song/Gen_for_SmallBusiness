@@ -142,6 +142,7 @@ class ImageService:
 
         try:
             response = self.client.chat.completions.create(
+                name="image.analyze_composition",  # Langfuse observation 이름
                 model=self.settings.TEXT_MODEL,
                 messages=[
                     {
@@ -191,6 +192,7 @@ class ImageService:
 
         try:
             optimization = self.client.chat.completions.create(
+                name="image.optimize_prompt",  # Langfuse observation 이름
                 model=self.settings.TEXT_MODEL,
                 messages=[
                     {
