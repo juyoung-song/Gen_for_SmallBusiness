@@ -5,7 +5,34 @@
 실제 browser-use CLI 호출은 통합 테스트/수동 검증으로 커버.
 """
 
-from backends.insta_capture import parse_close_button_index
+from backends.insta_capture import (
+    detect_unusable_instagram_state,
+    parse_close_button_index,
+)
+
+
+class TestDetectUnusableInstagramState:
+    def test_detects_http_429_error_page(self):
+        state = """viewport: 1920x1080
+page: 1920x1080
+This page isn’t working
+HTTP ERROR 429
+[3]<button id=reload-button />
+"""
+        assert "HTTP 429" in detect_unusable_instagram_state(state)
+
+    def test_detects_login_redirect(self):
+        state = "url: https://www.instagram.com/accounts/login/?next=/some_cafe/"
+        assert "로그인 페이지" in detect_unusable_instagram_state(state)
+
+    def test_allows_profile_page(self):
+        state = """viewport: 1905x1080
+unstuffy_cafe
+71 posts
+133 followers
+[141]<a role=link />
+"""
+        assert detect_unusable_instagram_state(state) is None
 
 
 class TestParseCloseButtonIndex:
