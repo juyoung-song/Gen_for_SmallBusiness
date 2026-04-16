@@ -148,16 +148,6 @@
 <!-- Form Content -->
 <div class="space-y-8">
 <div class="space-y-6">
-<!-- Product Name Input -->
-<div class="space-y-3">
-<label class="text-sm font-bold text-on-surface-variant px-1">상품명</label>
-<input class="w-full h-16 px-6 bg-surface-container-highest border-none rounded-xl text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/30 transition-all outline-none" id="create-product-name" placeholder="예: 시그니처 천연 발효종 식빵" style="background-image:linear-gradient(135deg,rgba(255,179,71,0.10),rgba(255,106,136,0.06));" type="text"/>
-</div>
-<!-- Product Description Input -->
-<div class="space-y-3">
-<label class="text-sm font-bold text-on-surface-variant px-1">상품 설명</label>
-<textarea class="w-full p-6 bg-surface-container-highest border-none rounded-xl text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/30 transition-all outline-none resize-none" id="create-product-description" placeholder="상품의 특징이나 정성이 들어간 포인트를 적어주세요. (예: 48시간 저온 숙성으로 깊은 풍미를 담았습니다)" rows="4" style="background-image:linear-gradient(135deg,rgba(255,179,71,0.10),rgba(143,102,255,0.05));"></textarea>
-</div>
 <!-- New Product Toggle -->
 <div class="flex items-center justify-between px-1 py-2">
 <div>
@@ -168,6 +158,16 @@
 <input class="sr-only peer" id="create-new-product-toggle" role="switch" type="checkbox"/>
 <div class="w-12 h-6 bg-[#d1d5db] rounded-full peer peer-focus:outline-none peer-checked:bg-[#ff7448] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:shadow-sm after:transition-all peer-checked:after:translate-x-6"></div>
 </label>
+</div>
+<!-- Product Name Input -->
+<div class="space-y-3">
+<label class="text-sm font-bold text-on-surface-variant px-1">상품명</label>
+<input class="w-full h-16 px-6 bg-surface-container-highest border-none rounded-xl text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/30 transition-all outline-none" id="create-product-name" placeholder="예: 시그니처 천연 발효종 식빵" style="background-image:linear-gradient(135deg,rgba(255,179,71,0.10),rgba(255,106,136,0.06));" type="text"/>
+</div>
+<!-- Product Description Input -->
+<div class="space-y-3">
+<label class="text-sm font-bold text-on-surface-variant px-1">상품 설명</label>
+<textarea class="w-full p-6 bg-surface-container-highest border-none rounded-xl text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/30 transition-all outline-none resize-none" id="create-product-description" placeholder="상품의 특징이나 정성이 들어간 포인트를 적어주세요. (예: 48시간 저온 숙성으로 깊은 풍미를 담았습니다)" rows="4" style="background-image:linear-gradient(135deg,rgba(255,179,71,0.10),rgba(143,102,255,0.05));"></textarea>
 </div>
 <!-- Existing Product Select (toggle OFF) -->
 <div class="space-y-3 hidden" id="create-existing-product-panel">
