@@ -1446,26 +1446,6 @@
       uploadNote.className = "upload-note hidden";
     }
 
-    const storyCopies = result.text_result?.story_copies || [];
-    if (canStory && storyCopies.length && storyChooser) {
-      storyChooser.innerHTML = `
-        <div class="result-card">
-          <h3 class="result-card__title">스토리 문구 선택</h3>
-          <div class="copy-stack">
-            ${storyCopies
-              .map(
-                (copy, index) => `
-                  <label class="story-option">
-                    <input ${index === 0 ? "checked" : ""} type="radio" name="story-copy" value="${escapeHtml(copy)}" />
-                    <span>${escapeHtml(copy)}</span>
-                  </label>`,
-              )
-              .join("")}
-          </div>
-        </div>
-      `;
-      storyChooser.classList.remove("hidden");
-    }
   }
 
   function renderHome(bootstrap) {
