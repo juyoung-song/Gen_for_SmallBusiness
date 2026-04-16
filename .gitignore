@@ -179,3 +179,4 @@ models/cache/
 
 # 실험: 로고 생성 샘플 결과물 (대용량, 재현 가능)
 logo_gen_exp/samples/
+ui.md
