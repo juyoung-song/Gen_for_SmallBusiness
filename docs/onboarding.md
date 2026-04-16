@@ -1,6 +1,8 @@
 # 온보딩 플로우
 
-현 브랜치(`refactor/flow`) 코드 기준의 **실제 실행 경로** 문서. 2개 파트를 다룬다.
+2026-04-16 현재 모바일 PWA 기준의 온보딩 보충 문서다.
+
+주의: 아래 본문에는 `refactor/flow` Streamlit 구현 설명이 일부 남아 있다. 현재 운영 진입점은 `app.py`가 아니라 `mobile_app.py + stitch/*`이며, 이 문서에서는 먼저 현재 모바일 기준 변경점을 정리한다.
 
 1. **브랜드 온보딩** — 사용자 입력 + 인스타 프로필 캡처 + GPT Vision 분석 → `brands` INSERT
 2. **인스타 OAuth 연결** — Meta v19.0 OAuth → long-lived token → `instagram_connections` INSERT + `brands` UPDATE
@@ -8,10 +10,42 @@
 연관 문서:
 - 데이터 스키마: [schema.md](schema.md)
 - 생성 플로우(광고/업로드): [generation.md](generation.md)
+- 모바일/VM 운영 플로우: [mobile_worker_workflow.md](mobile_worker_workflow.md)
 
 ---
 
 ## 1. 브랜드 온보딩
+
+### 1.0 현재 모바일 PWA 기준 요약
+
+현재 온보딩 저장 경로는 `POST /api/mobile/onboarding/complete`다.
+
+입력 소스:
+- 브랜드 이름, 대표 색상, 분위기 키워드, 직접 설명
+- 로고 이미지
+- 사용자가 직접 업로드한 스크린샷
+- 선택적으로 Instagram URL
+
+Instagram URL 캡처 순서:
+1. `INSTAGRAM_CAPTURE_WORKER_URL`이 있으면 Mac 로컬 캡처 워커에 `/capture` 요청을 보낸다.
+2. Mac 워커는 로그인된 Playwright persistent profile로 Instagram을 열고 스크린샷을 찍어 `data_url`로 반환한다.
+3. VM `mobile_app.py`가 반환 이미지를 `/srv/brewgram/data/staging/`에 저장한다.
+4. Mac 워커가 실패하거나 설정이 없으면 VM의 `backends/insta_capture.py` fallback을 시도한다.
+5. 캡처 직후 `HTTP ERROR 429`, `accounts/login`, `This page isn... working` 같은 상태가 감지되면 해당 이미지는 분석에 넣지 않는다.
+
+UX 기준:
+- Instagram URL보다 직접 스크린샷 업로드를 우선 추천한다.
+- Instagram URL 캡처가 실패해도 사용자가 입력한 설명과 업로드한 이미지가 있으면 온보딩은 계속 진행한다.
+- 3페이지의 “이렇게 브랜드를 이해했어요” 문구는 최종 저장될 `brands.style_prompt` 미리보기다.
+
+관련 파일:
+- [mobile_app.py](../mobile_app.py)
+- [scripts/instagram_capture_worker.py](../scripts/instagram_capture_worker.py)
+- [backends/insta_capture.py](../backends/insta_capture.py)
+- [services/onboarding_service.py](../services/onboarding_service.py)
+- [stitch/1./code.html](../stitch/1./code.html)
+- [stitch/2./code.html](../stitch/2./code.html)
+- [stitch/3./code.html](../stitch/3./code.html)
 
 ### 1.1 개요
 
@@ -181,6 +215,18 @@ client.chat.completions.create(
 ---
 
 ## 2. 인스타 OAuth 연결
+
+### 2.0 현재 모바일 PWA 기준 요약
+
+모바일 업로드는 OAuth 연결된 계정만 사용한다.
+
+- `.env`의 `META_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID` fallback은 모바일 업로드에서 사용하지 않는다.
+- 업로드 전에 `brands.instagram_account_id`와 활성 `instagram_connections` row가 필요하다.
+- 연결이 없거나 토큰이 만료되면 업로드 API는 `409`와 “인스타그램 계정을 먼저 연결” 메시지를 반환한다.
+- 수동 연결 UI는 숫자 Instagram business account ID가 아니라 `@username`을 입력받는다.
+- 입력한 `@username`은 현재 Meta 로그인 계정이 접근 가능한 Facebook Page 후보 목록 안에서만 매칭된다.
+
+이 아래 Streamlit `app.py` 사이드바 설명은 legacy 참고용이다.
 
 ### 2.1 개요
 

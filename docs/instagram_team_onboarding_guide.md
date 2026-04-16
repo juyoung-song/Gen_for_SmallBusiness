@@ -1,54 +1,99 @@
-# 📷 인스타그램 OAuth 연동 팀원 가이드
+# Instagram OAuth 팀원 가이드
 
-이 문서는 팀원들이 로컬 환경에서 각자의 인스타그램 계정을 연결하고 테스트하기 위한 설정 가이드입니다.
+이 문서는 `mobile_app.py + Stitch PWA` 기준으로 팀원이 Instagram OAuth 연결을 테스트하기 위한 가이드다.
 
----
+## 1. Meta 앱 개발 모드 전제
 
-## 0. 사전 준비 (팀원 필수 수행) 🛠️
+현재 Meta 앱이 개발 모드라면 테스트 가능한 Facebook 계정은 앱 역할에 등록된 계정뿐이다.
 
-인스타그램 API를 사용하려면 **본인 소유의 페이스북 페이지**와 **인스타그램 비즈니스 계정**이 서로 연결되어 있어야 합니다. 아래 순서대로 세팅해 주세요.
+팀원이 Meta 앱 소유자에게 전달할 정보:
 
-### ① 인스타그램 계정을 '비즈니스'로 전환하기
-API는 일반 개인 계정을 인식하지 못합니다. 반드시 '비즈니스 계정'이어야 합니다.
-1. 인스타그램 앱 실행 -> 프로필 -> 우측 상단 [≡] 메뉴 -> **[설정 및 개인정보]**
-2. **[계정 유형 및 도구]** -> **[프로페셔널 계정으로 전환]** 클릭
-3. **[비즈니스]**를 선택하고 나머지 절차(카테고리 선택 등)를 마칩니다.
+```text
+Meta 앱 개발 모드 테스트 권한 요청드립니다.
 
-### ② 페이스북 페이지 새로 만들기
-인스타그램 비즈니스 계정을 관리할 '집'이 필요합니다.
-1. 페이스북 로그인 후 왼쪽 메뉴의 **[페이지]** -> **[+ 새 페이지 만들기]** 클릭
-2. 이름(예: `테스트_홍길동`)과 카테고리를 입력하고 생성합니다. (기타 정보는 생략 가능)
+제 Facebook 로그인 이메일을 앱 역할에 Tester 또는 Developer로 초대해주세요.
+초대 후 제가 https://developers.facebook.com/requests/ 에서 수락하겠습니다.
 
-### ③ 페이지와 인스타그램 연결하기 (핵심!) 🔗
-이 단계를 빼먹으면 API가 계정을 하나도 찾을 수 없으므로 가장 중요합니다.
-1. 새로 만든 **페이스북 페이지**의 설정 화면으로 들어갑니다.
-2. **[설정]** -> **[연결된 계정]** 메뉴로 이동합니다.
-3. **[Instagram]** 항목에서 **[계정 연결]** 버튼을 누릅니다.
-4. 본인의 인스타그램 계정 정보를 입력하여 로그인을 완료하면 두 계정이 연결됩니다.
+테스트할 Instagram 계정은 professional account여야 하고,
+해당 Instagram 계정이 Facebook Page에 연결되어 있어야 합니다.
+또한 제가 로그인하는 Facebook 계정이 그 Page에 접근 권한을 가지고 있어야 합니다.
+```
 
----
+## 2. Instagram 계정 조건
 
-## 1. Meta 개발자 센터 승인 받기 (사장님 수행) 👑
+OAuth 연결 후보에 잡히려면 아래 조건이 모두 필요하다.
 
-현재 앱은 '개발 모드'이므로 관리자가 허용한 테스터만 로그인이 가능합니다.
-1. 사장님께 본인의 페이스북 이메일 주소를 전달합니다.
-2. 사장님이 [Meta 개발자 센터] -> [앱 역할] -> [테스터]에 팀원을 초대합니다.
-3. 팀원은 [페이스북 앱 요청 페이지](https://developers.facebook.com/requests/)에서 초대를 **[수락]**합니다.
+- Instagram 계정이 Professional 계정이어야 한다.
+- Instagram 계정이 Facebook Page에 연결되어 있어야 한다.
+- Meta 로그인에 쓰는 Facebook 계정이 해당 Page 권한을 가지고 있어야 한다.
+- 앱이 개발 모드라면 그 Facebook 계정이 앱 Role에 등록되어 있어야 한다.
+- Meta 앱에 필요한 권한 흐름이 열려 있어야 한다.
 
----
+현재 요청 scope:
 
-## 2. 프로젝트 로컬 환경 설정 (팀원 수행) 💻
+```text
+instagram_basic
+instagram_content_publish
+pages_show_list
+pages_read_engagement
+```
 
-1. GitHub에서 최신 코드를 pull 받습니다 (`refactor/song/main` 브랜치).
-2. `.env.example`을 복사해 `.env` 파일을 생성합니다.
-3. 사장님에게 공유받은 `META_APP_SECRET`과 `TOKEN_ENCRYPTION_KEY`를 넣습니다.
-4. `META_REDIRECT_URI=http://localhost:8501/` 확인 (끝에 슬래시 필수)
+## 3. Redirect URI
 
----
+모바일 PWA 운영 callback:
 
-## 3. 테스트 및 연결 진행 🚀
+```text
+https://brewgram.duckdns.org/api/mobile/instagram/callback
+```
 
-1. `streamlit run app.py` 실행
-2. 사이드바의 **[인스타그램 연결하기]** 클릭 -> 페이스북 로그인
-3. 로그인 팝업에서 **방금 만든 페이지와 인스타그램 계정**을 반드시 모두 체크하고 완료합니다.
-4. 연동 성공 후 생성된 콘텐츠를 실제 인스타그램에 업로드 테스트해 봅니다.
+Streamlit legacy 테스트를 계속 쓸 경우:
+
+```text
+http://localhost:8501/
+```
+
+Meta 개발자 센터의 `Valid OAuth Redirect URIs`에는 위 URI를 정확히 등록한다. 루트 도메인 `https://brewgram.duckdns.org/`만 등록하면 모바일 callback과 일치하지 않는다.
+
+## 4. VM env
+
+VM의 `/etc/brewgram/mobile_app.env`에 아래 값이 필요하다.
+
+```env
+META_APP_ID=...
+META_APP_SECRET=...
+TOKEN_ENCRYPTION_KEY=...
+META_REDIRECT_URI_MOBILE=https://brewgram.duckdns.org/api/mobile/instagram/callback
+```
+
+`TOKEN_ENCRYPTION_KEY`는 Fernet 키여야 하며, 한 번 OAuth 연결에 사용한 뒤에는 바꾸면 기존 암호화 토큰을 복호화할 수 없다.
+
+## 5. 연결 테스트 절차
+
+1. 모바일 또는 브라우저에서 `https://brewgram.duckdns.org`에 접속한다.
+2. 온보딩을 완료한다.
+3. 설정 또는 Instagram 연결 화면에서 `Meta로 연결하기`를 누른다.
+4. Meta 로그인 화면에서 테스트 계정으로 로그인한다.
+5. 연결할 Facebook Page와 Instagram professional account 권한을 승인한다.
+6. 후보가 여러 개면 원하는 계정을 선택한다.
+7. 후보가 자동으로 잡히지 않으면 UI에서 Instagram `@username`을 입력한다.
+
+## 6. @username 수동 연결 기준
+
+수동 입력은 아무 Instagram 계정이나 임의로 연결하는 기능이 아니다.
+
+`@username`은 현재 Meta 로그인 계정이 접근 가능한 Facebook Page 후보 목록 안에서만 매칭된다. 후보 목록에 없는 계정이면 연결되지 않는다.
+
+후보에 없을 때 확인할 것:
+
+- 해당 Instagram 계정이 Facebook Page에 연결되어 있는지
+- 현재 Facebook 계정이 그 Page 권한을 가지고 있는지
+- 앱 개발 모드에서 현재 Facebook 계정이 Tester/Developer/Admin인지
+- OAuth 승인 화면에서 Page 권한을 누락하지 않았는지
+
+## 7. 업로드 정책
+
+모바일 업로드는 OAuth로 연결된 계정만 사용한다.
+
+- `.env`의 `META_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID` fallback은 모바일 업로드에서 사용하지 않는다.
+- 연결된 계정이 없으면 업로드 API는 계정 연결이 필요하다는 메시지를 반환한다.
+- 업로드 성공 시 응답의 `account_username`이 실제 게시 대상 계정이다.

@@ -1,5 +1,10 @@
 # Instagram OAuth 계정 연결 — 종합 구현 설계서
 
+> Legacy note: 이 문서는 Streamlit `app.py` 기반 OAuth 구현 설계서다.
+> 현재 모바일 PWA 구현은 `mobile_app.py`의 `/api/mobile/instagram/*` 엔드포인트와 Stitch UI를 기준으로 한다.
+> 모바일 업로드는 OAuth 연결 계정만 사용하며 `.env`의 `META_ACCESS_TOKEN` fallback을 사용하지 않는다.
+> 현재 팀원 셋업은 [instagram_team_onboarding_guide.md](instagram_team_onboarding_guide.md)를 우선한다.
+
 > **목적**: 사용자가 개발자 콘솔에 접근하지 않고, 서비스 내 "인스타그램 연결" 버튼 하나로 자신의 계정을 연동하여 광고를 자동 게시할 수 있게 한다.
 >
 > **절대 원칙**: 기존 서비스의 생성·업로드·UI 흐름은 일체 변경하지 않는다.

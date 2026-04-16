@@ -1,13 +1,20 @@
 # Mobile App to VM Worker Workflow
 
-이 문서는 `merge/dev` 기준으로, `mobile_app.py`가 VM 내부 `worker_api.py`를 통해 이미지 생성을 수행하는 흐름을 정리한다.
+이 문서는 모바일 PWA 기준으로 `mobile_app.py`의 생성, 업로드, Langfuse 추적 흐름을 정리한다.
+
+2026-04-16 기준으로 이미지 생성 경로는 두 가지다.
+
+- `IMAGE_BACKEND_KIND=openai_image`: `mobile_app.py`가 OpenAI 이미지 API를 직접 호출한다. 현재 VM 데모의 기본 경로이며 `worker_api.py`가 필요 없다.
+- `IMAGE_BACKEND_KIND=remote_worker`: `mobile_app.py`가 VM 내부 `worker_api.py`를 호출한다. 로컬 diffusers/Hugging Face 워커를 쓸 때의 선택 경로다.
+
+또한 Instagram 프로필 캡처는 VM IP 429를 피하기 위해 Mac 로컬 캡처 워커를 우선 사용할 수 있다. `INSTAGRAM_CAPTURE_WORKER_URL`이 설정되어 있으면 `mobile_app.py`가 Cloudflare Tunnel 뒤의 Mac 워커에 캡처를 요청하고, 실패하면 VM의 `backends/insta_capture.py` fallback을 시도한다.
 
 운영 기준:
 
 - 공개 진입점: `https://brewgram.duckdns.org`
 - Reverse proxy: Caddy, `80/443`
 - Mobile FastAPI: `mobile_app.py`, `127.0.0.1:8011`
-- Image Worker FastAPI: `worker_api.py`, `127.0.0.1:8010`
+- Image Worker FastAPI: `worker_api.py`, `127.0.0.1:8010` (`remote_worker` 모드에서만)
 - 운영 데이터: `/srv/brewgram/data`
 - DB: `/srv/brewgram/data/history.db`
 
@@ -17,12 +24,13 @@
 flowchart LR
     User["Mobile browser / PWA"] --> Domain["https://brewgram.duckdns.org"]
     Domain --> Caddy["Caddy TLS reverse proxy<br/>:80 / :443"]
-    Caddy --> Mobile["mobile_app.py<br/>127.0.0.1:8011<br/>IMAGE_BACKEND_KIND=remote_worker"]
+    Caddy --> Mobile["mobile_app.py<br/>127.0.0.1:8011"]
 
     Mobile --> Text["Text / Vision calls<br/>OpenAI via TEXT_MODEL"]
     Mobile --> Langfuse["Langfuse traces<br/>client_id / session_id / tags"]
     Mobile --> DB["SQLite + files<br/>/srv/brewgram/data"]
-    Mobile --> RemoteBackend["RemoteWorkerBackend<br/>backends/remote_worker.py"]
+    Mobile --> OpenAIImage["openai_image mode<br/>OpenAI Image API"]
+    Mobile --> RemoteBackend["remote_worker mode<br/>RemoteWorkerBackend"]
 
     RemoteBackend --> Worker["worker_api.py<br/>127.0.0.1:8010<br/>/generate-image"]
     Worker --> WorkerImageService["ImageService on worker"]
@@ -36,8 +44,9 @@ flowchart LR
 핵심 분리:
 
 - `mobile_app.py`는 외부 요청, 브랜드/생성/업로드 DB 저장, 텍스트 생성, 캡션 생성, 스토리 합성을 담당한다.
-- `worker_api.py`는 이미지 생성만 담당하는 내부 API다.
+- `worker_api.py`는 `remote_worker` 모드에서만 이미지 생성 내부 API로 사용한다.
 - 외부에서는 `worker_api.py`에 직접 접근하지 않는다. `IMAGE_WORKER_HOST=127.0.0.1`로 VM 내부에서만 받는 구조가 기준이다.
+- `openai_image` 모드에서는 `mobile_app.py`가 직접 이미지 생성까지 처리한다.
 
 ## 2. LangGraph Style Generation Graph
 
@@ -56,7 +65,9 @@ flowchart TD
     NeedText{"generation_type<br/>text or both?"}
     TextNode["TextService.generate_ad_copy<br/>OpenAIGPTBackend<br/>TEXT_MODEL"]
     NeedImage{"generation_type<br/>image or both?"}
-    MobileImage["Mobile ImageService.generate_ad_image<br/>build image prompt<br/>translate to English<br/>TEXT_MODEL"]
+    MobileImage["Mobile ImageService.generate_ad_image<br/>build image prompt<br/>TEXT_MODEL"]
+    BackendChoice{"IMAGE_BACKEND_KIND"}
+    OpenAIImageNode["OpenAIImageBackend<br/>gpt-image multi-input"]
     RemoteCall["RemoteWorkerBackend<br/>POST /generate-image<br/>Bearer IMAGE_WORKER_TOKEN"]
     WorkerDecode["worker_api decodes base64<br/>build ImageGenerationRequest"]
     WorkerImage["Worker ImageService.generate_ad_image<br/>select local backend<br/>generate image"]
@@ -68,7 +79,9 @@ flowchart TD
     AnalyzeReference -- no --> NeedText
     NeedText -- yes --> TextNode --> NeedImage
     NeedText -- no --> NeedImage
-    NeedImage -- yes --> MobileImage --> RemoteCall --> WorkerDecode --> WorkerImage --> Save
+    NeedImage -- yes --> MobileImage --> BackendChoice
+    BackendChoice -- openai_image --> OpenAIImageNode --> Save
+    BackendChoice -- remote_worker --> RemoteCall --> WorkerDecode --> WorkerImage --> Save
     NeedImage -- no --> Save
     Save --> Response
 ```
@@ -277,16 +290,59 @@ Langfuse에서 볼 때 유용한 필터:
 |---|---|---:|---|
 | `GET /health` | `mobile_app.py` | no | mobile 앱 상태와 `IMAGE_BACKEND_KIND` 확인 |
 | `POST /api/mobile/onboarding` | `mobile_app.py` | no | 브랜드 입력 저장, 이미지 분석, 브랜드 가이드 생성 |
-| `POST /api/mobile/generate` | `mobile_app.py` | yes, image/both only | 광고 문구와 이미지 생성, DB 저장 |
-| `POST /generate-image` | `worker_api.py` | n/a | 내부 이미지 생성 API. 현재 브라우저 `client_id`는 여기까지 전파되지 않음 |
+| `POST /api/mobile/generate` | `mobile_app.py` | only when `IMAGE_BACKEND_KIND=remote_worker` and image/both | 광고 문구와 이미지 생성, DB 저장 |
+| `POST /generate-image` | `worker_api.py` | n/a | `remote_worker` 모드의 내부 이미지 생성 API. 현재 브라우저 `client_id`는 여기까지 전파되지 않음 |
 | `POST /api/mobile/caption` | `mobile_app.py` | no | 생성된 광고 문구 기반 인스타 캡션 생성 |
 | `POST /api/mobile/story` | `mobile_app.py` | no | 생성 이미지를 9:16 스토리 이미지로 합성 |
 | `POST /api/mobile/upload/feed` | `mobile_app.py` | no | 인스타 피드 업로드 및 업로드 기록 저장 |
 | `POST /api/mobile/upload/story` | `mobile_app.py` | no | 인스타 스토리 업로드 및 업로드 기록 저장 |
 
-## 6. Default Models
+## 6. Instagram Capture Worker
 
-### 6.1 Text, Vision, Prompt Translation
+온보딩의 Instagram URL 캡처는 아래 순서로 진행된다.
+
+```mermaid
+flowchart TD
+    Start["POST /api/mobile/onboarding/complete"]
+    Uploads["사용자 직접 업로드 스크린샷 저장"]
+    HasURL{"Instagram URL 있음?"}
+    HasWorker{"INSTAGRAM_CAPTURE_WORKER_URL 설정?"}
+    MacWorker["Mac capture worker<br/>Cloudflare Tunnel<br/>/capture"]
+    SaveWorker["VM staging에 data_url 저장"]
+    VMFallback["VM browser-use fallback<br/>backends/insta_capture.py"]
+    Guard["state 검사<br/>HTTP ERROR 429 / accounts/login / error page 차단"]
+    Vision["온보딩 Vision 분석"]
+
+    Start --> Uploads --> HasURL
+    HasURL -- no --> Vision
+    HasURL -- yes --> HasWorker
+    HasWorker -- yes --> MacWorker --> SaveWorker --> Vision
+    MacWorker -- fail --> VMFallback
+    HasWorker -- no --> VMFallback
+    VMFallback --> Guard --> Vision
+```
+
+Mac 캡처 워커는 캡처 이미지를 로컬 파일로 저장하지 않고, PNG를 `data:image/png;base64,...` 형태로 VM에 반환한다. VM의 `mobile_app.py`가 이를 `/srv/brewgram/data/staging/` 아래에 저장한다.
+
+관련 env:
+
+```env
+INSTAGRAM_CAPTURE_WORKER_URL=https://<cloudflare-tunnel>.trycloudflare.com
+INSTAGRAM_CAPTURE_WORKER_TOKEN=...
+INSTAGRAM_CAPTURE_WORKER_TIMEOUT=90.0
+```
+
+관련 Mac 실행:
+
+```bash
+CAPTURE_WORKER_TOKEN="<TOKEN>" \
+CAPTURE_WORKER_HEADLESS=1 \
+uv run uvicorn scripts.instagram_capture_worker:app --host 127.0.0.1 --port 8020
+```
+
+## 7. Default Models
+
+### 7.1 Text, Vision, Prompt Translation
 
 기본값:
 
@@ -308,9 +364,18 @@ TEXT_TIMEOUT=90.0
 - `/etc/brewgram/mobile_app.env`: 텍스트 생성, 캡션, 온보딩/참조 분석, mobile 측 이미지 프롬프트 번역
 - `/etc/brewgram/worker_api.env`: worker 측 이미지 프롬프트 번역
 
-### 6.2 Mobile Image Backend
+### 7.2 Mobile Image Backend
 
-운영 기본값:
+현재 VM 데모 기본값:
+
+```env
+IMAGE_BACKEND_KIND=openai_image
+IMAGE_TIMEOUT=180.0
+```
+
+이 모드에서는 `mobile_app.py`가 직접 OpenAI 이미지 API를 호출한다. `worker_api.py`는 필요 없다.
+
+`remote_worker` 운영값:
 
 ```env
 IMAGE_BACKEND_KIND=remote_worker
@@ -325,9 +390,9 @@ IMAGE_WORKER_TIMEOUT=180.0
 - `RemoteWorkerBackend`가 `IMAGE_WORKER_URL/generate-image`로 요청을 보낸다.
 - `IMAGE_WORKER_TOKEN`은 mobile env와 worker env가 같아야 한다.
 
-### 6.3 Worker Image Backend
+### 7.3 Worker Image Backend
 
-운영 기본값:
+`remote_worker` 모드일 때만 사용한다.
 
 ```env
 IMAGE_BACKEND_KIND=hf_local
@@ -361,9 +426,9 @@ LOCAL_IMG2IMG_STRENGTH=0.5
 - `IMAGE_MODEL=stabilityai/stable-diffusion-xl-base-1.0` 기본값은 `hf_remote_api` 경로에서 쓰인다.
 - `hf_local` 경로의 실제 기본 모델은 `LOCAL_SD15_MODEL_ID=runwayml/stable-diffusion-v1-5`다.
 
-## 7. How to Change Models
+## 8. How to Change Models
 
-### 7.1 광고 문구, 캡션, Vision, 프롬프트 번역 모델 변경
+### 8.1 광고 문구, 캡션, Vision, 프롬프트 번역 모델 변경
 
 수정 파일:
 
@@ -392,7 +457,7 @@ sudo journalctl -u brewgram-mobile.service -n 80 --no-pager
 sudo journalctl -u brewgram-worker.service -n 80 --no-pager
 ```
 
-### 7.2 Worker의 로컬 이미지 모델 변경
+### 8.2 Worker의 로컬 이미지 모델 변경
 
 수정 파일:
 
@@ -417,7 +482,7 @@ curl http://127.0.0.1:8010/health
 
 첫 호출 때 모델이 다운로드될 수 있으므로 디스크와 시간이 필요하다.
 
-### 7.3 참조 이미지 반영 방식 변경
+### 8.3 참조 이미지 반영 방식 변경
 
 수정 파일:
 
@@ -455,7 +520,7 @@ LOCAL_IMG2IMG_STRENGTH=0.5
 - `LOCAL_IP_ADAPTER_SCALE`: 높을수록 참조 이미지 영향이 강하다.
 - `LOCAL_IMG2IMG_STRENGTH`: 낮을수록 원본 구조 보존, 높을수록 재생성 강도 증가.
 
-### 7.4 Hugging Face Serverless API로 바꾸기
+### 8.4 Hugging Face Serverless API로 바꾸기
 
 worker가 로컬 diffusers 대신 HF API를 쓰게 하려면:
 
@@ -475,7 +540,7 @@ curl http://127.0.0.1:8010/health
 
 mobile env는 그대로 `IMAGE_BACKEND_KIND=remote_worker`를 유지하면, 외부 앱 구조는 바뀌지 않고 worker 내부 구현만 바뀐다.
 
-### 7.5 Mock 이미지로 빠른 점검
+### 8.5 Mock 이미지로 빠른 점검
 
 mobile에서 worker를 아예 안 타게 하려면:
 
@@ -495,7 +560,7 @@ IMAGE_BACKEND_KIND=mock
 
 두 번째 방식은 인증, worker 라우팅, base64 왕복까지 같이 점검할 수 있어서 운영 경로 테스트에 더 가깝다.
 
-## 8. Required Env Summary
+## 9. Required Env Summary
 
 ### `/etc/brewgram/mobile_app.env`
 
@@ -508,10 +573,8 @@ OPENAI_API_KEY=...
 TEXT_MODEL=gpt-5-mini
 TEXT_TIMEOUT=90.0
 
-IMAGE_BACKEND_KIND=remote_worker
-IMAGE_WORKER_URL=http://127.0.0.1:8010
-IMAGE_WORKER_TOKEN=...
-IMAGE_WORKER_TIMEOUT=180.0
+IMAGE_BACKEND_KIND=openai_image
+IMAGE_TIMEOUT=180.0
 
 FREEIMAGE_API_KEY=...
 META_APP_ID=...
@@ -519,12 +582,27 @@ META_APP_SECRET=...
 TOKEN_ENCRYPTION_KEY=...
 META_REDIRECT_URI_MOBILE=https://brewgram.duckdns.org/api/mobile/instagram/callback
 
+INSTAGRAM_CAPTURE_WORKER_URL=https://<cloudflare-tunnel>.trycloudflare.com
+INSTAGRAM_CAPTURE_WORKER_TOKEN=...
+INSTAGRAM_CAPTURE_WORKER_TIMEOUT=90.0
+
 LANGFUSE_PUBLIC_KEY=...
 LANGFUSE_SECRET_KEY=...
 LANGFUSE_HOST=https://us.cloud.langfuse.com/
 ```
 
+`remote_worker` 모드에서만 추가:
+
+```env
+IMAGE_BACKEND_KIND=remote_worker
+IMAGE_WORKER_URL=http://127.0.0.1:8010
+IMAGE_WORKER_TOKEN=...
+IMAGE_WORKER_TIMEOUT=180.0
+```
+
 ### `/etc/brewgram/worker_api.env`
+
+`remote_worker` 모드에서만 필요하다.
 
 ```env
 APP_ENV=production
@@ -553,7 +631,7 @@ LOCAL_IP_ADAPTER_SCALE=0.6
 LOCAL_IMG2IMG_STRENGTH=0.5
 ```
 
-## 9. Operational Checks
+## 10. Operational Checks
 
 서비스 상태:
 
@@ -584,7 +662,7 @@ worker health 정상 예시:
 배포 후 최신 코드 반영:
 
 ```bash
-deploy-brewgram.sh
+BREWGRAM_DEPLOY_BRANCH=codex/oauth-only-mobile-upload deploy-brewgram.sh
 ```
 
 수동으로 같은 일을 하려면:
@@ -606,7 +684,7 @@ Chromium 실행에 필요한 OS 패키지는 VM 최초 세팅 때 1회만 수동
 sudo env PATH="$PATH" /home/spai0608/.local/bin/uv run python -m playwright install-deps chromium
 ```
 
-## 10. Failure Points
+## 11. Failure Points
 
 | 증상 | 우선 확인 |
 |---|---|
@@ -620,7 +698,7 @@ sudo env PATH="$PATH" /home/spai0608/.local/bin/uv run python -m playwright inst
 | Langfuse에 기기별 흐름이 안 묶임 | 요청 헤더 `X-Brewgram-Client-Id`, `LANGFUSE_*` env, `surface:mobile` tag |
 | worker 쪽 호출이 모바일 trace와 안 이어짐 | 현재 정상. trace context를 worker로 전파하는 코드는 아직 없음 |
 
-## 11. Improvement Candidates
+## 12. Improvement Candidates
 
 현재 구조는 운영에는 충분히 단순하지만, 다음 개선 여지가 있다.
 

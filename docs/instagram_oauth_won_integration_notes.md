@@ -1,5 +1,10 @@
 # Instagram OAuth — won/final 이식 메모
 
+> Legacy note: 이 문서는 과거 `refactor/won/final` 이식 당시의 결정 기록이다.
+> 현재 모바일 PWA 기준 구현은 `BrandImage`/`brand_config_id`가 아니라 `Brand`/`brand_id`/`brands.instagram_account_id` 기준이다.
+> 또한 모바일 업로드는 `.env`의 `META_ACCESS_TOKEN` fallback을 사용하지 않고, 사용자가 OAuth로 직접 연결한 계정만 사용한다.
+> 현재 팀원 셋업은 [instagram_team_onboarding_guide.md](instagram_team_onboarding_guide.md)를 우선한다.
+
 > 이 문서는 `refactor/won/final` 브랜치에서 `refactor/song/main-fix-insta` 의
 > Instagram OAuth 기능을 이식할 때의 **won 고유 결정 사항** 과 **미래 마이그레이션
 > 경로** 를 남기는 메모다. 본격 설계는 `instagram_oauth_implementation_plan.md`

@@ -1,5 +1,8 @@
 # 시스템 설계 문서 (Design)
 
+> Legacy note: 이 문서는 2026-04-09 기준 설계 snapshot이다.
+> 현재 운영 기준은 `mobile_app.py + Stitch PWA`, `/srv/brewgram/data`, OAuth-only 모바일 업로드, 선택적 Mac 캡처 워커를 포함하므로 [../README.md](../README.md)와 [mobile_worker_workflow.md](mobile_worker_workflow.md)를 우선한다.
+
 > **프로젝트:** 생성형 AI 기반 카페·베이커리·디저트 가게 광고 콘텐츠 제작 서비스 (MVP)
 > **최종 수정일:** 2026-04-09
 > **상태:** Phase 1/2 구현 완료, 업종 특화 hot fix 진행 중

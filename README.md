@@ -1,320 +1,228 @@
-# 🎨 소상공인을 위한 AI 광고 콘텐츠 제작 서비스
+# Brewgram
 
-## 변경 이력
+소상공인 카페·베이커리·디저트 브랜드를 위한 모바일 우선 AI 광고 콘텐츠 생성 서비스입니다.
 
-### [feature/won/img-reference] 로컬 참조 이미지 기반 이미지 생성 (IP-Adapter + SD 1.5)
-- 사용자 업로드 사진을 실제 이미지 생성에 반영하는 로컬 추론 파이프라인 구현
-- `models/local_backend.py`: `LocalImageBackend` 프로토콜 정의
-- `models/sd15.py`: SD 1.5 txt2img 백엔드 (참조 이미지 없을 때 fallback)
-- `models/ip_adapter.py`: IP-Adapter + SD 1.5 백엔드 (CLIP cross-attention으로 스타일 반영)
-- `models/img2img.py`: SD 1.5 img2img 백엔드 (구도·색감 직접 보존)
-- `models/hybrid.py`: IP-Adapter + img2img 하이브리드 백엔드
-- `ui/sidebar.py`: 사이드바에서 백엔드/파라미터 실시간 조정 UI (백엔드별 추천값 포함)
-- `config/settings.py`: `USE_LOCAL_MODEL`, `LOCAL_BACKEND`, `LOCAL_IMG2IMG_STRENGTH` 등 설정 추가
-- `services/image_service.py`: `LOCAL_BACKEND` 값에 따라 백엔드 동적 선택
-- Apple Silicon MPS 백엔드 지원, diffusers==0.31.0 + transformers<5.0.0 버전 고정
-- **실행 요건**: `USE_LOCAL_MODEL=true` 시 `torch`, `diffusers`, `transformers`, `accelerate`, `torchvision` 필요 (requirements.txt 참조)
+현재 기준 진입점은 `mobile_app.py` + Stitch 정적 UI입니다. 사용자는 `https://brewgram.duckdns.org`에 접속해 PWA처럼 사용하고, 브랜드 온보딩, 상품 기반 광고 생성, 인스타그램 피드/스토리 업로드까지 진행합니다.
 
-### [local + gcp worker] 공용 VM 이미지 워커 연동
-- `IMAGE_BACKEND=remote` 설정 시 로컬 앱에서 이미지 생성만 GCP VM 워커로 위임
-- `worker_api.py`: FastAPI 기반 이미지 생성 워커 API 추가
-- `services/image_service.py`: remote worker 호출 분기 추가
-- `config/settings.py`: `IMAGE_WORKER_URL`, `IMAGE_WORKER_TOKEN`, `IMAGE_WORKER_TIMEOUT` 등 설정 추가
-- 팀원은 각자 로컬 브랜치에서 앱을 실행하고, 이미지 생성만 공용 VM 한 대를 공유하도록 설계
+## 현재 구조
 
-### [feature/won/img-analysis] 브랜드 이미지 분석 파이프라인 (실험적)
-- `crawl_and_analyze/` 디렉토리 신설 — 크롤링·분석 독립 실행 스크립트 모음
-- `crawl_and_analyze/image_crawler.py`: Instaloader 기반 공개 인스타그램 계정 이미지 수집기
-  - 현재 인스타그램 403 차단으로 로그인 없이는 미동작 (로그인 연동 예정)
-  - 수동으로 이미지를 `image_crawled/{계정명}/` 폴더에 넣어 분석기와 연동 가능
-- `crawl_and_analyze/image_analyzer.py`: GPT-5-mini Vision 기반 브랜드 이미지 분석기
-  - 로컬 이미지 폴더를 입력으로 받아 개별 이미지 분석 (색감·구도·분위기) 수행
-  - 분석 결과를 종합하여 브랜드 톤앤매너 가이드라인 도출
-  - 결과를 `image_crawled/{계정명}/brand_analysis.json` 에 저장
-  - RGBA PNG → RGB JPEG 자동 변환 처리
-  - `responses` API 사용 (gpt-5-mini는 reasoning 모델로 chat completions 미지원)
-- **목적**: 신제품 출시 광고 제작 시 기존 브랜드 광고 무드·톤을 참고하기 위한 기반 구축
-
-```bash
-# 사용법 (image_crawled/{계정명}/ 폴더에 이미지 직접 배치 후 실행)
-cd crawl_and_analyze
-python image_analyzer.py --dir image_crawled/torriden_official --limit 9
-```
-
-## 1. 프로젝트 소개
-마케팅 전담 인력이 부족한 소상공인(1인 사업자, 초기 창업자)을 위해 자체적으로 광고 문구와 이미지를 손쉽게 생성하고, **인스타그램에 바로 자동 업로드까지** 할 수 있는 생성형 AI 서비스입니다. 
-빠른 기획 및 MVP 검증을 목적으로 1인 개발 환경에서 구축되었으며, 입력 화면부터 API 연동, 인스타 피드 포스팅까지 단일 페이지에서 원활하게 동작하도록 구성되었습니다.
-
-## 2. 문제 정의
-- **시간과 인력 부족**: 소상공인은 제품 개발과 매장 운영만으로도 시간이 빠듯하여 마케팅 콘텐츠 기획에 많은 시간을 투자하기 어렵습니다.
-- **디자인 역량 부족**: 상용 툴을 학습하거나 전문 디자이너를 고용하기에는 비용과 러닝커브가 높습니다.
-- **비용 문제**: 지속적인 온/오프라인 홍보를 위해 배너, 전단지, SNS 피드 등을 매번 외주 대행사에 맡기면 큰 고정 비용이 발생합니다.
-
-**💡 해결책:** 제품명과 간단한 설명, 그리고 원하는 분위기(스타일)만 고르면 AI가 광고 텍스트와 썸네일을 즉석에서 만들어주는 직관적인 솔루션을 제공합니다.
-
-## 3. 주요 기능
-
-1. **전략적 홍보 문구 생성**: 상품명과 상세 정보는 물론, '신상품 홍보', '할인 행사' 등 **마케팅 목적(Goal)**에 최적화된 카피를 생성합니다.
-2. **AI 광고 비주얼 생성**: 선택한 홍보 목적과 스타일에 맞춰 상업용 광고 수준의 이미지를 생성하며, 업로드한 사진의 구도와 색감을 참고합니다.
-3. **인스타그램 피드 & 스토리 최적화**: 
-    - **피드(1:1)**: 게시물용 캡션과 해시태그를 포함한 업로드 지원.
-    - **스토리(9:16)**: 생성된 문구를 이미지 위에 아름답게 합성하여 즉시 업로드 가능한 세로형 콘텐츠 제작.
-4. **콘텐츠 히스토리 관리**: 과거에 만들었던 멋진 홍보물들을 언제든 다시 확인하고 다운로드할 수 있습니다.
-- **직관적인 콘텐츠 입력**: 상품명(필수), 상품 설명(선택), 5가지 광고 스타일(기본, 감성, 고급, 유머, 심플) 중 선택.
-- **광고 문구 자동 생성**: 선택한 톤앤매너에 맞춘 3가지 짧은 광고 카피와 2개의 확장형 홍보 문장 제공.
-- **광고 이미지 자동 생성**: 입력된 정보와 스타일을 기반으로 AI가 알맞은 프롬프트를 재구성하여 광고용 1:1 썸네일(1024x1024) 생성.
-- **재생성 및 다운로드**: 결과물이 마음에 들지 않을 시 원클릭 `재생성` 기능 및 생성물을 `.txt`, `.png` 파일로 로컬 스토리지에 다운로드 지원.
-- **[NEW] 히스토리 아카이브**: 내가 생성했던 모든 광고 문구와 이미지가 SQLite 데이터베이스에 비동기로 자동 저장되며, 언제든지 `히스토리 아카이브` 탭에서 다시 열람하고 다운로드할 수 있습니다.
-- **[NEW] 한글 자동 번역 & 다중 벤더 파이프라인**: 오픈소스 이미지 AI의 한글 인식 한계를 극복하기 위해, 사용자가 한글을 입력하면 GPT-5-mini가 고품질의 영어 프롬프트로 실시간 번역하여 Hugging Face(FLUX/SDXL) 모델에 전달합니다. 사장님은 영어 걱정 없이 100% 한국어로만 편리하게 쓸 수 있습니다.
-- **안전한 모드 전환**: 무분별한 API 토큰 비용을 방지하기 위해 로컬 테스트 전용 데이터(더미 마크다운, 그라데이션 Pillow 썸네일)를 반환하는 Mock 검증 모드 내장.
-
-## 4. 기술 스택
-- **Language**: Python 3.11+
-- **Frontend / UI**: Streamlit `1.30+`
-- **Backend / Datatype**: Pydantic `2.0+`, Pydantic-Settings `2.0+`
-- **Database / ORM**: `SQLAlchemy 2.0+`, `aiosqlite` (SQLite 기반 비동기 처리)
-- **AI / External API**: `openai>=1.40`, `httpx`
-- **Image Processing**: `Pillow` (JPEG 변환 및 Mock 모드)
-- **브랜드 분석 / 크롤링 실험**: `instaloader`, GPT-5-mini Vision (`responses` API)
-- **Instagram 연동**: `requests` (Meta Graph API · FreeImage.host API)
-
-## 5. 디렉토리 구조
 ```text
-.
-├── app.py                   # Streamlit 메인 파일 (새로 만들기 / 아카이브 멀티 탭 및 UI 라우팅)
-├── worker_api.py            # GCP VM에서 실행하는 이미지 생성 워커 API
-├── config/
-│   ├── __init__.py
-│   ├── database.py          # SQLAlchemy 비동기 세션 팩토리 및 DB 초기화 (절대경로)
-│   └── settings.py          # 환경변수(.env) 로드 및 앱 런타임 설정 관리
-├── backends/                # 이미지/텍스트 생성 백엔드 (1파일 1모듈)
-│   ├── image_base.py        # ImageBackend 프로토콜
-│   ├── text_base.py         # TextBackend 프로토콜
-│   ├── registry.py          # 환경 변수 기반 백엔드 선택 팩토리
-│   ├── hf_sd15.py           # SD 1.5 txt2img (Hugging Face diffusers)
-│   ├── hf_ip_adapter.py     # SD 1.5 + IP-Adapter
-│   ├── hf_img2img.py        # SD 1.5 img2img
-│   ├── hf_hybrid.py         # IP-Adapter + img2img 하이브리드
-│   ├── hf_inference_api.py  # Hugging Face Serverless Inference API
-│   ├── openai_gpt.py        # OpenAI GPT 텍스트 생성
-│   ├── remote_worker.py     # 자체 원격 워커 호출 (worker_api.py)
-│   ├── insta_capture.py     # browser-use CLI 기반 인스타 프로필 헤드리스 캡처 (온보딩)
-│   ├── mock_image.py        # Mock 이미지 (Pillow 그라데이션)
-│   └── mock_text.py         # Mock 텍스트 (스타일별 하드코딩)
-├── models/                  # ORM (SQLAlchemy)
-│   ├── __init__.py          # 신규 모델 re-export
-│   ├── base.py              # Base + TimestampMixin
-│   ├── brand_image.py       # 브랜드 정체성 (불변, system prompt 역할)
-│   ├── product.py           # 상품 + raw 이미지 (화장 전)
-│   └── generated_upload.py  # 생성 결과 + 인스타 메타 (화장 후, 참조 이미지 풀)
-├── schemas/
-│   ├── instagram_schema.py  # 인스타 캡션/해시태그 Pydantic 모델
-│   ├── image_schema.py      # 이미지 생성 입출력 (참조 경로 리스트 포함)
-│   └── text_schema.py       # 문구 생성 입출력
-├── services/
-│   ├── brand_image_service.py  # CRUD + 불변 정책 (두 번째 create → 에러)
-│   ├── product_service.py      # CRUD + 이름 검색
-│   ├── upload_service.py       # CRUD + list_published (참조 풀)
-│   ├── onboarding_service.py   # 캡처 → Vision 분석 → BrandImageDraft → 저장
-│   ├── instagram_service.py    # Meta Graph + FreeImage 업로드 + post id 기록
-│   ├── image_service.py        # 백엔드 오케스트레이션 + 프롬프트 번역 + 참조 해석
-│   ├── text_service.py         # 백엔드 오케스트레이션
-│   └── caption_service.py      # 인스타 캡션 생성 (Mock 분기 포함)
-├── ui/
-│   ├── sidebar.py           # 로컬 모델 실험용 사이드바 설정 UI
-│   ├── onboarding.py        # 2단계 온보딩 화면 (입력 → 검수)
-│   └── reference_gallery.py # 참조 이미지 갤러리 (3-컬럼 썸네일 + 체크박스)
-├── utils/
-│   ├── prompt_builder.py    # 사용자의 입력을 AI System/User 프롬프트로 변환
-│   ├── goal_categories.py   # 광고 목적 칩 6종 단일 소스
-│   ├── async_runner.py      # Streamlit 환경 안전 async 실행 (중첩 루프 대응)
-│   └── staging_storage.py   # 업로드 파일 즉시 staging 저장 유틸
-├── tests/                   # pytest (인메모리 SQLite + async)
-│   ├── conftest.py
-│   ├── test_backends/       # insta_capture 등
-│   ├── test_models/         # ORM 3종
-│   ├── test_schemas/        # image_schema reference_image_paths
-│   ├── test_services/       # brand_image / product / upload / caption / onboarding / instagram / image_service_reference
-│   └── test_utils/          # async_runner / goal_categories / staging_storage
-├── compass/                 # 리팩터링 베이스 문서
-│   ├── context.md           # 현 상태, 디렉토리 구조, 비기능 요구사항
-│   ├── plan.md              # Phase 1/2 step별 계획 + 회고
-│   └── checklist.md         # 체크박스 기반 세부 진행
-├── docs/                    # 설계 문서
-│   ├── design.md            # (최신) 시스템 설계 — 본 문서가 PRD/architecture 보다 우선
-│   ├── PRD.md               # (구) 초기 기획
-│   └── architecture.md      # (구) 초기 아키텍처
-├── .env                     # [Local] 환경 변수 및 보안 키 (Git 제외 대상)
-├── requirements.txt         # 패키지 의존성 명세
-├── pyproject.toml           # uv 기반 의존성 정의 (+ [dependency-groups] dev)
-├── uv.lock                  # uv lockfile
-└── README.md                # 프로젝트 가이드
+Mobile browser / PWA
+  -> https://brewgram.duckdns.org
+  -> Caddy (:80/:443)
+  -> mobile_app.py (127.0.0.1:8011)
+  -> SQLite/files (/srv/brewgram/data)
 ```
 
-## 6. 실행 방식 개요
-- **로컬 앱 모드**: 각 팀원이 자기 브랜치에서 `app.py`를 실행합니다.
-- **공용 VM 워커 모드**: 이미지 생성만 GCP VM의 `worker_api.py`가 처리합니다.
-- **권장 협업 구조**: 텍스트 생성/화면/UI 실험은 각자 로컬에서 하고, 이미지 생성은 공용 VM 1대를 공유합니다.
+이미지 생성은 환경변수에 따라 두 방식 중 하나로 동작합니다.
 
-## 7. 패키지 설치
-```bash
-# 1. Python 3.12 가상환경 생성
-uv venv --python 3.12 venv
+```text
+IMAGE_BACKEND_KIND=openai_image
+  -> mobile_app.py가 OpenAI 이미지 API를 직접 호출
+  -> worker_api.py 불필요
 
-# 2. 활성화
-source venv/bin/activate
-
-# 3. 패키지 설치
-UV_CACHE_DIR=.uv-cache uv sync
+IMAGE_BACKEND_KIND=remote_worker
+  -> mobile_app.py가 worker_api.py(127.0.0.1:8010)를 호출
+  -> worker_api.py가 hf_local / hf_remote_api / mock 백엔드로 이미지 생성
 ```
 
-## 8. 환경 변수 설정
-`.env` 파일은 **로컬 앱용**과 **GCP VM 워커용**을 분리해서 관리합니다. 값 변경 후에는 해당 프로세스를 재시작해야 반영됩니다.
+현재 VM 데모에서는 `openai_image` 경로를 주로 사용합니다. `worker_api.py`는 로컬 diffusers/Hugging Face 워커 모드가 필요할 때만 띄웁니다.
 
-### 8-1. 로컬 앱용 `.env`
-팀원 각자의 로컬 저장소에서 사용하는 설정입니다. `IMAGE_BACKEND=remote`를 넣으면 이미지 생성만 GCP VM 워커로 보냅니다.
+## 주요 기능
+
+- 브랜드 온보딩: 브랜드 이름, 색상, 분위기, 설명, 로고, 직접 업로드한 스크린샷을 기반으로 브랜드 분석 글을 생성합니다.
+- 인스타 레퍼런스 캡처: VM IP가 Instagram 429에 막히는 경우를 피하기 위해 Mac 로컬 캡처 워커를 Cloudflare Tunnel로 연결할 수 있습니다.
+- 상품 생성 플로우: 신상품 여부를 먼저 선택하고, 신상품이면 상품 사진을 업로드합니다. 기존 상품이면 DB에 저장된 기존 상품 이미지를 재사용합니다.
+- 광고 생성: 텍스트만, 이미지만, 텍스트+이미지 생성을 지원합니다.
+- 인스타 업로드: `.env`의 기본 업로드 계정 fallback을 모바일 업로드에서 사용하지 않습니다. 반드시 사용자가 OAuth로 연결한 Instagram professional account에만 게시합니다.
+- Langfuse 추적: 브라우저별 익명 `client_id`와 세션 ID를 요청 헤더로 보내 모바일 생성·캡션·업로드 흐름을 추적합니다.
+
+## 핵심 파일
+
+```text
+mobile_app.py                         # FastAPI 모바일/PWA 진입점
+worker_api.py                         # 선택 사항: 내부 이미지 워커 API
+scripts/instagram_capture_worker.py   # 선택 사항: Mac 로컬 Instagram 캡처 워커
+stitch/                               # 모바일 정적 UI
+services/                             # 생성/온보딩/인스타/OAuth 서비스
+backends/                             # 이미지/텍스트 백엔드
+models/                               # SQLAlchemy ORM
+config/settings.py                    # 환경변수 설정
+docs/mobile_worker_workflow.md        # 모바일 생성/관측 흐름
+BREWGRAM_WORKER.md                    # VM 운영 가이드
+infra/                                # Caddy/systemd/deploy 템플릿
+```
+
+## VM 운영 env
+
+운영 env는 repo 밖에 둡니다.
+
+```text
+/etc/brewgram/mobile_app.env
+/etc/brewgram/worker_api.env
+/srv/brewgram/data/history.db
+```
+
+`/etc/brewgram/mobile_app.env` 핵심값:
 
 ```env
-# ── AI API Keys ──
-OPENAI_API_KEY=sk-proj-...  # 발급받은 실제 OpenAI API 키 입력
-
-# ── Application ──
-APP_ENV=development
-LOG_LEVEL=INFO
-USE_MOCK=false              # false: 실제 AI 모델 호출 / true: 로컬 가상 코드 반환
-
-# ── Model Settings ──
-TEXT_MODEL=gpt-5-mini       # 로컬 텍스트 생성에 사용
-IMAGE_BACKEND=remote        # 이미지 생성은 GCP VM 워커로 위임
-IMAGE_WORKER_URL=http://<STATIC_IP>:8005
-IMAGE_WORKER_TOKEN=<IMAGE_WORKER_TOKEN_PLACEHOLDER>
-IMAGE_WORKER_TIMEOUT=180
-
-# ── Instagram Upload Settings ──
-IMGBB_API_KEY=your-imgbb-key          # (레거시, 사용하지 않음)
-META_ACCESS_TOKEN=EAA...              # Facebook System User 영구 토큰
-INSTAGRAM_ACCOUNT_ID=178...           # 인스타그램 비즈니스 계정 ID
-
-# ── API Request Settings (안정성) ──
-TEXT_TIMEOUT=30.0          
-IMAGE_TIMEOUT=60.0         
-TEXT_TEMPERATURE=0.8       
-TEXT_MAX_TOKENS=1000       
-```
-
-### 8-2. GCP VM 워커용 `.env`
-이미지 생성 워커를 띄우는 VM에서 사용하는 설정입니다. **VM 워커에서는 `IMAGE_BACKEND=remote`를 넣지 마세요.** 워커가 자기 자신을 다시 호출하게 됩니다.
-
-#### A. Hugging Face 모델을 VM에서 사용할 때
-```env
-OPENAI_API_KEY=sk-proj-...
-HUGGINGFACE_API_KEY=hf_...
-
 APP_ENV=production
 LOG_LEVEL=INFO
-USE_MOCK=false
-USE_LOCAL_MODEL=false
+APP_DATA_DIR=/srv/brewgram/data
 
+OPENAI_API_KEY=...
 TEXT_MODEL=gpt-5-mini
-IMAGE_MODEL=black-forest-labs/FLUX.1-schnell
-IMAGE_WORKER_TOKEN=<IMAGE_WORKER_TOKEN_PLACEHOLDER>
-IMAGE_WORKER_HOST=0.0.0.0
-IMAGE_WORKER_PORT=8005
+TEXT_TIMEOUT=90.0
 
-TEXT_TIMEOUT=30
-IMAGE_TIMEOUT=120
+IMAGE_BACKEND_KIND=openai_image
+IMAGE_TIMEOUT=180.0
+
+FREEIMAGE_API_KEY=...
+META_APP_ID=...
+META_APP_SECRET=...
+TOKEN_ENCRYPTION_KEY=...
+META_REDIRECT_URI_MOBILE=https://brewgram.duckdns.org/api/mobile/instagram/callback
+
+LANGFUSE_PUBLIC_KEY=...
+LANGFUSE_SECRET_KEY=...
+LANGFUSE_HOST=https://us.cloud.langfuse.com/
+
+# 선택: Mac 로컬 Instagram 캡처 워커
+INSTAGRAM_CAPTURE_WORKER_URL=https://<cloudflare-tunnel>.trycloudflare.com
+INSTAGRAM_CAPTURE_WORKER_TOKEN=...
+INSTAGRAM_CAPTURE_WORKER_TIMEOUT=90.0
 ```
 
-#### B. 로컬 diffusers 모델을 VM에서 사용할 때
-```env
-OPENAI_API_KEY=sk-proj-...
+`remote_worker` 모드를 쓸 때만 추가:
 
+```env
+IMAGE_BACKEND_KIND=remote_worker
+IMAGE_WORKER_URL=http://127.0.0.1:8010
+IMAGE_WORKER_TOKEN=...
+IMAGE_WORKER_TIMEOUT=180.0
+```
+
+`/etc/brewgram/worker_api.env`는 `remote_worker` 모드를 쓸 때만 필요합니다.
+
+```env
 APP_ENV=production
 LOG_LEVEL=INFO
-USE_MOCK=false
-USE_LOCAL_MODEL=true
+APP_DATA_DIR=/srv/brewgram/data
 
+OPENAI_API_KEY=...
 TEXT_MODEL=gpt-5-mini
-LOCAL_BACKEND=ip_adapter   # ip_adapter | img2img | hybrid
-LOCAL_SD15_MODEL_ID=runwayml/stable-diffusion-v1-5
-LOCAL_INFERENCE_STEPS=18
-LOCAL_GUIDANCE_SCALE=7.5
-LOCAL_IP_ADAPTER_SCALE=0.6
-LOCAL_IMG2IMG_STRENGTH=0.5
 
-IMAGE_WORKER_TOKEN=<IMAGE_WORKER_TOKEN_PLACEHOLDER>
-IMAGE_WORKER_HOST=0.0.0.0
-IMAGE_WORKER_PORT=8005
+IMAGE_BACKEND_KIND=hf_local
+IMAGE_WORKER_HOST=127.0.0.1
+IMAGE_WORKER_PORT=8010
+IMAGE_WORKER_TOKEN=...
 ```
 
-### 8-3. 현재 어떤 모델이 실제로 쓰이는가
-- **로컬 앱**: `TEXT_MODEL`만 직접 사용합니다.
-- **이미지 생성 모델**: `IMAGE_BACKEND=remote`일 때는 **VM 워커의 `.env`**가 결정합니다.
-- VM에서 `USE_LOCAL_MODEL=false`면 `IMAGE_MODEL`이 실제 Hugging Face 모델입니다.
-- VM에서 `USE_LOCAL_MODEL=true`면 `LOCAL_BACKEND`와 `LOCAL_SD15_MODEL_ID` 기반의 diffusers 로컬 모델이 실제로 동작합니다.
+## VM 실행
 
-## 9. GCP VM 워커 실행
-### 9-1. GCP 방화벽 규칙
-GCP 콘솔에서 아래 값으로 인그레스 방화벽을 생성합니다.
-- 이름: `allow-img-worker-8005`
-- 네트워크: `default`
-- 대상: `지정된 대상 태그`
-- 대상 태그: `image-worker`
-- 소스 IPv4 범위: `0.0.0.0/0` (테스트용)
-- 프로토콜/포트: `TCP:8005`
-
-### 9-2. 워커 실행 명령어
-아래 명령어 블록 하나만 실행하면 됩니다. `IMAGE_WORKER_TOKEN`은 실제 값으로 바꿔서 VM의 `.env`에 넣어두세요.
+수동으로 VM에서 실행:
 
 ```bash
-cd /path/to/Gen_for_SmallBusiness
-source venv/bin/activate
-HF_HOME=.hf-cache \
-IMAGE_WORKER_TOKEN=<IMAGE_WORKER_TOKEN_PLACEHOLDER> \
-python worker_api.py
+cd ~/Gen_for_SmallBusiness
+git fetch origin
+git switch codex/oauth-only-mobile-upload
+git pull --ff-only origin codex/oauth-only-mobile-upload
+uv sync
+
+set -a
+source /etc/brewgram/mobile_app.env
+set +a
+uv run uvicorn mobile_app:app --host 127.0.0.1 --port 8011
 ```
 
-워커 기동 후 상태 확인:
+systemd로 운영 중이면:
 
 ```bash
-curl http://<STATIC_IP>:8005/health
+sudo systemctl restart brewgram-mobile.service
+sudo systemctl status brewgram-mobile.service --no-pager
 ```
 
-## 10. 로컬 앱 실행
-팀원 각자는 자기 브랜치에서 아래 명령으로 앱을 실행합니다.
+`remote_worker` 모드일 때만 worker도 함께 재시작합니다.
 
 ```bash
-cd /path/to/Gen_for_SmallBusiness
-source venv/bin/activate
-HF_HOME=.hf-cache streamlit run app.py
+sudo systemctl restart brewgram-worker.service brewgram-mobile.service
 ```
 
-## 11. mock / 실제 API 전환 방법
-**Mock 모드 (`USE_MOCK=true`)**
-- 개발 초기 UI/UX 검증용 테스트 모드입니다.
-- `text_service.py`와 `image_service.py` 내부의 하드코딩된 더미 텍스트 묶음과 `Pillow`로 그린 그라데이션 이미지를 즉시 반환합니다.
-- OpenAI API 호출 코스트가 전혀 들지 않으며, 인터넷 연결이나 API Key가 없어도 UI 전체 흐름을 테스트할 수 있습니다.
+## Mac Instagram 캡처 워커
 
-**원격 워커 모드 (`IMAGE_BACKEND=remote`)**
-- 로컬 앱은 이미지 생성을 직접 하지 않고 GCP VM의 `worker_api.py`를 호출합니다.
-- 팀원 각자는 로컬 브랜치를 유지한 채, 공용 VM 한 대를 이미지 생성 서버처럼 공유할 수 있습니다.
+Instagram이 GCP VM IP에서 429를 반환하면, Mac에서 로그인된 브라우저 세션으로 캡처하고 VM에는 이미지만 넘깁니다.
 
-**직접 API/로컬 모델 모드**
-- `IMAGE_BACKEND`를 비워두면 `USE_LOCAL_MODEL` 여부에 따라 Hugging Face 또는 diffusers 로컬 추론을 직접 사용합니다.
-- 인스타그램 업로드 버튼 클릭 시, 생성된 이미지를 JPEG 변환 → FreeImage.host 호스팅 → Meta Graph API를 거쳐 실제 인스타그램 피드에 자동 포스팅됩니다.
-- Streamlit 하단 푸터에 "모드: API"로 표시되어 현재 과금 요청 모드인지 명확하게 파악할 수 있습니다.
+Mac 최초 로그인:
 
-## 12. 예시 화면 흐름
-1. **입력 단계**: 사용자가 상품명란에 "수제 마카롱", 상품 설명란에 "프랑스 이즈니 버터와 동물성 생크림을 듬뿍 넣은", 스타일은 "감성"을 선택.
-2. **생성 단계**: 생성 버튼 클릭 시, "텍스트 모델을 생성하고 있습니다 (gpt-4o-mini)" 로딩 표출.
-3. **결과 출출 단계**: 
-   - [💡 광고 문구 3종] "🌸 작은 상자 속 피어나는 버터의 향, 당신의 일상에 건네는 수제 마카롱" 등
-   - [📣 홍보 문장 2종] "수제 마카롱이 가장 맛있는 오후 세 시, 따뜻한 커피 한 잔과 곁들여보세요..."
-4. **활용 단계**: 결과물이 적합하다면 `📥 문구 다운로드` 버튼으로 .txt 파일 저장. 톤앤매너 변경을 원하면 다시 옵션을 바꾸거나 `🔄 재생성` 버튼 클릭!
+```bash
+cd /Users/apple/Gen_for_SmallBusiness
+CAPTURE_WORKER_TOKEN="<TOKEN>" \
+CAPTURE_WORKER_HEADLESS=0 \
+uv run python scripts/instagram_capture_worker.py login
+```
 
-## 13. 향후 개선 방향
-- **문구+이미지 통합 동시 생성**: 현재는 텍스트와 이미지를 별도 생성하지마만, 사용성을 높이기 위해 텍스트 스토리를 배경으로 한 자동 병렬 호출 태스크 구조(async 파이프라인/Celery) 도입.
-- **다국어 글로벌 마케팅 시스템 연동**: 해외 플랫폼(아마존, 엣시, 쇼피) 판매자를 위해, 프롬프트를 영어, 일본어 등으로 파이프라인을 두 번 태워 번역 버전을 제공하는 LLM Chain 업그레이드.
-- **예약 업로드**: 날짜와 시간을 지정하여 예약된 시간에 자동으로 인스타그램에 포스팅하는 기능.
-- **다중 SNS 연동 확장**: 인스타그램 외에 네이버 블로그, 카카오 채널 등 추가 SNS에도 동시 업로드 가능하도록 플러그인 구조 확장.
-- **광고 성과 분석 대시보드**: 업로드한 게시물의 좋아요/댓글 수를 추적하여 어떤 콘텐츠가 효과적인지 분석해주는 기능.
+Mac 캡처 워커 실행:
+
+```bash
+cd /Users/apple/Gen_for_SmallBusiness
+CAPTURE_WORKER_TOKEN="<TOKEN>" \
+CAPTURE_WORKER_HEADLESS=1 \
+uv run uvicorn scripts.instagram_capture_worker:app --host 127.0.0.1 --port 8020
+```
+
+Cloudflare Tunnel:
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:8020
+```
+
+Tunnel URL을 VM의 `/etc/brewgram/mobile_app.env`에 `INSTAGRAM_CAPTURE_WORKER_URL`로 넣고 `mobile_app.py`를 재시작합니다.
+
+## OAuth 업로드 기준
+
+모바일 업로드는 OAuth 연결된 계정만 사용합니다.
+
+- `META_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID`가 env에 있어도 모바일 업로드 fallback으로 쓰지 않습니다.
+- 업로드 전 `brands.instagram_account_id`와 활성 `instagram_connections` 토큰이 필요합니다.
+- OAuth 자동 후보 목록에 원하는 계정이 없으면, UI에서 Instagram `@username`을 입력해 후보 중 해당 계정을 선택합니다.
+- 입력한 `@username`은 현재 Meta 로그인 계정이 접근 가능한 Facebook Page에 연결된 Instagram professional account 후보 안에서만 매칭됩니다.
+
+Meta 앱의 Valid OAuth Redirect URIs에는 최소 아래 값을 넣습니다.
+
+```text
+https://brewgram.duckdns.org/api/mobile/instagram/callback
+http://localhost:8501/
+```
+
+## 데이터 초기화
+
+DB만 초기화:
+
+```bash
+pkill -f "uvicorn mobile_app:app" || true
+cp /srv/brewgram/data/history.db /srv/brewgram/data/history.db.backup-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+rm -f /srv/brewgram/data/history.db
+```
+
+data 전체 초기화:
+
+```bash
+pkill -f "uvicorn mobile_app:app" || true
+cp -a /srv/brewgram/data /srv/brewgram/data.backup-$(date +%Y%m%d-%H%M%S)
+rm -rf /srv/brewgram/data
+install -d /srv/brewgram/data
+```
+
+systemd 운영이면 `pkill` 대신 `sudo systemctl stop/start brewgram-mobile.service`를 사용합니다.
+
+## 문서
+
+- [BREWGRAM_WORKER.md](BREWGRAM_WORKER.md): VM 운영 절차
+- [docs/mobile_worker_workflow.md](docs/mobile_worker_workflow.md): 생성/업로드/Langfuse 흐름
+- [docs/onboarding.md](docs/onboarding.md): 온보딩과 Instagram 캡처 흐름
+- [docs/schema.md](docs/schema.md): 현재 DB 스키마
+- [docs/schema_migration.md](docs/schema_migration.md): 구 스키마에서 신 스키마로의 변경점
+
+## 레거시 문서 주의
+
+`VM_WORKER.md`, `VM_RESTART.md`, `docs/architecture.md`, `docs/PRD.md`, `docs/stack.md`, `docs/design.md`, `docs/generation.md`는 과거 Streamlit 또는 “Mac local app + VM worker” 기준 내용이 섞여 있습니다. 현재 운영 기준은 이 README, `BREWGRAM_WORKER.md`, `docs/mobile_worker_workflow.md`를 우선합니다.
