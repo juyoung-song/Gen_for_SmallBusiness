@@ -35,8 +35,8 @@
       productDescription: "",
       goal: "브랜드 인지도",
       generationType: "both",
-      tone: "감성",
-      style: "감성",
+      tone: "기본",
+      style: "기본",
       productImage: null,
       referenceUrl: "",
       referenceImage: null,
@@ -47,8 +47,8 @@
     preferences: {
       notificationsEnabled: true,
       uploadPlaceholderEnabled: true,
-      defaultTone: "감성",
-      defaultStyle: "감성",
+      defaultTone: "기본",
+      defaultStyle: "기본",
     },
     history: [],
     meta: {
@@ -1972,8 +1972,8 @@
       setStatus(bootstrapStatus, error.message, "error");
     }
 
-    const effectiveTone = state.create.tone || state.preferences.defaultTone || "감성";
-    const effectiveStyle = state.create.style || state.preferences.defaultStyle || "감성";
+    const effectiveTone = state.create.tone || state.preferences.defaultTone || "기본";
+    const effectiveStyle = state.create.style || state.preferences.defaultStyle || "기본";
     const customGoalValue = PRESET_GOALS.includes(state.create.goal) ? "" : state.create.goal || "";
 
     productNameInput.value = state.create.productName || "";
