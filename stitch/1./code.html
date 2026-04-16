@@ -203,8 +203,9 @@
 </div>
 <!-- Logo Upload Card -->
 <div class="md:col-span-2 flex flex-col md:flex-row gap-8 items-center bg-surface p-8 rounded-xl custom-upload-dash paper-card">
-<div class="w-24 h-24 bg-surface-container-high rounded-full flex items-center justify-center shrink-0">
-<span class="material-symbols-outlined text-3xl text-outline-variant" data-icon="cloud_upload">cloud_upload</span>
+<div class="w-24 h-24 bg-surface-container-high rounded-full flex items-center justify-center shrink-0 overflow-hidden" id="brand-logo-preview-wrap">
+<span class="material-symbols-outlined text-3xl text-outline-variant" data-icon="cloud_upload" id="brand-logo-placeholder">cloud_upload</span>
+<img alt="로고 미리보기" class="hidden w-full h-full object-contain" id="brand-logo-preview"/>
 </div>
 <div class="text-center md:text-left flex-grow">
 <h4 class="text-on-surface font-bold mb-1">로고 업로드 (선택)</h4>

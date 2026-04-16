@@ -758,6 +758,16 @@
     const logoInput = selectOne("#brand-logo-input");
     const logoTrigger = selectOne("#brand-logo-trigger");
     const logoName = selectOne("#brand-logo-name");
+    const logoPreview = selectOne("#brand-logo-preview");
+    const logoPlaceholder = selectOne("#brand-logo-placeholder");
+
+    const showLogoPreview = (dataUrl) => {
+      if (logoPreview && dataUrl) {
+        logoPreview.src = dataUrl;
+        logoPreview.classList.remove("hidden");
+        logoPlaceholder?.classList.add("hidden");
+      }
+    };
 
     brandNameInput.value = state.onboarding.brandName || "";
     atmosphereInput.value = state.onboarding.brandAtmosphere || "";
@@ -794,6 +804,9 @@
 
     if (state.onboarding.logo?.name && logoName) {
       logoName.textContent = state.onboarding.logo.name;
+    }
+    if (state.onboarding.logo?.data_url) {
+      showLogoPreview(state.onboarding.logo.data_url);
     }
 
     brandNameInput?.addEventListener("input", (event) => {
@@ -845,6 +858,7 @@
       if (logoName) {
         logoName.textContent = payload.name;
       }
+      showLogoPreview(payload.data_url);
     });
 
     selectOne("#step1-next")?.addEventListener("click", () => {
