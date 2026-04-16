@@ -1026,13 +1026,6 @@
         navigate(PATHS.home);
         return;
       }
-      if (titleNode) {
-        titleNode.textContent = "사장님만의 홍보 도우미를 시작해볼까요?";
-      }
-      if (copyNode) {
-        copyNode.textContent =
-          "로고, 분위기, 참고 스타일을 차근차근 알려주시면 바로 메인 화면으로 이어집니다.";
-      }
       startButton?.addEventListener("click", () => navigate(PATHS.onboarding1));
     } catch (error) {
       setStatus(statusNode, error.message, "error");
