@@ -736,10 +736,22 @@
     button.setAttribute("aria-pressed", String(isOn));
   }
 
+  function parseMoodKeywords(value) {
+    return String(value || "")
+      .split(/[,，\n]/)
+      .map((keyword) => keyword.replace(/^#/, "").trim())
+      .filter(Boolean);
+  }
+
+  function formatMoodKeywords(keywords) {
+    return Array.from(new Set(keywords)).join(", ");
+  }
+
   function bindStep1() {
     const state = readState();
     const brandNameInput = selectOne("#brand-name-input");
     const atmosphereInput = selectOne("#brand-atmosphere-input");
+    const moodButtons = selectAll("[data-mood-chip]");
     const colorButtons = selectAll("[data-brand-color]");
     const customColorInput = selectOne("#brand-color-custom-input");
     const customColorTrigger = selectOne("#brand-color-custom-trigger");
@@ -764,7 +776,21 @@
       }
     };
 
+    const syncMoodButtons = () => {
+      const selected = new Set(parseMoodKeywords(atmosphereInput?.value));
+      moodButtons.forEach((button) => {
+        const isActive = selected.has(button.dataset.moodChip);
+        button.classList.toggle("ring-2", isActive);
+        button.classList.toggle("ring-[#ff8a7a]", isActive);
+        button.classList.toggle("ring-offset-2", isActive);
+        button.classList.toggle("ring-offset-white", isActive);
+        button.classList.toggle("brightness-95", isActive);
+        button.setAttribute("aria-pressed", String(isActive));
+      });
+    };
+
     setActiveColor(state.onboarding.brandColor);
+    syncMoodButtons();
 
     if (state.onboarding.logo?.name && logoName) {
       logoName.textContent = state.onboarding.logo.name;
@@ -776,6 +802,22 @@
 
     atmosphereInput?.addEventListener("input", (event) => {
       patchState({ onboarding: { brandAtmosphere: event.target.value } });
+      syncMoodButtons();
+    });
+
+    moodButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const keyword = button.dataset.moodChip;
+        if (!keyword || !atmosphereInput) return;
+        const keywords = parseMoodKeywords(atmosphereInput.value);
+        const nextKeywords = keywords.includes(keyword)
+          ? keywords.filter((item) => item !== keyword)
+          : [...keywords, keyword];
+        const nextValue = formatMoodKeywords(nextKeywords);
+        atmosphereInput.value = nextValue;
+        patchState({ onboarding: { brandAtmosphere: nextValue } });
+        syncMoodButtons();
+      });
     });
 
     colorButtons.forEach((button) => {
