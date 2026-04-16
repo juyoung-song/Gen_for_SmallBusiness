@@ -30,16 +30,19 @@ DEFAULT_SIZE = "1024x1024"
 # multi-input 프롬프트 빌더
 # ─────────────────────────────────────────────────────────────
 _MULTI_INPUT_GUIDANCE = (
-    "You are given THREE images:\n"
-    "  1) The FIRST image is the PRODUCT (base for transformation).\n"
-    "  2) The SECOND image is the brand LOGO (letter shapes to engrave).\n"
-    "  3) The THIRD image is the COMPOSITION REFERENCE (guideline for framing).\n"
+    "You are given UP TO THREE images:\n"
+    "  1) The FIRST image is the PRODUCT (café/bakery item) to be transformed.\n"
+    "  2) The SECOND image is the brand LOGO wordmark on white. Copy its exact letter shapes and color.\n"
+    "  3) (Optional) The THIRD image is a REFERENCE for composition/layout.\n"
     "\n"
-    "Task: Produce a single commercial advertisement based on the product photo.\n"
-    "The logo from the second image MUST appear naturally engraved, printed, or \n"
-    "integrated onto a physical surface (MUG, CUP, PLATE, PACKAGING, etc.) with \n"
-    "proper perspective and lighting. NEVER float it in mid-air.\n"
-    "Strictly follow the camera angle and subject placement of the third image.\n"
+    "Task: Generate a single commercial photography image. \n"
+    "- If the THIRD image is provided, strictly follow its camera angle, lens distance, and subject placement (ignore its subject and colors).\n"
+    "- The LOGO from the SECOND image MUST be naturally engraved or printed on exactly ONE prop surface (MUG, CUP, PLATE, PACKAGING, or TRAY). \n"
+    "- Match the perspective and lighting so the logo looks physically real.\n"
+    "\n"
+    "STRICT rules:\n"
+    "- Brand logo MUST only appear on prop surfaces, NEVER floating in the air.\n"
+    "- Preserve the EXACT spelling and typography of the logo.\n"
 )
 
 _TAIL_REMINDER = (
@@ -115,24 +118,30 @@ class OpenAIImageBackend:
             )
         logo_bytes = Path(logo_path).read_bytes()
         
-        images = [
+        final_prompt = build_multi_input_prompt(translated_prompt=request.prompt)
+
+        # Multi-input 구성 (1:상품, 2:로고, 3:참조-선택사항)
+        input_images = [
             ("product.png", request.image_data),
             ("logo.png", logo_bytes),
         ]
         
-        # 3번째 입력: 참조 이미지 (있을 경우)
+        # 만약 reference_image_paths가 있고, services/image_service가 
+        # analyze_reference_composition을 위해 request.image_data를 참조 이미지로 
+        # 이미 덮어썼다면, 실제로는 services/image_service에서 
+        # 원본 상품 이미지를 잃어버릴 위험이 있음.
+        # (현 시점 image_service.py 로직 상 resolve_reference_image_data가 
+        #  image_data를 참조 이미지로 교체함)
+        
+        # [수정] 참조 이미지도 함께 전달 (3번째 인풋)
         if request.reference_image_paths:
             ref_path = Path(request.reference_image_paths[0])
             if ref_path.exists():
-                images.append(("reference.png", ref_path.read_bytes()))
-            else:
-                logger.warning("참조 이미지 파일 누락: %s", ref_path)
-
-        final_prompt = build_multi_input_prompt(translated_prompt=request.prompt)
+                input_images.append(("reference.png", ref_path.read_bytes()))
 
         png_bytes = self._client.edit_images(
             model=self.model,
-            images=images,
+            images=input_images,
             prompt=final_prompt,
             size=self.size,
         )
