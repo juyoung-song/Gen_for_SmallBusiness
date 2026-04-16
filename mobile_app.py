@@ -357,6 +357,48 @@ async def _download_reference_image(reference_url: str) -> bytes:
     return response.content
 
 
+async def _capture_instagram_with_worker(instagram_url: str) -> list[Path]:
+    """Mac 로컬 캡처 워커가 노출되어 있으면 Instagram 캡처 이미지를 받아 저장한다."""
+    worker_url = settings.INSTAGRAM_CAPTURE_WORKER_URL.strip()
+    if not worker_url:
+        return []
+
+    endpoint = worker_url.rstrip("/")
+    if not endpoint.endswith("/capture"):
+        endpoint = f"{endpoint}/capture"
+
+    headers: dict[str, str] = {}
+    if settings.INSTAGRAM_CAPTURE_WORKER_TOKEN:
+        headers["Authorization"] = f"Bearer {settings.INSTAGRAM_CAPTURE_WORKER_TOKEN}"
+
+    async with httpx.AsyncClient(
+        timeout=settings.INSTAGRAM_CAPTURE_WORKER_TIMEOUT,
+        follow_redirects=True,
+    ) as client:
+        response = await client.post(
+            endpoint,
+            json={"url": instagram_url, "count": 2},
+            headers=headers,
+        )
+        response.raise_for_status()
+
+    payload = response.json()
+    images = payload.get("images") or []
+    saved_paths: list[Path] = []
+    for idx, image in enumerate(images[:4], start=1):
+        data_url = image.get("data_url") if isinstance(image, dict) else None
+        if not data_url:
+            continue
+        image_bytes, mime = _decode_data_url(data_url)
+        saved = save_to_staging(image_bytes, extension=_mime_to_extension(mime))
+        logger.info("Mac 캡처 워커 이미지 저장 (%d): %s", idx, saved)
+        saved_paths.append(saved)
+
+    if not saved_paths:
+        raise ValueError("Mac 캡처 워커가 이미지를 반환하지 않았습니다.")
+    return saved_paths
+
+
 def _relative_data_url(path_str: str | None) -> str | None:
     if not path_str:
         return None
@@ -1172,23 +1214,34 @@ async def complete_onboarding(
         analysis_images.append(saved)
 
     if instagram_url:
-        try:
-            from backends.insta_capture import InstaCaptureBackend
+        captured: list[Path] = []
+        if settings.INSTAGRAM_CAPTURE_WORKER_URL.strip():
+            try:
+                captured = await _capture_instagram_with_worker(instagram_url)
+                analysis_images.extend(captured)
+            except Exception as exc:  # pragma: no cover - 외부 Mac 워커 의존
+                logger.warning("모바일 온보딩 Mac 캡처 워커 실패: %s", exc)
+                warnings.append(
+                    "Mac 캡처 워커는 실패했지만, 입력한 내용과 업로드한 이미지로 계속 진행했습니다."
+                )
 
-            capture_backend = InstaCaptureBackend()
-            captured = await run_in_threadpool(
-                capture_backend.capture_profile,
-                instagram_url,
-                ONBOARDING_DIR,
-                2,
-            )
-            analysis_images.extend(captured)
-        except Exception as exc:  # pragma: no cover - 외부 캡처 의존
-            logger.warning("모바일 온보딩 캡처 실패: %s", exc)
-            warnings.append(
-                "인스타그램 캡처는 실패했지만, 입력한 내용과 업로드한 이미지로 계속 진행했습니다."
-            )
+        if not captured:
+            try:
+                from backends.insta_capture import InstaCaptureBackend
 
+                capture_backend = InstaCaptureBackend()
+                captured = await run_in_threadpool(
+                    capture_backend.capture_profile,
+                    instagram_url,
+                    ONBOARDING_DIR,
+                    2,
+                )
+                analysis_images.extend(captured)
+            except Exception as exc:  # pragma: no cover - 외부 캡처 의존
+                logger.warning("모바일 온보딩 캡처 실패: %s", exc)
+                warnings.append(
+                    "인스타그램 캡처는 실패했지만, 입력한 내용과 업로드한 이미지로 계속 진행했습니다."
+                )
     if analysis_images and settings.is_api_ready:
         analyzer = GPTVisionAnalyzer(settings)
         merged_freetext = _merge_structured_inputs_into_freetext(
