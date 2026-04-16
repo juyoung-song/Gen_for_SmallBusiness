@@ -1339,6 +1339,8 @@
     actionRow?.classList.add("hidden");
     storyChooser?.classList.add("hidden");
     uploadNote?.classList.add("hidden");
+    // 피드 미리보기/업로드 버튼은 캡션 생성 후에만 노출
+    uploadFeedButton?.classList.add("hidden");
 
     if (captionBlock) captionBlock.innerHTML = "";
     if (storyBlock) storyBlock.innerHTML = "";
@@ -1401,7 +1403,7 @@
           </div>
         </div>
       `;
-      previewBlock.classList.remove("hidden");
+      // 미리보기는 캡션 생성 후에만 노출됨 (hidden 유지)
     }
 
     if (result.text_result && textBlock) {
@@ -1972,6 +1974,7 @@
     const uploadNote = selectOne("#result-upload-note");
     const captionBlock = selectOne("#result-caption-block");
     const storyBlock = selectOne("#result-story-block");
+    const previewBlock = selectOne("#result-preview-block");
 
     try {
       const bootstrap = await api("/bootstrap");
@@ -2273,6 +2276,9 @@
           </div>
         `;
         captionBlock.classList.remove("hidden");
+        // 캡션 생성 성공 시에만 인스타 피드 미리보기 + 업로드 버튼 노출
+        previewBlock?.classList.remove("hidden");
+        uploadFeedButton?.classList.remove("hidden");
         updateLastHistory({ captionReady: true });
         setStatus(bootstrapStatus, "피드 캡션이 준비되었습니다.", "success");
       } catch (error) {
