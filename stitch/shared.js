@@ -2286,6 +2286,19 @@
         if (uploadNote && uploadNote.innerHTML.trim()) {
           uploadNote.classList.remove("hidden");
         }
+        // 인스타 미리보기의 캡션 영역을 생성된 캡션 + 해시태그로 교체 (Streamlit 방식)
+        const igCaptionNode = previewBlock?.querySelector(".ig-caption");
+        if (igCaptionNode) {
+          const stateForPreview = readState();
+          const brandName = lastBootstrap?.brand?.brand_name || stateForPreview.onboarding.brandName || "우리 가게";
+          const previewHandle = parseInstagramHandle(stateForPreview.onboarding.instagramUrl, brandName);
+          const captionHtml = escapeHtml(caption.caption || "").replace(/\n/g, "<br>");
+          const tagsHtml = escapeHtml(caption.hashtags || "");
+          igCaptionNode.innerHTML = `
+            <b>${escapeHtml(previewHandle)}</b> ${captionHtml}
+            ${tagsHtml ? `<div style="color:#00376b; margin-top:6px;">${tagsHtml}</div>` : ""}
+          `;
+        }
         updateLastHistory({ captionReady: true });
         setStatus(captionStatus, "피드 캡션이 준비되었습니다.", "success");
       } catch (error) {
