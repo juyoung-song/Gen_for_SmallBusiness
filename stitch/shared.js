@@ -1946,6 +1946,19 @@
     const productImageTrigger = selectOne("#create-product-image-trigger");
     const productImageInput = selectOne("#create-product-image-input");
     const productImageStatus = selectOne("#create-product-image-status");
+    const productImageThumb = selectOne("#create-product-image-thumb");
+    const productImageThumbWrap = selectOne("#create-product-image-thumb-wrap");
+
+    const showProductImagePreview = (dataUrl) => {
+      if (!productImageThumb || !productImageThumbWrap) return;
+      if (dataUrl) {
+        productImageThumb.src = dataUrl;
+        productImageThumbWrap.classList.remove("hidden");
+      } else {
+        productImageThumb.removeAttribute("src");
+        productImageThumbWrap.classList.add("hidden");
+      }
+    };
     const referenceUrlInput = selectOne("#create-reference-url");
     const referenceTrigger = selectOne("#create-reference-trigger");
     const referenceInput = selectOne("#create-reference-input");
@@ -1985,6 +1998,9 @@
 
     if (state.create.productImage && productImageStatus) {
       productImageStatus.textContent = `${state.create.productImage.name} 파일이 상품 사진으로 연결되어 있어요.`;
+    }
+    if (state.create.productImage?.data_url) {
+      showProductImagePreview(state.create.productImage.data_url);
     }
 
     if (state.create.referenceImage && referenceStatus) {
@@ -2163,6 +2179,7 @@
       if (productImageStatus) {
         productImageStatus.textContent = `${payload.name} 파일이 상품 사진으로 업로드 준비되었습니다.`;
       }
+      showProductImagePreview(payload.data_url);
     });
 
     referenceTrigger?.addEventListener("click", () => referenceInput?.click());
