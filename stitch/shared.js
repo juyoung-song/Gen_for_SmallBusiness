@@ -1981,7 +1981,7 @@
     toneSelect.value = effectiveTone;
     styleSelect.value = effectiveStyle;
     if (customGoalInput) customGoalInput.value = customGoalValue;
-    referenceUrlInput.value = state.create.referenceUrl || "";
+    if (referenceUrlInput) referenceUrlInput.value = state.create.referenceUrl || "";
 
     if (state.create.productImage && productImageStatus) {
       productImageStatus.textContent = `${state.create.productImage.name} 파일이 상품 사진으로 연결되어 있어요.`;
