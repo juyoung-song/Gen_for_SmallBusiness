@@ -160,6 +160,10 @@ mock_instagram_upload.json
 *.png
 *.jpg
 *.jpeg
+
+# PWA assets — 추적 필수
+!stitch/brand-badge.png
+!stitch/icons/*.png
 *.db
 
 # Local model cache (HuggingFace weights, large binary files)
