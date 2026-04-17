@@ -862,11 +862,21 @@
     }
 
     brandNameInput?.addEventListener("input", (event) => {
-      patchState({ onboarding: { brandName: event.target.value } });
+      patchState({
+        onboarding: {
+          brandName: event.target.value,
+          analysisContent: "",
+        },
+      });
     });
 
     atmosphereInput?.addEventListener("input", (event) => {
-      patchState({ onboarding: { brandAtmosphere: event.target.value } });
+      patchState({
+        onboarding: {
+          brandAtmosphere: event.target.value,
+          analysisContent: "",
+        },
+      });
       syncMoodButtons();
     });
 
@@ -880,7 +890,12 @@
           : [...keywords, keyword];
         const nextValue = formatMoodKeywords(nextKeywords);
         atmosphereInput.value = nextValue;
-        patchState({ onboarding: { brandAtmosphere: nextValue } });
+        patchState({
+          onboarding: {
+            brandAtmosphere: nextValue,
+            analysisContent: "",
+          },
+        });
         syncMoodButtons();
       });
     });
@@ -890,7 +905,12 @@
       button.addEventListener("click", () => {
         const value = button.dataset.brandColor;
         setActiveColor(value);
-        patchState({ onboarding: { brandColor: value } });
+        patchState({
+          onboarding: {
+            brandColor: value,
+            analysisContent: "",
+          },
+        });
       });
     });
 
@@ -898,7 +918,12 @@
     customColorInput?.addEventListener("input", (event) => {
       const value = event.target.value;
       setActiveColor(value);
-      patchState({ onboarding: { brandColor: value } });
+      patchState({
+        onboarding: {
+          brandColor: value,
+          analysisContent: "",
+        },
+      });
     });
 
     logoTrigger?.addEventListener("click", () => logoInput?.click());
@@ -906,7 +931,12 @@
       const [file] = event.target.files || [];
       if (!file) return;
       const payload = await fileToPayload(file);
-      patchState({ onboarding: { logo: payload } });
+      patchState({
+        onboarding: {
+          logo: payload,
+          analysisContent: "",
+        },
+      });
       if (logoName) {
         logoName.textContent = payload.name;
       }
