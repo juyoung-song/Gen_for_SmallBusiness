@@ -842,6 +842,7 @@
 
     if (state.onboarding.logo?.name && logoName) {
       logoName.textContent = state.onboarding.logo.name;
+      logoName.classList.remove("hidden");
     }
     if (state.onboarding.logo?.data_url) {
       showLogoPreview(state.onboarding.logo.data_url);
@@ -895,6 +896,7 @@
       patchState({ onboarding: { logo: payload } });
       if (logoName) {
         logoName.textContent = payload.name;
+        logoName.classList.remove("hidden");
       }
       showLogoPreview(payload.data_url);
     });

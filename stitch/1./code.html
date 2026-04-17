@@ -203,9 +203,12 @@
 </div>
 <!-- Logo Upload Card -->
 <div class="md:col-span-2 flex flex-col md:flex-row gap-8 items-center bg-surface p-8 rounded-xl custom-upload-dash paper-card">
-<div class="w-24 h-24 bg-surface-container-high rounded-full flex items-center justify-center shrink-0 overflow-hidden" id="brand-logo-preview-wrap">
+<div class="flex flex-col items-center gap-2 shrink-0">
+<div class="w-24 h-24 bg-surface-container-high rounded-full flex items-center justify-center overflow-hidden" id="brand-logo-preview-wrap">
 <span class="material-symbols-outlined text-3xl text-outline-variant" data-icon="cloud_upload" id="brand-logo-placeholder">cloud_upload</span>
 <img alt="로고 미리보기" class="hidden w-full h-full object-contain" id="brand-logo-preview"/>
+</div>
+<p class="text-xs text-on-surface-variant text-center max-w-[9rem] truncate hidden" id="brand-logo-name"></p>
 </div>
 <div class="text-center md:text-left flex-grow" id="brand-logo-guide">
 <h4 class="text-on-surface font-bold mb-1">로고 업로드 (선택)</h4>
@@ -213,7 +216,6 @@
 </div>
 <div class="flex flex-col items-end gap-2">
 <button class="px-8 py-3 bg-secondary-container text-on-secondary-container font-bold rounded-full hover:bg-secondary-fixed-dim transition-colors active:scale-95" id="brand-logo-trigger" type="button">파일 찾기</button>
-<p class="text-xs text-on-surface-variant" id="brand-logo-name">아직 선택된 로고가 없어요.</p>
 </div>
 <input accept="image/*" class="hidden" id="brand-logo-input" type="file"/>
 </div>
