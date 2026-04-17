@@ -12,8 +12,8 @@
     settings: "/stitch/settings.html",
     create: "/stitch/4._2/code.html",
     onboarding1: "/stitch/1./code.html",
-    onboarding2: "/stitch/2./code.html",
-    onboarding3: "/stitch/3./code.html",
+    onboarding2: "/stitch/3./code.html",
+    onboarding3: "/stitch/2./code.html",
     onboarding4: "/stitch/onboarding-instagram.html",
   };
   const PRESET_GOALS = ["신제품 출시", "브랜드 인지도", "이벤트 홍보", "매장 방문 유도"];
@@ -35,8 +35,8 @@
       productDescription: "",
       goal: "브랜드 인지도",
       generationType: "both",
-      tone: "감성",
-      style: "감성",
+      tone: "기본",
+      style: "기본",
       productImage: null,
       referenceUrl: "",
       referenceImage: null,
@@ -47,8 +47,8 @@
     preferences: {
       notificationsEnabled: true,
       uploadPlaceholderEnabled: true,
-      defaultTone: "감성",
-      defaultStyle: "감성",
+      defaultTone: "기본",
+      defaultStyle: "기본",
     },
     history: [],
     meta: {
@@ -766,6 +766,16 @@
     const logoInput = selectOne("#brand-logo-input");
     const logoTrigger = selectOne("#brand-logo-trigger");
     const logoName = selectOne("#brand-logo-name");
+    const logoPreview = selectOne("#brand-logo-preview");
+    const logoPlaceholder = selectOne("#brand-logo-placeholder");
+
+    const showLogoPreview = (dataUrl) => {
+      if (logoPreview && dataUrl) {
+        logoPreview.src = dataUrl;
+        logoPreview.classList.remove("hidden");
+        logoPlaceholder?.classList.add("hidden");
+      }
+    };
 
     brandNameInput.value = state.onboarding.brandName || "";
     atmosphereInput.value = state.onboarding.brandAtmosphere || "";
@@ -802,6 +812,9 @@
 
     if (state.onboarding.logo?.name && logoName) {
       logoName.textContent = state.onboarding.logo.name;
+    }
+    if (state.onboarding.logo?.data_url) {
+      showLogoPreview(state.onboarding.logo.data_url);
     }
 
     brandNameInput?.addEventListener("input", (event) => {
@@ -853,6 +866,7 @@
       if (logoName) {
         logoName.textContent = payload.name;
       }
+      showLogoPreview(payload.data_url);
     });
 
     selectOne("#step1-next")?.addEventListener("click", () => {
@@ -867,73 +881,32 @@
   }
 
   function bindStep2() {
+    // step2 = 스타일 레퍼런스 페이지 (/stitch/2./code.html, STEP 03/04)
+    // 인스타 링크 입력 + "분석하기" → /onboarding/complete API 호출 → 결과 panel 표시
+    // → 다시 클릭 시 다음 단계(인스타 연결)로 이동.
     const state = readState();
     const instagramInput = selectOne("#instagram-url-input");
     const imageInput = selectOne("#reference-image-input");
     const imageTrigger = selectOne("#reference-image-trigger");
     const imageStatus = selectOne("#reference-image-status");
-
-    instagramInput.value = state.onboarding.instagramUrl || "";
-    if (state.onboarding.referenceImages.length && imageStatus) {
-      imageStatus.textContent = `${state.onboarding.referenceImages.length}장의 참고 이미지가 선택되어 있습니다.`;
-    }
-
-    instagramInput?.addEventListener("input", (event) => {
-      patchState({ onboarding: { instagramUrl: event.target.value } });
-    });
-
-    imageTrigger?.addEventListener("click", () => imageInput?.click());
-    imageInput?.addEventListener("change", async (event) => {
-      const files = Array.from(event.target.files || []).slice(0, 4);
-      if (!files.length) return;
-      const payloads = await Promise.all(files.map(fileToPayload));
-      patchState({ onboarding: { referenceImages: payloads } });
-      if (imageStatus) {
-        imageStatus.textContent = `${payloads.length}장의 참고 이미지를 저장했어요.`;
-      }
-    });
-
-    selectOne("#step2-next")?.addEventListener("click", () => {
-      navigate(PATHS.onboarding3);
-    });
-    selectOne("#step2-skip")?.addEventListener("click", () => {
-      patchState({ onboarding: { instagramUrl: "", referenceImages: [] } });
-      navigate(PATHS.onboarding3);
-    });
-    selectOne("#step2-back")?.addEventListener("click", () => {
-      navigate(PATHS.onboarding1);
-    });
-  }
-
-  function bindStep3() {
-    const state = readState();
-    const descriptionInput = selectOne("#brand-description");
-    const submitButton = selectOne("#step3-submit");
-    const prevButton = selectOne("#step3-prev");
+    const submitButton = selectOne("#step2-next");
+    const skipButton = selectOne("#step2-skip");
     const statusNode = selectOne("#onboarding-status");
     const analysisPanel = selectOne("#onboarding-analysis-panel");
     const analysisTextNode = selectOne("#onboarding-analysis-text");
     const analysisBadgeNode = selectOne("#onboarding-analysis-badge");
 
-    descriptionInput.value = state.onboarding.brandDescription || "";
-    descriptionInput?.addEventListener("input", (event) => {
-      patchState({
-        onboarding: {
-          brandDescription: event.target.value,
-          analysisContent: "",
-        },
-      });
-      analysisPanel?.classList.add("hidden");
-      if (analysisTextNode) {
-        analysisTextNode.textContent = "";
-      }
-      if (analysisBadgeNode) {
-        analysisBadgeNode.textContent = "분석 대기";
-      }
-      if (submitButton) {
-        submitButton.innerHTML = '분석하기 <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>';
-      }
-    });
+    if (instagramInput) {
+      instagramInput.value = state.onboarding.instagramUrl || "";
+    }
+    if (state.onboarding.referenceImages?.length && imageStatus) {
+      imageStatus.textContent = `${state.onboarding.referenceImages.length}장의 참고 이미지가 선택되어 있습니다.`;
+    }
+
+    const setSubmitLabel = (label) => {
+      if (!submitButton) return;
+      submitButton.innerHTML = `${label} <span class="material-symbols-outlined text-xl">arrow_forward</span>`;
+    };
 
     const applyAnalysisContent = (analysisContent, status = "created") => {
       const content = String(analysisContent || "").trim();
@@ -941,7 +914,6 @@
         analysisPanel?.classList.add("hidden");
         return;
       }
-
       if (analysisTextNode) {
         analysisTextNode.textContent = content;
       }
@@ -949,75 +921,142 @@
         analysisBadgeNode.textContent = status === "existing" ? "기존 분석" : "AI 분석 완료";
       }
       analysisPanel?.classList.remove("hidden");
-      if (submitButton) {
-        submitButton.innerHTML = '다음 <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>';
-      }
+      setSubmitLabel("다음");
     };
 
+    // 초기 상태: 기존 분석 결과 있으면 바로 보여줌
     if (state.onboarding.analysisContent) {
       applyAnalysisContent(state.onboarding.analysisContent, "existing");
+    } else {
+      setSubmitLabel("분석하기");
     }
 
-    const submit = async (skipDescription) => {
+    instagramInput?.addEventListener("input", (event) => {
+      patchState({
+        onboarding: {
+          instagramUrl: event.target.value,
+          analysisContent: "",
+        },
+      });
+      analysisPanel?.classList.add("hidden");
+      if (analysisTextNode) analysisTextNode.textContent = "";
+      if (analysisBadgeNode) analysisBadgeNode.textContent = "분석 대기";
+      setSubmitLabel("분석하기");
+    });
+
+    imageTrigger?.addEventListener("click", () => imageInput?.click());
+    imageInput?.addEventListener("change", async (event) => {
+      const files = Array.from(event.target.files || []).slice(0, 4);
+      if (!files.length) return;
+      const payloads = await Promise.all(files.map(fileToPayload));
+      patchState({
+        onboarding: {
+          referenceImages: payloads,
+          analysisContent: "",
+        },
+      });
+      analysisPanel?.classList.add("hidden");
+      setSubmitLabel("분석하기");
+      if (imageStatus) {
+        imageStatus.textContent = `${payloads.length}장의 참고 이미지를 저장했어요.`;
+      }
+    });
+
+    const runAnalysis = async () => {
       const currentState = readState();
       if (currentState.onboarding.analysisContent) {
         navigate(PATHS.onboarding4);
         return;
       }
 
-      const nextState = patchState({
-        onboarding: {
-          brandDescription: skipDescription ? "" : descriptionInput.value,
-        },
-      });
-
-      submitButton.disabled = true;
-      if (prevButton) prevButton.disabled = true;
+      if (submitButton) submitButton.disabled = true;
+      if (skipButton) skipButton.disabled = true;
       setStatus(statusNode, "브랜드 가이드를 만드는 중입니다. 잠시만 기다려주세요.", "loading");
 
       try {
         const result = await api("/onboarding/complete", {
           method: "POST",
           body: {
-            brand_name: nextState.onboarding.brandName,
-            brand_color: nextState.onboarding.brandColor,
-            brand_atmosphere: nextState.onboarding.brandAtmosphere,
-            freetext: nextState.onboarding.brandDescription,
-            instagram_url: nextState.onboarding.instagramUrl,
-            logo: nextState.onboarding.logo,
-            reference_images: nextState.onboarding.referenceImages,
+            brand_name: currentState.onboarding.brandName,
+            brand_color: currentState.onboarding.brandColor,
+            brand_atmosphere: currentState.onboarding.brandAtmosphere,
+            freetext: currentState.onboarding.brandDescription,
+            instagram_url: currentState.onboarding.instagramUrl,
+            logo: currentState.onboarding.logo,
+            reference_images: currentState.onboarding.referenceImages,
           },
         });
         const analysisContent = result.brand?.content || "";
-        patchState({
-          onboarding: {
-            analysisContent,
-          },
-        });
+        patchState({ onboarding: { analysisContent } });
         applyAnalysisContent(analysisContent, result.status);
         setStatus(
           statusNode,
           result.status === "updated"
-            ? "브랜드 정보를 새 입력값으로 업데이트했습니다. 아래 분석을 확인하고 다음 단계로 이동하세요."
+            ? "브랜드 정보를 업데이트했습니다. 분석 결과를 확인하고 다음 단계로 이동하세요."
             : result.status === "existing"
-              ? "이미 저장된 브랜드가 있어 기존 분석을 그대로 보여드립니다. 확인 후 다음 단계로 이동하세요."
-              : "브랜드 세팅이 완료되었습니다. 아래 분석을 확인하고 다음 단계로 이동하세요.",
+              ? "이미 저장된 브랜드가 있어 기존 분석을 그대로 보여드립니다."
+              : "브랜드 세팅이 완료되었습니다. 분석 결과를 확인하고 다음 단계로 이동하세요.",
           "success",
         );
       } catch (error) {
         setStatus(statusNode, error.message, "error");
       } finally {
-        submitButton.disabled = false;
-        if (prevButton) prevButton.disabled = false;
+        if (submitButton) submitButton.disabled = false;
+        if (skipButton) skipButton.disabled = false;
       }
     };
 
-    submitButton?.addEventListener("click", () => submit(false));
-    prevButton?.addEventListener("click", () => {
+    submitButton?.addEventListener("click", runAnalysis);
+    skipButton?.addEventListener("click", () => {
+      patchState({
+        onboarding: {
+          instagramUrl: "",
+          referenceImages: [],
+          analysisContent: "",
+        },
+      });
+      runAnalysis();
+    });
+    selectOne("#step2-back")?.addEventListener("click", () => {
       navigate(PATHS.onboarding2);
     });
+  }
+
+  function bindStep3() {
+    // step3 = 가게 설명 입력 페이지 (/stitch/3./code.html, STEP 02/04)
+    // 단순히 brandDescription 을 state 에 저장하고 다음 페이지(스타일 레퍼런스)로 이동.
+    // 분석(API 호출)은 다음 페이지(bindStep2)에서 수행.
+    const state = readState();
+    const descriptionInput = selectOne("#brand-description");
+    const submitButton = selectOne("#step3-submit");
+    const prevButton = selectOne("#step3-prev");
+
+    if (descriptionInput) {
+      descriptionInput.value = state.onboarding.brandDescription || "";
+      descriptionInput.addEventListener("input", (event) => {
+        patchState({
+          onboarding: {
+            brandDescription: event.target.value,
+            analysisContent: "",
+          },
+        });
+      });
+    }
+
+    submitButton?.addEventListener("click", () => {
+      patchState({
+        onboarding: {
+          brandDescription: descriptionInput?.value || "",
+        },
+      });
+      navigate(PATHS.onboarding3);
+    });
+
+    prevButton?.addEventListener("click", () => {
+      navigate(PATHS.onboarding1);
+    });
     selectOne("#step3-back")?.addEventListener("click", () => {
-      navigate(PATHS.onboarding2);
+      navigate(PATHS.onboarding1);
     });
   }
 
@@ -1033,13 +1072,6 @@
       if (bootstrap.onboarding_completed) {
         navigate(PATHS.home);
         return;
-      }
-      if (titleNode) {
-        titleNode.textContent = "사장님만의 홍보 도우미를 시작해볼까요?";
-      }
-      if (copyNode) {
-        copyNode.textContent =
-          "로고, 분위기, 참고 스타일을 차근차근 알려주시면 바로 메인 화면으로 이어집니다.";
       }
       startButton?.addEventListener("click", () => navigate(PATHS.onboarding1));
     } catch (error) {
@@ -1315,6 +1347,11 @@
     actionRow?.classList.add("hidden");
     storyChooser?.classList.add("hidden");
     uploadNote?.classList.add("hidden");
+    // 피드 미리보기/업로드 버튼/캡션 상태는 캡션 생성 후에만 노출
+    uploadFeedButton?.classList.add("hidden");
+    const captionStatusResetNode = selectOne("#create-caption-status");
+    captionStatusResetNode?.classList.add("hidden");
+    if (captionStatusResetNode) captionStatusResetNode.textContent = "";
 
     if (captionBlock) captionBlock.innerHTML = "";
     if (storyBlock) storyBlock.innerHTML = "";
@@ -1377,7 +1414,7 @@
           </div>
         </div>
       `;
-      previewBlock.classList.remove("hidden");
+      // 미리보기는 캡션 생성 후에만 노출됨 (hidden 유지)
     }
 
     if (result.text_result && textBlock) {
@@ -1411,32 +1448,12 @@
       applyUploadButtonState();
     }
 
+    // 업로드 안내 문구(@계정 연결됨 ...)는 캡션 생성 후에만 노출되므로 여기서는 show 하지 않는다.
     if (preferenceUploadEnabled && uploadNote) {
       uploadNote.innerHTML = buildUploadPlaceholder(instagram, "feed").html;
-      uploadNote.className = "upload-note";
-      uploadNote.classList.remove("hidden");
+      uploadNote.className = "upload-note hidden";
     }
 
-    const storyCopies = result.text_result?.story_copies || [];
-    if (canStory && storyCopies.length && storyChooser) {
-      storyChooser.innerHTML = `
-        <div class="result-card">
-          <h3 class="result-card__title">스토리 문구 선택</h3>
-          <div class="copy-stack">
-            ${storyCopies
-              .map(
-                (copy, index) => `
-                  <label class="story-option">
-                    <input ${index === 0 ? "checked" : ""} type="radio" name="story-copy" value="${escapeHtml(copy)}" />
-                    <span>${escapeHtml(copy)}</span>
-                  </label>`,
-              )
-              .join("")}
-          </div>
-        </div>
-      `;
-      storyChooser.classList.remove("hidden");
-    }
   }
 
   function renderHome(bootstrap) {
@@ -1922,6 +1939,19 @@
     const productImageTrigger = selectOne("#create-product-image-trigger");
     const productImageInput = selectOne("#create-product-image-input");
     const productImageStatus = selectOne("#create-product-image-status");
+    const productImageThumb = selectOne("#create-product-image-thumb");
+    const productImageThumbWrap = selectOne("#create-product-image-thumb-wrap");
+
+    const showProductImagePreview = (dataUrl) => {
+      if (!productImageThumb || !productImageThumbWrap) return;
+      if (dataUrl) {
+        productImageThumb.src = dataUrl;
+        productImageThumbWrap.classList.remove("hidden");
+      } else {
+        productImageThumb.removeAttribute("src");
+        productImageThumbWrap.classList.add("hidden");
+      }
+    };
     const referenceUrlInput = selectOne("#create-reference-url");
     const referenceTrigger = selectOne("#create-reference-trigger");
     const referenceInput = selectOne("#create-reference-input");
@@ -1935,6 +1965,9 @@
     const uploadNote = selectOne("#result-upload-note");
     const captionBlock = selectOne("#result-caption-block");
     const storyBlock = selectOne("#result-story-block");
+    const previewBlock = selectOne("#result-preview-block");
+    const captionStatus = selectOne("#create-caption-status");
+    const uploadStatus = selectOne("#create-upload-status");
 
     try {
       const bootstrap = await api("/bootstrap");
@@ -1948,8 +1981,8 @@
       setStatus(bootstrapStatus, error.message, "error");
     }
 
-    const effectiveTone = state.create.tone || state.preferences.defaultTone || "감성";
-    const effectiveStyle = state.create.style || state.preferences.defaultStyle || "감성";
+    const effectiveTone = state.create.tone || state.preferences.defaultTone || "기본";
+    const effectiveStyle = state.create.style || state.preferences.defaultStyle || "기본";
     const customGoalValue = PRESET_GOALS.includes(state.create.goal) ? "" : state.create.goal || "";
 
     productNameInput.value = state.create.productName || "";
@@ -1957,10 +1990,13 @@
     toneSelect.value = effectiveTone;
     styleSelect.value = effectiveStyle;
     if (customGoalInput) customGoalInput.value = customGoalValue;
-    referenceUrlInput.value = state.create.referenceUrl || "";
+    if (referenceUrlInput) referenceUrlInput.value = state.create.referenceUrl || "";
 
     if (state.create.productImage && productImageStatus) {
       productImageStatus.textContent = `${state.create.productImage.name} 파일이 상품 사진으로 연결되어 있어요.`;
+    }
+    if (state.create.productImage?.data_url) {
+      showProductImagePreview(state.create.productImage.data_url);
     }
 
     if (state.create.referenceImage && referenceStatus) {
@@ -2139,6 +2175,7 @@
       if (productImageStatus) {
         productImageStatus.textContent = `${payload.name} 파일이 상품 사진으로 업로드 준비되었습니다.`;
       }
+      showProductImagePreview(payload.data_url);
     });
 
     referenceTrigger?.addEventListener("click", () => referenceInput?.click());
@@ -2211,7 +2248,7 @@
       if (!lastGenerateResult?.text_result?.ad_copies) {
         return;
       }
-      setStatus(bootstrapStatus, "인스타그램 캡션을 만드는 중입니다.", "loading");
+      setStatus(captionStatus, "인스타그램 캡션을 만드는 중입니다.", "loading");
       try {
         const caption = await api("/caption", {
           method: "POST",
@@ -2232,10 +2269,29 @@
           </div>
         `;
         captionBlock.classList.remove("hidden");
+        // 캡션 생성 성공 시에만 인스타 피드 미리보기 + 업로드 버튼 + 업로드 안내 노출
+        previewBlock?.classList.remove("hidden");
+        uploadFeedButton?.classList.remove("hidden");
+        if (uploadNote && uploadNote.innerHTML.trim()) {
+          uploadNote.classList.remove("hidden");
+        }
+        // 인스타 미리보기의 캡션 영역을 생성된 캡션 + 해시태그로 교체 (Streamlit 방식)
+        const igCaptionNode = previewBlock?.querySelector(".ig-caption");
+        if (igCaptionNode) {
+          const stateForPreview = readState();
+          const brandName = lastBootstrap?.brand?.brand_name || stateForPreview.onboarding.brandName || "우리 가게";
+          const previewHandle = parseInstagramHandle(stateForPreview.onboarding.instagramUrl, brandName);
+          const captionHtml = escapeHtml(caption.caption || "").replace(/\n/g, "<br>");
+          const tagsHtml = escapeHtml(caption.hashtags || "");
+          igCaptionNode.innerHTML = `
+            <b>${escapeHtml(previewHandle)}</b> ${captionHtml}
+            ${tagsHtml ? `<div style="color:#00376b; margin-top:6px;">${tagsHtml}</div>` : ""}
+          `;
+        }
         updateLastHistory({ captionReady: true });
-        setStatus(bootstrapStatus, "피드 캡션이 준비되었습니다.", "success");
+        setStatus(captionStatus, "피드 캡션이 준비되었습니다.", "success");
       } catch (error) {
-        setStatus(bootstrapStatus, error.message, "error");
+        setStatus(captionStatus, error.message, "error");
       }
     });
 
@@ -2282,7 +2338,7 @@
     uploadFeedButton?.addEventListener("click", async () => {
       const instagram = getInstagramSummary(lastBootstrap);
       if (!lastGenerateResult?.image_data_url) {
-        setStatus(bootstrapStatus, "업로드할 피드 이미지를 먼저 생성해주세요.", "error");
+        setStatus(uploadStatus, "업로드할 피드 이미지를 먼저 생성해주세요.", "error");
         return;
       }
       if (instagram.expired || !instagram.upload_ready) {
@@ -2293,12 +2349,11 @@
           uploadNote.className = "upload-note";
           uploadNote.classList.remove("hidden");
         }
-        window.alert(nextNote.status);
-        setStatus(bootstrapStatus, nextNote.status, nextNote.tone);
+        setStatus(uploadStatus, nextNote.status, nextNote.tone);
         return;
       }
 
-      setStatus(bootstrapStatus, "인스타그램 피드에 업로드하는 중입니다.", "loading");
+      setStatus(uploadStatus, "인스타그램 피드에 업로드하는 중입니다.", "loading");
       try {
         const latestState = readState();
         const response = await api("/upload/feed", {
@@ -2321,9 +2376,9 @@
           uploadNote.className = "upload-note";
           uploadNote.classList.remove("hidden");
         }
-        setStatus(bootstrapStatus, "인스타그램 피드 업로드가 완료되었습니다.", "success");
+        setStatus(uploadStatus, "인스타그램 피드 업로드가 완료되었습니다.", "success");
       } catch (error) {
-        setStatus(bootstrapStatus, error.message, "error");
+        setStatus(uploadStatus, error.message, "error");
       }
     });
 

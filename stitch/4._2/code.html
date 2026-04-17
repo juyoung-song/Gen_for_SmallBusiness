@@ -107,7 +107,7 @@
 <div class="flex items-center gap-4">
 <button class="material-symbols-outlined text-[#954a25] hover:bg-[#f1e7d2]/50 p-2 rounded-full transition-colors active:scale-95" data-icon="arrow_back" id="create-back" type="button">arrow_back</button>
 <div class="brand-lockup">
-<img alt="Brewgram 로고" class="brand-mark" src="../brand-badge.svg"/>
+<img alt="Brewgram 로고" class="brand-mark" src="../brand-badge.png"/>
 <span class="brand-wordmark">Brewgram</span>
 </div>
 </div>
@@ -139,15 +139,25 @@
 </section>
 <!-- Headline -->
 <header class="mb-10 space-y-2">
-<p class="film-note">first issue for your oven</p>
 <h1 class="text-3xl font-bold text-on-surface leading-tight film-headline">
-                반가워요 사장님!<br/>첫 광고를 만들어볼까요?
+                반가워요 사장님!<br/>광고를 만들어볼까요?
             </h1>
 <p class="text-on-surface-variant warm-copy">상품 정보만 입력하면 Brewgram AI가 인스타 감성의 광고를 완성해드려요.</p>
 </header>
 <!-- Form Content -->
 <div class="space-y-8">
 <div class="space-y-6">
+<!-- New Product Toggle -->
+<div class="flex items-center justify-between px-1 py-2">
+<div>
+<p class="text-sm font-bold text-on-surface-variant">신상품으로 등록</p>
+<p class="text-xs text-outline mt-0.5">처음 소개하는 상품이면 켜주세요</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" id="create-new-product-toggle" role="switch" type="checkbox"/>
+<div class="w-12 h-6 bg-[#d1d5db] rounded-full peer peer-focus:outline-none peer-checked:bg-[#ff7448] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:shadow-sm after:transition-all peer-checked:after:translate-x-6"></div>
+</label>
+</div>
 <!-- Product Name Input -->
 <div class="space-y-3">
 <label class="text-sm font-bold text-on-surface-variant px-1">상품명</label>
@@ -158,17 +168,6 @@
 <label class="text-sm font-bold text-on-surface-variant px-1">상품 설명</label>
 <textarea class="w-full p-6 bg-surface-container-highest border-none rounded-xl text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/30 transition-all outline-none resize-none" id="create-product-description" placeholder="상품의 특징이나 정성이 들어간 포인트를 적어주세요. (예: 48시간 저온 숙성으로 깊은 풍미를 담았습니다)" rows="4" style="background-image:linear-gradient(135deg,rgba(255,179,71,0.10),rgba(143,102,255,0.05));"></textarea>
 </div>
-<!-- New Product Toggle -->
-<div class="flex items-center justify-between px-1 py-2">
-<div>
-<p class="text-sm font-bold text-on-surface-variant">신상품으로 등록</p>
-<p class="text-xs text-outline mt-0.5">처음 소개하는 상품이면 켜주세요</p>
-</div>
-<label class="relative inline-flex items-center cursor-pointer">
-<input class="sr-only peer" id="create-new-product-toggle" role="switch" type="checkbox"/>
-<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-outline after:border-outline after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary peer-checked:after:bg-white"></div>
-</label>
-</div>
 <!-- Existing Product Select (toggle OFF) -->
 <div class="space-y-3 hidden" id="create-existing-product-panel">
 <label class="text-sm font-bold text-on-surface-variant px-1">기존 상품 선택</label>
@@ -178,6 +177,23 @@
 <div class="hidden" id="create-existing-product-thumb-wrap">
 <img alt="상품 미리보기" class="rounded-xl w-full max-h-40 object-cover" id="create-existing-product-thumb"/>
 </div>
+</div>
+<!-- New Product Image Upload (toggle ON) -->
+<div class="space-y-3 hidden" id="create-product-image-panel">
+<div class="flex items-center justify-between px-1">
+<label class="text-sm font-bold text-on-surface-variant">신상품 사진 업로드</label>
+<span class="text-xs text-primary font-semibold">필수</span>
+</div>
+<div class="rounded-xl border-2 border-dashed border-primary/20 bg-surface-container-lowest/70 px-5 py-8 text-center soft-dash" id="create-product-image-trigger">
+<span class="material-symbols-outlined text-3xl text-primary">add_photo_alternate</span>
+<p class="mt-3 text-sm font-semibold text-on-surface">상품 원본 사진을 업로드해주세요</p>
+<p class="mt-1 text-xs text-on-surface-variant">이 사진은 상품의 생김새를 맞추는 데만 사용됩니다.</p>
+</div>
+<input accept="image/*" class="hidden" id="create-product-image-input" type="file"/>
+<div class="hidden" id="create-product-image-thumb-wrap">
+<img alt="신상품 사진 미리보기" class="rounded-xl w-full max-h-40 object-cover" id="create-product-image-thumb"/>
+</div>
+<p class="text-xs text-primary font-medium" id="create-product-image-status"></p>
 </div>
 </div>
 <!-- Detailed Options Toggle -->
@@ -197,19 +213,6 @@
 </div>
 <input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary/30 text-on-surface text-sm placeholder:text-outline-variant" id="create-goal-custom" placeholder="직접 입력" type="text"/>
 </div>
-<div class="space-y-3 hidden" id="create-product-image-panel">
-<div class="flex items-center justify-between px-1">
-<label class="text-sm font-bold text-on-surface-variant">신상품 사진 업로드</label>
-<span class="text-xs text-primary font-semibold">필수</span>
-</div>
-<div class="rounded-xl border-2 border-dashed border-primary/20 bg-surface-container-lowest/70 px-5 py-8 text-center soft-dash" id="create-product-image-trigger">
-<span class="material-symbols-outlined text-3xl text-primary">add_photo_alternate</span>
-<p class="mt-3 text-sm font-semibold text-on-surface">상품 원본 사진을 업로드해주세요</p>
-<p class="mt-1 text-xs text-on-surface-variant">이 사진은 상품의 생김새를 맞추는 데만 사용됩니다.</p>
-</div>
-<input accept="image/*" class="hidden" id="create-product-image-input" type="file"/>
-<p class="text-xs text-primary font-medium" id="create-product-image-status"></p>
-</div>
 <div class="space-y-3">
 <label class="text-sm font-bold text-on-surface-variant px-1">생성 타입</label>
 <div class="grid grid-cols-3 gap-3">
@@ -223,11 +226,11 @@
 <label class="text-sm font-bold text-on-surface-variant px-1">말투</label>
 <div class="relative">
 <select class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 appearance-none focus:ring-2 focus:ring-primary/30 text-on-surface font-medium" id="create-tone-select">
-<option value="감성">따뜻하고 감성적인</option>
-<option value="고급">전문적이고 신뢰감 있는</option>
-<option value="유머">유머러스하고 재치 있는</option>
-<option value="심플">간결하고 또렷한</option>
-<option value="기본">기본</option>
+<option value="기본">기본 (가장 깔끔하게)</option>
+<option value="감성">감성 (따뜻하고 부드럽게)</option>
+<option value="고급">고급 (격식있고 우아하게)</option>
+<option value="유머">유머 (재밌고 센스있게)</option>
+<option value="심플">심플 (핵심만 간단하게)</option>
 </select>
 <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
 </div>
@@ -236,11 +239,11 @@
 <label class="text-sm font-bold text-on-surface-variant px-1">이미지 스타일</label>
 <div class="relative">
 <select class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 appearance-none focus:ring-2 focus:ring-primary/30 text-on-surface font-medium" id="create-style-select">
-<option value="감성">아날로그 필름 감성</option>
-<option value="고급">내추럴 우드 톤</option>
-<option value="기본">따뜻한 테라스 무드</option>
-<option value="심플">미니멀 스튜디오</option>
-<option value="유머">유머러스한 연출</option>
+<option value="기본">기본 (가장 깔끔하게)</option>
+<option value="감성">감성 (따뜻하고 부드럽게)</option>
+<option value="고급">고급 (격식있고 우아하게)</option>
+<option value="유머">유머 (재밌고 센스있게)</option>
+<option value="심플">심플 (핵심만 간단하게)</option>
 </select>
 <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
 </div>
@@ -248,18 +251,17 @@
 </div>
 <div class="space-y-3">
 <div class="flex items-center justify-between px-1">
-<label class="text-sm font-bold text-on-surface-variant">광고 무드 참고 이미지/링크</label>
+<label class="text-sm font-bold text-on-surface-variant">촬영 구도 참고 이미지</label>
 <span class="text-xs text-on-surface-variant">선택 입력</span>
 </div>
 <div class="rounded-xl border-2 border-dashed border-outline-variant/35 bg-surface-container-lowest/50 px-5 py-8 text-center soft-dash" id="create-reference-trigger">
 <span class="material-symbols-outlined text-3xl text-outline-variant">cloud_upload</span>
 <p class="mt-3 text-sm font-semibold text-on-surface">이미지를 드래그하거나 눌러서 업로드</p>
-<p class="mt-1 text-xs text-on-surface-variant">원하는 연출, 구도, 소품 분위기를 참고할 이미지 한 장이면 충분해요.</p>
+<p class="mt-1 text-xs text-on-surface-variant">원하는 촬영 구도를 참고할 이미지 한 장을 올려주세요.</p>
 </div>
 <input accept="image/*" class="hidden" id="create-reference-input" type="file"/>
 <p class="text-xs text-primary font-medium" id="create-reference-status"></p>
 <p class="text-xs text-on-surface-variant" id="reference-pool-hint"></p>
-<input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary/30 text-on-surface text-sm placeholder:text-outline-variant" id="create-reference-url" placeholder="https://example.com/reference" type="text"/>
 </div>
 </section>
 <!-- CTA Button -->
@@ -270,36 +272,24 @@
 </button>
 <div class="hidden mt-4" id="create-status"></div>
 </div>
-<!-- Secondary Visual/Info Section (Editorial Layout) -->
-<section class="mt-16 grid grid-cols-1 md:grid-cols-2 gap-6">
-<div class="bg-surface-container-low rounded-lg p-8 flex flex-col justify-between min-h-[200px] paper-card">
-<h3 class="text-lg font-bold text-on-surface">어떤 광고가<br/>나오게 되나요?</h3>
-<p class="text-sm text-on-surface-variant leading-relaxed">작성해주신 내용을 바탕으로 감성적인 문구와 브랜드 맞춤 이미지가 조합된 광고 세트가 생성됩니다.</p>
-</div>
-<div class="rounded-lg overflow-hidden h-[200px]">
-<img alt="베이커리 카페 광고 예시" class="w-full h-full object-cover" data-alt="warm bakery cafe scene with fresh pastries, coffee, and sunlit table styled like an artisanal social media ad" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAU9dE_h-b-YoN17rULoLuSTzndemjoYCxOO4Wi8M1VU1OicsVy336WXn7xp2jghv8r7oByjuTuJMMPFogZ2SKFBzSm6BDSQC8cZfuuyxbI70h9G8Bi8CRb2Z0dfpe6pRrdcBlLRRsM2r1XccMdN2V9tqe9bI0SXHFWIw1fkodKWvvtGjNUCNisGL7Hvl4hIJvRlITGpZ-QiSr-qhaRUH-P0916OCpCEtiQS3LBI1RAf4ybhYl0Y-7_HTt6MAkmGWsdw6NsdA9px34"/>
-</div>
-</section>
 <section class="mt-10 hidden result-section" id="create-results">
 <div class="panel">
-<div class="hidden mb-4" id="result-summary-block"></div>
-<div class="result-grid">
+<div class="hidden mb-4" id="result-summary-block"></div><div class="result-grid">
 <div class="hidden" id="result-image-block"></div>
-<div class="hidden" id="result-preview-block"></div>
 </div>
 <div class="hidden mt-4" id="result-text-block"></div>
 <div class="hidden mt-4 action-grid" id="result-actions">
 <button class="action-button action-button--soft" id="create-regenerate-button" type="button">다시 만들기</button>
 <a class="action-button action-button--dark hidden" id="create-save-image-link" href="#" download="brewgram-ad.png">이미지 저장</a>
-<button class="action-button action-button--primary" id="create-caption-button" type="button">피드 캡션 만들기</button>
-<button class="action-button action-button--dark" id="create-story-button" type="button">스토리 이미지 만들기</button>
-<button class="action-button action-button--soft" id="create-upload-feed-button" type="button">피드 업로드</button>
-<button class="action-button action-button--soft" id="create-upload-story-button" type="button">스토리 업로드</button>
+<button class="action-button action-button--primary" id="create-caption-button" style="grid-column: 1 / -1;" type="button">피드 캡션 만들기</button>
 </div>
-<div class="hidden mt-4" id="result-upload-note"></div>
-<div class="hidden mt-4" id="story-copy-chooser"></div>
+<div class="hidden mt-2" id="create-caption-status"></div>
+<div class="hidden mt-4" id="result-preview-block"></div>
 <div class="hidden mt-4" id="result-caption-block"></div>
 <div class="hidden mt-4" id="result-story-block"></div>
+<div class="hidden mt-6" id="result-upload-note"></div>
+<button class="action-button action-button--primary hidden mt-3" id="create-upload-feed-button" style="width: 100%;" type="button">피드 업로드</button>
+<div class="hidden mt-3" id="create-upload-status"></div>
 </div>
 </section>
 </main>

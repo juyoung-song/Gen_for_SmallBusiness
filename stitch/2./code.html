@@ -113,7 +113,7 @@
 </button>
 <div class="flex flex-col items-center gap-1">
 <div class="brand-lockup">
-<img alt="Brewgram 로고" class="brand-mark" src="../brand-badge.svg"/>
+<img alt="Brewgram 로고" class="brand-mark" src="../brand-badge.png"/>
 <span class="brand-wordmark">Brewgram</span>
 </div>
 <div class="flex gap-1.5">
@@ -121,31 +121,19 @@
 <div class="w-6 h-1.5 rounded-full bg-primary"></div>
 <div class="w-1.5 h-1.5 rounded-full bg-primary-container"></div>
 </div>
-<span class="font-label text-[10px] font-bold text-primary tracking-widest uppercase film-step">STEP 02/04</span>
+<span class="font-label text-[10px] font-bold text-primary tracking-widest uppercase film-step">STEP 03/04</span>
 </div>
 <div class="w-10"></div>
 </div>
 </header>
 <!-- Main Content Canvas -->
-<main class="w-full max-w-2xl px-6 pt-24 pb-32 flex flex-col flex-grow">
+<main class="w-full max-w-2xl px-6 pt-32 pb-32 flex flex-col flex-grow">
 <!-- Headline Section -->
 <section class="mb-8">
-<p class="film-note">collect the mood you love</p>
 <h1 class="font-headline font-bold text-3xl text-on-surface tracking-tight mb-3 film-headline">원하는 스타일을<br/>알려주세요</h1>
 <p class="font-body text-on-surface-variant text-base leading-relaxed warm-copy">
-                참고 이미지를 직접 올리면 AI가 사장님의 취향을 가장 안정적으로 이해해요.
+                인스타그램 링크를 주면 AI가 사장님의 취향을 더 잘 이해해요.
             </p>
-</section>
-<section class="mb-8">
-<div class="bg-surface-container-lowest rounded-xl px-5 py-4 paper-card">
-<div class="flex items-start gap-3">
-<span class="material-symbols-outlined text-primary text-[20px] mt-0.5">info</span>
-<div class="space-y-1">
-<p class="text-sm font-semibold text-on-surface">스크린샷 업로드를 가장 추천해요</p>
-<p class="text-sm text-on-surface-variant leading-relaxed">인스타 링크 캡처는 Instagram 제한으로 실패할 수 있어요. 원하는 계정이나 피드 화면을 캡처해 아래에 직접 올리면 분석이 더 안정적입니다.</p>
-</div>
-</div>
-</div>
 </section>
 <!-- Instagram Link Input -->
 <section class="mb-10">
@@ -161,63 +149,32 @@
 </div>
 <p class="mt-3 px-2 text-xs leading-relaxed text-on-surface-variant">링크는 보조 옵션이에요. 가능하면 아래 참고 이미지 업로드에 스크린샷을 직접 올려주세요.</p>
 </section>
-<!-- Gallery Reference Section -->
-<section class="mb-10">
-<div class="flex justify-between items-end mb-4 px-2">
-<label class="font-label text-sm font-semibold text-on-surface-variant">참고 이미지 업로드</label>
-<span class="font-label text-xs text-primary font-medium">선택 · 최대 4장</span>
-</div>
-<p class="px-2 mb-4 text-xs leading-relaxed text-on-surface-variant">추천: 좋아하는 인스타 피드, 프로필, 무드보드 화면을 캡처해서 직접 올려주세요. 이미지 한 장만 있어도 충분해요.</p>
-<!-- Asymmetric Grid for Style Reference -->
-<div class="grid grid-cols-2 gap-4">
-<!-- Large Upload Trigger (Tall) -->
-<div class="row-span-2 group relative cursor-pointer" id="reference-image-trigger">
-<div class="w-full h-full min-h-[220px] bg-surface-container-low border-2 border-dashed border-outline-variant/30 rounded-xl flex flex-col items-center justify-center gap-3 transition-all group-hover:bg-surface-container-high active:scale-[0.98]">
-<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-<span class="material-symbols-outlined text-primary text-2xl">add_a_photo</span>
-</div>
-<span class="font-label text-sm font-bold text-primary">직접 추가하기</span>
-</div>
-</div>
-<input accept="image/*" class="hidden" id="reference-image-input" multiple type="file"/>
-<!-- Example Thumbnail 1: Bread Basket -->
-<div class="relative group h-32 rounded-xl overflow-hidden shadow-sm editorial-photo">
-<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="close-up of artisanal sourdough bread rolls in a rustic wicker basket on a sunlit wooden table in a warm cafe" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAU9dE_h-b-YoN17rULoLuSTzndemjoYCxOO4Wi8M1VU1OicsVy336WXn7xp2jghv8r7oByjuTuJMMPFogZ2SKFBzSm6BDSQC8cZfuuyxbI70h9G8Bi8CRb2Z0dfpe6pRrdcBlLRRsM2r1XccMdN2V9tqe9bI0SXHFWIw1fkodKWvvtGjNUCNisGL7Hvl4hIJvRlITGpZ-QiSr-qhaRUH-P0916OCpCEtiQS3LBI1RAf4ybhYl0Y-7_HTt6MAkmGWsdw6NsdA9px34"/>
-<div class="absolute inset-0 bg-black/5"></div>
-<div class="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/80 backdrop-blur-md flex items-center justify-center">
-<span class="material-symbols-outlined text-[14px] text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
-</div>
-</div>
-<!-- Example Thumbnail 2: Latte Art -->
-<div class="relative group h-32 rounded-xl overflow-hidden shadow-sm editorial-photo">
-<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="creamy latte art in a ceramic cup on a natural stone countertop with warm morning light shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBE8tWdmi5SfWZD5Cs54gP1pi54-RhpqRlIAKixSgQvP535ULEyacKbFXXYG5H4Wtd5bGxs_Kit19L9XUdnAYX6-n2fDQTUScMDMaXKZ7DqX_NNS-iIvxcSewzIy1PLLgP5qMueRNDiy3hcRq_52QmJjT7Enn5jOJlFuXXnLXuaFAhoh2ABv2rjgBjS9oDFqAhG_aLazLPCKzxZfh5Cz7xel_H8Id4GEkCAOF4EHhTxxAbq8ipURoLHZgM0rn3COsOcfIqx4Zk48s"/>
-<div class="absolute inset-0 bg-black/5"></div>
-<div class="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
-<span class="material-symbols-outlined text-[14px] text-white">circle</span>
-</div>
-</div>
-<!-- Example Thumbnail 3: Interior (Full width) -->
-<div class="col-span-2 relative group h-40 rounded-xl overflow-hidden shadow-sm editorial-photo">
-<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="interior view of a cozy bakery with warm wood textures, shelves of fresh bread, and soft sunlight streaming through the window" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBxTjM-wvRPhsFC6gIpplJarzD5EuSkTEeQQWTZpobbddln6z-fUALr17PU6RNaT_O0oQDYdsUlJCugpgN3oD2ac3Gzw523p68ygwr2CDCb0k_NtGNN3WBkiyBzCmb2Mgg4qTWh4jBOZNQ09Z5k8CqafIAp9gUuTqHRkD3fq23f3loaub6kB7g4wtN5E7-V0pCSKPxl25zRsweRzTy0Xi2seReBgurpZzoUM4Gr9YwSN20l9mJZQjX6ydiHLQ2d5QZd6FWcuJKfzN0"/>
-<div class="absolute inset-0 bg-gradient-to-t from-on-background/40 to-transparent"></div>
-<div class="absolute bottom-3 left-4">
-<span class="font-label text-xs text-white/90">추천 스타일: 내추럴 우드</span>
-</div>
-<div class="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
-<span class="material-symbols-outlined text-[14px] text-white">circle</span>
-</div>
-</div>
-</div>
-</section>
 <!-- Footer Tip Box -->
-<div class="bg-surface-container-high/50 p-5 rounded-lg flex gap-4 items-start mb-12 paper-card">
+<div class="bg-surface-container-high/50 p-5 rounded-lg flex gap-4 items-start mb-8 paper-card">
 <span class="material-symbols-outlined text-tertiary-fixed-dim text-xl">lightbulb</span>
 <p class="font-body text-sm text-on-surface-variant leading-relaxed">
-                링크 하나만 있거나 이미지 한 장만 있어도 충분해요. 아무것도 없다면 지금은 건너뛰고, 나중에 메인 화면에서 다시 추가할 수도 있어요.
+                링크를 모른다면 지금은 건너뛰고, 나중에 메인 화면에서 추가할 수도 있어요.
             </p>
 </div>
-<section class="pb-4">
-<p class="px-2 text-sm text-primary font-medium" id="reference-image-status"></p>
+<section class="pt-2 pb-4">
+<div class="hidden" id="onboarding-status"></div>
+</section>
+<section class="hidden mb-12" id="onboarding-analysis-panel">
+<div class="bg-surface-container-lowest rounded-[28px] px-6 py-6 editorial-shadow border border-outline-variant/40 flex flex-col gap-4">
+<div class="flex items-center justify-between gap-3">
+<div>
+<p class="text-xs font-semibold tracking-[0.24em] uppercase text-primary">AI Brand Analysis</p>
+<h3 class="mt-2 text-2xl font-headline font-bold text-on-surface">이렇게 브랜드를 이해했어요</h3>
+</div>
+<span class="inline-flex items-center rounded-full bg-primary-container px-3 py-1 text-xs font-semibold text-on-primary-container" id="onboarding-analysis-badge">AI 분석 완료</span>
+</div>
+<p class="text-sm leading-relaxed text-on-surface-variant">
+                    아래 문구는 이후 카피와 이미지 생성의 기준이 됩니다. 마음에 들면 다음 단계로 넘어가세요.
+                </p>
+<div class="rounded-[24px] bg-surface-container-high px-5 py-5">
+<p class="whitespace-pre-wrap text-[15px] leading-7 text-on-surface" id="onboarding-analysis-text"></p>
+</div>
+</div>
 </section>
 </main>
 <!-- Fixed Footer Action Area -->
