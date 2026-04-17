@@ -342,3 +342,23 @@
 ### TODO
 - OAuth 동의 화면에서 Page 접근이 정상 부여되도록 환경 점검 (Meta 앱 Business Login use case / 동의 화면 Pages 기본 체크).
 - 해결되면 manual 경로를 다시 `instagram_username` 기반으로 전환 (이 롤백 커밋이 참조점).
+
+### 보조: `test/ig-username-revisit` 브랜치 (커밋 `a452000`, 미완)
+- [TEST] PR #17 username 복원본 + `humanizeApiError`/ValueError 매핑 유지 + placeholder `@wonbywondev`
+- 병합 조건: 위 환경 TODO 해결 후 재테스트 성공 확인 → `merge/trim-ui` 에 머지 + SW 캐시 bump + compass 갱신
+
+---
+
+## CP22c — create: 참고 이미지 썸네일 미리보기 + select 이중 화살표 제거 (2026-04-17 완료, 커밋 4dff19c)
+
+**배경**: `/stitch/4._2/code.html` 상세 옵션에서 "촬영 구도 참고 이미지" 업로드 시 상태 텍스트만 갱신되고 미리보기 없음 → 어떤 이미지가 붙었는지 확인 불가. 또 말투 / 이미지 스타일 `<select>` 드롭다운 우측에 커스텀 `expand_more` 아이콘과 브라우저 네이티브 화살표가 **두 개 겹쳐** 표시됨 (Tailwind CDN 의 `appearance-none` 이 일부 브라우저에서 완전히 네이티브 화살표를 가리지 못함).
+
+### 변경
+- [x] **22c.1** `stitch/4._2/code.html` — `#create-reference-input` 다음에 `#create-reference-thumb-wrap` + `#create-reference-thumb` 추가 (상품 썸네일과 동형)
+- [x] **22c.2** `stitch/shared.js` — `showReferenceImagePreview(dataUrl)` 헬퍼 + 페이지 진입 복원 + change 핸들러 호출
+- [x] **22c.3** `stitch/shared.css` — `select.appearance-none` 에 vendor prefix appearance 강제 + `background-image: none`
+- [x] **22c.4** SW 캐시 v24 → v26 (manual 롤백 배포 이후 포함)
+
+### 📱 스모크
+- [x] **22c.S.1** 참고 이미지 업로드 → 즉시 썸네일 표시, 페이지 이동 후 돌아와도 복원
+- [x] **22c.S.2** 말투 / 이미지 스타일 드롭다운 우측 화살표가 **하나만** 표시됨

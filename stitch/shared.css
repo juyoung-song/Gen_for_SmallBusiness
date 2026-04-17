@@ -203,6 +203,14 @@ select {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
+/* 커스텀 expand_more 아이콘과 네이티브 <select> 화살표 중복 방지 */
+select.appearance-none {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: none;
+}
+
 footer {
   background-color: rgba(255, 255, 255, 0.9) !important;
 }

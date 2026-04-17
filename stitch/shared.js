@@ -1984,6 +1984,19 @@
     const referenceTrigger = selectOne("#create-reference-trigger");
     const referenceInput = selectOne("#create-reference-input");
     const referenceStatus = selectOne("#create-reference-status");
+    const referenceThumb = selectOne("#create-reference-thumb");
+    const referenceThumbWrap = selectOne("#create-reference-thumb-wrap");
+
+    const showReferenceImagePreview = (dataUrl) => {
+      if (!referenceThumb || !referenceThumbWrap) return;
+      if (dataUrl) {
+        referenceThumb.src = dataUrl;
+        referenceThumbWrap.classList.remove("hidden");
+      } else {
+        referenceThumb.removeAttribute("src");
+        referenceThumbWrap.classList.add("hidden");
+      }
+    };
     const submitButton = selectOne("#create-submit");
     const captionButton = selectOne("#create-caption-button");
     const storyButton = selectOne("#create-story-button");
@@ -2029,6 +2042,9 @@
 
     if (state.create.referenceImage && referenceStatus) {
       referenceStatus.textContent = `${state.create.referenceImage.name} 파일이 연결되어 있어요.`;
+    }
+    if (state.create.referenceImage?.data_url) {
+      showReferenceImagePreview(state.create.referenceImage.data_url);
     }
 
     const goalButtons = selectAll("[data-goal-choice]");
@@ -2215,6 +2231,7 @@
       if (referenceStatus) {
         referenceStatus.textContent = `${payload.name} 파일이 업로드 준비되었습니다.`;
       }
+      showReferenceImagePreview(payload.data_url);
     });
 
     submitButton?.addEventListener("click", async () => {
