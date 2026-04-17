@@ -225,7 +225,7 @@ class MobileInstagramSelectRequest(BaseModel):
 
 
 class MobileInstagramManualRequest(BaseModel):
-    instagram_business_account_id: str
+    instagram_username: str
 
 
 class MobileInstagramConnectedResponse(BaseModel):
@@ -357,6 +357,48 @@ async def _download_reference_image(reference_url: str) -> bytes:
     return response.content
 
 
+async def _capture_instagram_with_worker(instagram_url: str) -> list[Path]:
+    """Mac 로컬 캡처 워커가 노출되어 있으면 Instagram 캡처 이미지를 받아 저장한다."""
+    worker_url = settings.INSTAGRAM_CAPTURE_WORKER_URL.strip()
+    if not worker_url:
+        return []
+
+    endpoint = worker_url.rstrip("/")
+    if not endpoint.endswith("/capture"):
+        endpoint = f"{endpoint}/capture"
+
+    headers: dict[str, str] = {}
+    if settings.INSTAGRAM_CAPTURE_WORKER_TOKEN:
+        headers["Authorization"] = f"Bearer {settings.INSTAGRAM_CAPTURE_WORKER_TOKEN}"
+
+    async with httpx.AsyncClient(
+        timeout=settings.INSTAGRAM_CAPTURE_WORKER_TIMEOUT,
+        follow_redirects=True,
+    ) as client:
+        response = await client.post(
+            endpoint,
+            json={"url": instagram_url, "count": 2},
+            headers=headers,
+        )
+        response.raise_for_status()
+
+    payload = response.json()
+    images = payload.get("images") or []
+    saved_paths: list[Path] = []
+    for idx, image in enumerate(images[:4], start=1):
+        data_url = image.get("data_url") if isinstance(image, dict) else None
+        if not data_url:
+            continue
+        image_bytes, mime = _decode_data_url(data_url)
+        saved = save_to_staging(image_bytes, extension=_mime_to_extension(mime))
+        logger.info("Mac 캡처 워커 이미지 저장 (%d): %s", idx, saved)
+        saved_paths.append(saved)
+
+    if not saved_paths:
+        raise ValueError("Mac 캡처 워커가 이미지를 반환하지 않았습니다.")
+    return saved_paths
+
+
 def _relative_data_url(path_str: str | None) -> str | None:
     if not path_str:
         return None
@@ -468,6 +510,11 @@ async def _load_brand() -> Brand | None:
 
 async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary:
     oauth_available = settings.is_instagram_oauth_configured_for("mobile")
+    default_upload_ready = bool(
+        settings.ALLOW_DEFAULT_INSTAGRAM_UPLOAD
+        and settings.META_ACCESS_TOKEN
+        and settings.INSTAGRAM_ACCOUNT_ID
+    )
 
     if brand is not None:
         connection = await InstagramAuthService(settings).get_connection(brand.id)
@@ -495,26 +542,28 @@ async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary
                     page_name=connection.facebook_page_name,
                     expires_at=expires_at,
                 )
-            return MobileInstagramSummary(
-                oauth_available=oauth_available,
-                connect_available=True,
-                connected=False,
-                expired=True,
-                upload_ready=settings.is_instagram_ready,
-                connection_source="env" if settings.is_instagram_ready else "none",
-                username=username,
-                page_name=connection.facebook_page_name,
-                expires_at=expires_at,
-            )
+            if not default_upload_ready:
+                return MobileInstagramSummary(
+                    oauth_available=oauth_available,
+                    connect_available=True,
+                    connected=False,
+                    expired=True,
+                    upload_ready=False,
+                    connection_source="none",
+                    username=username,
+                    page_name=connection.facebook_page_name,
+                    expires_at=expires_at,
+                )
 
-    if settings.is_instagram_ready:
+    if default_upload_ready:
         return MobileInstagramSummary(
             oauth_available=oauth_available,
             connect_available=True,
-            connected=False,
+            connected=True,
             expired=False,
             upload_ready=True,
             connection_source="env",
+            page_name="기본 업로드 계정",
         )
 
     return MobileInstagramSummary(
@@ -581,16 +630,43 @@ async def _resolve_upload_context() -> tuple[Brand, object]:
         )
 
     upload_settings = settings.model_copy(deep=True)
-    try:
-        upload_ready = await apply_user_token_async(upload_settings, brand)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    if not upload_ready:
-        raise HTTPException(
-            status_code=409,
-            detail="인스타그램 계정을 먼저 연결하거나 관리자 업로드 설정을 준비해야 합니다.",
+    default_upload_ready = bool(
+        upload_settings.ALLOW_DEFAULT_INSTAGRAM_UPLOAD
+        and upload_settings.META_ACCESS_TOKEN
+        and upload_settings.INSTAGRAM_ACCOUNT_ID
+    )
+
+    if getattr(brand, "instagram_account_id", None):
+        connection = await InstagramAuthService(settings).get_connection(brand.id)
+        if connection is not None and connection.is_active:
+            expires_at = connection.token_expires_at
+            if expires_at is not None and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at is not None and expires_at <= datetime.now(timezone.utc):
+                if not default_upload_ready:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="인스타그램 연결이 만료되었습니다. 다시 연결한 뒤 업로드를 진행해주세요.",
+                    )
+            else:
+                try:
+                    upload_ready = await apply_user_token_async(upload_settings, brand)
+                except RuntimeError as exc:
+                    raise HTTPException(status_code=500, detail=str(exc)) from exc
+                if upload_ready:
+                    return brand, upload_settings
+
+    if default_upload_ready:
+        logger.warning(
+            "모바일 업로드가 VM 기본 Instagram 계정 fallback을 사용합니다. "
+            "ALLOW_DEFAULT_INSTAGRAM_UPLOAD=true"
         )
-    return brand, upload_settings
+        return brand, upload_settings
+
+    raise HTTPException(
+        status_code=409,
+        detail="인스타그램 계정을 먼저 연결한 뒤 업로드를 진행해주세요.",
+    )
 
 
 def _load_existing_product_bytes(
@@ -1091,7 +1167,7 @@ async def mobile_instagram_select_account(
 async def mobile_instagram_manual_account(
     payload: MobileInstagramManualRequest,
 ) -> MobileInstagramConnectedResponse:
-    """수동 입력 IG ID 로 계정 연결."""
+    """수동 입력 @username 으로 계정 연결."""
     brand = await _load_brand()
     if brand is None:
         raise HTTPException(status_code=409, detail="브랜드 온보딩을 먼저 완료해야 합니다.")
@@ -1101,8 +1177,8 @@ async def mobile_instagram_manual_account(
         raise HTTPException(status_code=404, detail="대기 중인 Instagram 연결 정보가 없습니다.")
 
     auth_service = InstagramAuthService(settings)
-    ig_info = await auth_service.fetch_instagram_account_manually(
-        pending.access_token, payload.instagram_business_account_id
+    ig_info = await auth_service.resolve_instagram_username(
+        pending.access_token, payload.instagram_username
     )
 
     await auth_service.save_connection(
@@ -1177,23 +1253,34 @@ async def complete_onboarding(
         analysis_images.append(saved)
 
     if instagram_url:
-        try:
-            from backends.insta_capture import InstaCaptureBackend
+        captured: list[Path] = []
+        if settings.INSTAGRAM_CAPTURE_WORKER_URL.strip():
+            try:
+                captured = await _capture_instagram_with_worker(instagram_url)
+                analysis_images.extend(captured)
+            except Exception as exc:  # pragma: no cover - 외부 Mac 워커 의존
+                logger.warning("모바일 온보딩 Mac 캡처 워커 실패: %s", exc)
+                warnings.append(
+                    "Mac 캡처 워커는 실패했지만, 입력한 내용과 업로드한 이미지로 계속 진행했습니다."
+                )
 
-            capture_backend = InstaCaptureBackend()
-            captured = await run_in_threadpool(
-                capture_backend.capture_profile,
-                instagram_url,
-                ONBOARDING_DIR,
-                2,
-            )
-            analysis_images.extend(captured)
-        except Exception as exc:  # pragma: no cover - 외부 캡처 의존
-            logger.warning("모바일 온보딩 캡처 실패: %s", exc)
-            warnings.append(
-                "인스타그램 캡처는 실패했지만, 입력한 내용과 업로드한 이미지로 계속 진행했습니다."
-            )
+        if not captured:
+            try:
+                from backends.insta_capture import InstaCaptureBackend
 
+                capture_backend = InstaCaptureBackend()
+                captured = await run_in_threadpool(
+                    capture_backend.capture_profile,
+                    instagram_url,
+                    ONBOARDING_DIR,
+                    2,
+                )
+                analysis_images.extend(captured)
+            except Exception as exc:  # pragma: no cover - 외부 캡처 의존
+                logger.warning("모바일 온보딩 캡처 실패: %s", exc)
+                warnings.append(
+                    "인스타그램 캡처는 실패했지만, 입력한 내용과 업로드한 이미지로 계속 진행했습니다."
+                )
     if analysis_images and settings.is_api_ready:
         analyzer = GPTVisionAnalyzer(settings)
         merged_freetext = _merge_structured_inputs_into_freetext(

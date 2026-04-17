@@ -1,5 +1,8 @@
 # 광고 생성 · 참조 이미지 · 업로드 · 히스토리
 
+> Legacy note: 이 문서는 `refactor/flow` Streamlit `app.py` 기준 실행 경로를 많이 포함한다.
+> 현재 모바일 PWA 생성/업로드 흐름은 [mobile_worker_workflow.md](mobile_worker_workflow.md)를 우선한다.
+
 현 브랜치(`refactor/flow`) 코드 기준의 **실제 실행 경로** 문서.
 
 다루는 범위:

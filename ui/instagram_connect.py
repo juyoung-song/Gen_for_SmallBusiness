@@ -163,18 +163,22 @@ def render_instagram_connection(settings, brand):
 
             # ── 수동 입력 섹션 (자동 찾기 실패했을 때만 나타남) ──
             if "pending_ig_token" in st.session_state:
-                with st.expander("🛠️ 수동으로 ID 입력하여 연결", expanded=True):
-                    st.caption("Meta 보안 설정상 목록 자동 조회가 되지 않습니다.")
-                    
-                    # 기존 .env ID가 있으면 가이드로 표시
-                    old_id = getattr(settings, "INSTAGRAM_ACCOUNT_ID", "")
-                    manual_id = st.text_input("Instagram ID 입력", value=old_id, placeholder="1784... 로 시작하는 ID")
+                with st.expander("🛠️ Instagram @username으로 연결", expanded=True):
+                    st.caption(
+                        "입력한 @username이 현재 Meta 로그인 계정에서 접근 가능한 Page와 연결되어 있으면 연결됩니다."
+                    )
+                    manual_username = st.text_input(
+                        "Instagram @username",
+                        placeholder="@brewgram",
+                    )
                     
                     if st.button("지금 수동 연결 완료", use_container_width=True, type="primary"):
                         try:
                             token, exp = st.session_state.pending_ig_token
                             with st.spinner("정보 확인 중..."):
-                                ig_info = run_async(auth_svc.fetch_instagram_account_manually(token, manual_id))
+                                ig_info = run_async(
+                                    auth_svc.resolve_instagram_username(token, manual_username)
+                                )
                                 run_async(auth_svc.save_connection(brand.id, token, exp, ig_info))
 
                             st.session_state.pop("ig_page_connection_required", None)

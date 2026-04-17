@@ -1,17 +1,18 @@
 # Context
 
 > **작성일:** 2026-04-08
-> **마지막 갱신:** 2026-04-15 (CP17 시작 — codex/infra 통합 + mobile_app 백엔드 기능 보존)
-> **브랜치:** `merge/main` (refactor/flow + codex/final-merge 통합 완료, codex/infra 통합 진행 중)
+> **마지막 갱신:** 2026-04-16 (codex/oauth-only-mobile-upload — OAuth-only 업로드 + Mac 캡처 워커)
+> **브랜치:** `codex/oauth-only-mobile-upload`
 > **이전 버전 폐기:** IP-Adapter 리뷰 컨텍스트(2026-04-03)는 본 문서로 대체됨
 
-> **진입점 전환 (2026-04-15)**: 기존 Streamlit 단독에서 **FastAPI (`mobile_app.py`) + Stitch PWA** 로 전환. Streamlit (`app.py`, `ui/`) 은 곧 제거 예정. 백엔드(서비스/모델/생성 로직) 는 그대로 재사용 — mobile_app 으로 import 만 바뀜.
+> **진입점 전환 (2026-04-15)**: 기존 Streamlit 단독에서 **FastAPI (`mobile_app.py`) + Stitch PWA** 로 전환. Streamlit (`app.py`, `ui/`) 은 legacy 참고용으로만 본다. 현재 운영 경로는 `mobile_app.py`다.
+> **2026-04-16 운영 메모**: 모바일 업로드는 OAuth 연결 계정만 사용한다. Instagram URL 캡처는 Mac 로컬 캡처 워커 + Cloudflare Tunnel을 우선 사용할 수 있다. 이미지 생성 기본값은 `openai_image`다.
 
 ---
 
 ## 1. 프로젝트 한 줄
 
-**카페·베이커리·디저트 가게 사장님** 이 **브랜드 일관성을 유지**하면서 인스타그램 광고 콘텐츠를 자동 생성·게시하도록 돕는 Streamlit 서비스. (대상 업종을 카페/베이커리/디저트로 좁힌 이유는 [`docs/design.md` §1.1](../docs/design.md) 참고.)
+**카페·베이커리·디저트 가게 사장님** 이 **브랜드 일관성을 유지**하면서 인스타그램 광고 콘텐츠를 모바일에서 자동 생성·게시하도록 돕는 FastAPI/PWA 서비스. (대상 업종을 카페/베이커리/디저트로 좁힌 이유는 [`docs/design.md` §1.1](../docs/design.md) 참고.)
 
 ## 2. 본 리팩터링의 목표
 

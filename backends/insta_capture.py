@@ -41,6 +41,18 @@ _DEFAULT_CLI_COMMAND: tuple[str, ...] = ("browser-use",)
 _SCROLL_AMOUNT_PX = 900
 
 
+def detect_unusable_instagram_state(state_output: str) -> str | None:
+    """browser-use state 가 분석 가능한 인스타 프로필 화면인지 판별한다."""
+    normalized = state_output.lower()
+    if "http error 429" in normalized:
+        return "Instagram이 VM/브라우저 세션 요청을 HTTP 429로 제한했습니다."
+    if "accounts/login" in normalized:
+        return "Instagram 로그인 페이지로 이동되어 프로필 화면을 볼 수 없습니다."
+    if "this page isn" in normalized and "working" in normalized:
+        return "Instagram 오류 페이지가 표시되어 프로필 화면을 볼 수 없습니다."
+    return None
+
+
 def parse_close_button_index(state_output: str) -> int | None:
     """browser-use `state` 출력에서 로그인 모달 "닫기" 버튼의 인덱스를 찾는다.
 
@@ -117,9 +129,11 @@ class InstaCaptureBackend:
             self._run(["open", url])
             time.sleep(2)
             self._dismiss_login_modal()
+            self._assert_profile_page_usable()
 
             saved: list[Path] = []
             for i in range(1, count + 1):
+                self._assert_profile_page_usable()
                 path = out_dir / f"ref_{i}.png"
                 logger.info("인스타 캡처 %d/%d → %s", i, count, path)
                 # viewport 캡처 (--full 미사용 — 매 캡처가 다른 영역이 되도록)
@@ -170,3 +184,12 @@ class InstaCaptureBackend:
         logger.info("로그인 모달 닫기 (index=%d)", idx)
         self._run(["click", str(idx)])
         time.sleep(2)
+
+    def _assert_profile_page_usable(self) -> None:
+        """429/login/error 페이지를 GPT Vision 분석 입력으로 넘기지 않도록 차단한다."""
+        state = self._run(["state"], capture=True)
+        reason = detect_unusable_instagram_state(state)
+        if reason is None:
+            return
+        logger.warning("인스타 캡처 중단: %s", reason)
+        raise RuntimeError(f"인스타그램 캡처 화면이 분석 가능한 프로필이 아닙니다. {reason}")

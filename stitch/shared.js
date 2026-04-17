@@ -364,6 +364,9 @@
   }
 
   function instagramStatusLabel(summary) {
+    if (summary.connected && summary.connection_source === "env") {
+      return "기본 업로드 계정 사용 중";
+    }
     if (summary.connected && summary.username) {
       return `@${summary.username}`;
     }
@@ -372,9 +375,6 @@
     }
     if (summary.expired) {
       return "재연결 필요";
-    }
-    if (summary.connection_source === "env") {
-      return "기본 업로드 계정 사용 중";
     }
     if (summary.oauth_available) {
       return "미연결";
@@ -390,14 +390,14 @@
       return "브랜드 온보딩을 먼저 완료해야 사장님 계정을 연결할 수 있습니다.";
     }
     if (summary.connected) {
+      if (summary.connection_source === "env") {
+        return "VM 운영 env에 등록된 기본 Instagram 계정으로 업로드합니다. 사장님별 OAuth 연결은 사용하지 않습니다.";
+      }
       const handle = summary.username ? `@${summary.username}` : "연결된 계정";
       return `${handle} 계정이 연결되어 있습니다. 이후 자동 업로드 기능이 붙으면 이 계정으로 바로 게시됩니다.`;
     }
     if (summary.expired) {
       return "이전 연결이 만료되었습니다. 다시 연결하면 이후 업로드 흐름에 그대로 이어붙일 수 있습니다.";
-    }
-    if (summary.connection_source === "env") {
-      return "현재는 기본 업로드 계정만 연결되어 있습니다. 사장님 계정을 직접 연결하려면 Meta 로그인 설정이 필요합니다.";
     }
     if (summary.oauth_available) {
       return "사장님 본인 계정을 한 번만 연결해두면 이후 피드와 스토리를 바로 업로드할 수 있습니다.";
@@ -413,6 +413,9 @@
       return "브랜드 정보를 저장한 뒤 계정을 연결하면 결과 화면의 업로드 버튼과 자연스럽게 이어집니다.";
     }
     if (summary.connected) {
+      if (summary.connection_source === "env") {
+        return "운영 env의 기본 업로드 계정을 사용합니다. 계정을 바꾸려면 VM env의 META_ACCESS_TOKEN / INSTAGRAM_ACCOUNT_ID를 수정하고 앱을 재시작하세요.";
+      }
       return "계정 연결은 완료되었습니다. 자동 업로드 API만 붙이면 지금 배치된 업로드 버튼이 이 계정을 바로 사용합니다.";
     }
     if (summary.expired) {
@@ -429,14 +432,14 @@
 
   function instagramGuideCopy(summary) {
     if (summary.connected) {
+      if (summary.connection_source === "env") {
+        return "기본 업로드 계정이 설정되어 있어요. 업로드 버튼은 VM env에 등록된 계정으로 게시를 시도합니다.";
+      }
       const handle = summary.username ? `@${summary.username}` : "연결된 계정";
       return `${handle} 계정이 연결되어 있어요. 자동 업로드 API만 붙이면 지금 업로드 버튼이 바로 이 계정으로 이어집니다.`;
     }
     if (summary.expired) {
       return "이전 인스타그램 연결이 만료되었습니다. 설정에서 다시 연결해두면 이후 자동 업로드 흐름을 자연스럽게 붙일 수 있습니다.";
-    }
-    if (summary.connection_source === "env") {
-      return "현재는 기본 업로드 계정으로만 게시할 수 있습니다. 사장님 계정 직접 연결은 설정에서 시작합니다.";
     }
     if (summary.oauth_available) {
       return "사장님 계정을 한 번 연결해두면, 이후 피드와 스토리를 바로 업로드할 수 있습니다.";
@@ -464,7 +467,12 @@
       };
     }
     if (summary.connected) {
-      const handle = summary.username ? `@${escapeHtml(summary.username)}` : "연결된 계정";
+      let handle = "연결된 계정";
+      if (summary.connection_source === "env") {
+        handle = "기본 업로드 계정";
+      } else if (summary.username) {
+        handle = `@${escapeHtml(summary.username)}`;
+      }
       return {
         tone: "neutral",
         html: `${handle} 계정이 연결되어 있습니다. 아래 ${target} 업로드 버튼을 누르면 바로 게시를 시도합니다.`,
@@ -473,8 +481,8 @@
     }
     return {
       tone: "neutral",
-      html: `현재는 기본 업로드 계정으로 ${target} 업로드를 시도합니다. 사장님 계정으로 바로 올리려면 <a href="${PATHS.settings}">설정에서 Meta 계정 연결</a>을 먼저 진행해 주세요.`,
-      status: `${target} 업로드 준비가 완료되었습니다.`,
+      html: `자동 ${target} 업로드를 쓰려면 먼저 인스타그램 계정을 연결해주세요. <a href="${PATHS.settings}">설정에서 연결하기</a>`,
+      status: "인스타그램 계정을 먼저 연결해야 합니다.",
     };
   }
 
@@ -547,7 +555,7 @@
       return {
         flag,
         tone: "neutral",
-        message: "Instagram professional account를 찾지 못했습니다. 아래에서 계정 ID를 직접 입력해주세요.",
+        message: "Instagram professional account를 찾지 못했습니다. 아래에 @username을 입력해 연결을 시도해주세요.",
       };
     }
     return {
@@ -1143,12 +1151,12 @@
     igManualConfirm?.addEventListener("click", async () => {
       const igId = igManualInput?.value?.trim();
       if (!igId) {
-        setStatus(statusNode, "Instagram 계정 ID를 입력해주세요.", "error");
+        setStatus(statusNode, "Instagram @username을 입력해주세요.", "error");
         return;
       }
       try {
         setStatus(statusNode, "계정 확인 중…", "loading");
-        await api("/instagram/manual-account", { method: "POST", body: { instagram_business_account_id: igId } });
+        await api("/instagram/manual-account", { method: "POST", body: { instagram_username: igId } });
         igManualPanel?.classList.add("hidden");
         await loadState();
         setStatus(statusNode, "인스타그램 계정 연결이 완료되었습니다.", "success");
@@ -1687,14 +1695,14 @@
     igManualConfirm?.addEventListener("click", async () => {
       const igId = igManualInput?.value?.trim();
       if (!igId) {
-        setStatus(statusNode, "Instagram 계정 ID를 입력해주세요.", "error");
+        setStatus(statusNode, "Instagram @username을 입력해주세요.", "error");
         return;
       }
       try {
         setStatus(statusNode, "계정 확인 중…", "loading");
         await api("/instagram/manual-account", {
           method: "POST",
-          body: { instagram_business_account_id: igId },
+          body: { instagram_username: igId },
         });
         igManualPanel?.classList.add("hidden");
         await loadSettingsStatus();
@@ -2388,6 +2396,7 @@
           uploadNote.className = "upload-note";
           uploadNote.classList.remove("hidden");
         }
+        window.alert(nextNote.status);
         setStatus(bootstrapStatus, nextNote.status, nextNote.tone);
         return;
       }

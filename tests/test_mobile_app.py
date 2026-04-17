@@ -254,12 +254,13 @@ class TestInstagramSummary:
         assert summary.connection_source == "oauth"
         assert summary.username == "bakery_owner"
 
-    async def test_falls_back_to_env_upload_state(self, monkeypatch):
+    async def test_requires_oauth_connection_even_when_env_upload_is_configured(self, monkeypatch):
         async def fake_get_connection(self, _brand_id):
             return None
 
         monkeypatch.setattr(mobile_app.settings, "META_ACCESS_TOKEN", "fallback-token")
         monkeypatch.setattr(mobile_app.settings, "INSTAGRAM_ACCOUNT_ID", "1784")
+        monkeypatch.setattr(mobile_app.settings, "ALLOW_DEFAULT_INSTAGRAM_UPLOAD", False)
         monkeypatch.setattr(mobile_app.settings, "META_APP_ID", "")
         monkeypatch.setattr(mobile_app.settings, "META_APP_SECRET", "")
         monkeypatch.setattr(mobile_app.settings, "META_REDIRECT_URI", "")
@@ -274,6 +275,25 @@ class TestInstagramSummary:
         summary = await mobile_app._load_instagram_summary(None)
 
         assert summary.connected is False
+        assert summary.upload_ready is False
+        assert summary.connection_source == "none"
+
+    async def test_reports_default_env_account_when_explicitly_enabled(self, monkeypatch):
+        async def fake_get_connection(self, _brand_id):
+            return None
+
+        monkeypatch.setattr(mobile_app.settings, "META_ACCESS_TOKEN", "fallback-token")
+        monkeypatch.setattr(mobile_app.settings, "INSTAGRAM_ACCOUNT_ID", "1784")
+        monkeypatch.setattr(mobile_app.settings, "ALLOW_DEFAULT_INSTAGRAM_UPLOAD", True)
+        monkeypatch.setattr(
+            mobile_app.InstagramAuthService,
+            "get_connection",
+            fake_get_connection,
+        )
+
+        summary = await mobile_app._load_instagram_summary(SimpleNamespace(id=uuid4()))
+
+        assert summary.connected is True
         assert summary.upload_ready is True
         assert summary.connection_source == "env"
 
@@ -431,14 +451,39 @@ class TestMobileUploads:
         assert exc_info.value.status_code == 409
         assert "연결" in exc_info.value.detail
 
-    async def test_feed_upload_returns_post_metadata(self, monkeypatch):
+    async def test_resolve_upload_context_uses_default_env_account_when_enabled(
+        self, monkeypatch
+    ):
         brand = SimpleNamespace(id=uuid4())
+
+        async def fake_load_brand():
+            return brand
+
+        monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+        monkeypatch.setattr(mobile_app.settings, "META_ACCESS_TOKEN", "fallback-token")
+        monkeypatch.setattr(mobile_app.settings, "INSTAGRAM_ACCOUNT_ID", "1784")
+        monkeypatch.setattr(mobile_app.settings, "ALLOW_DEFAULT_INSTAGRAM_UPLOAD", True)
+
+        resolved_brand, upload_settings = await mobile_app._resolve_upload_context()
+
+        assert resolved_brand is brand
+        assert upload_settings.META_ACCESS_TOKEN == "fallback-token"
+        assert upload_settings.INSTAGRAM_ACCOUNT_ID == "1784"
+
+    async def test_feed_upload_returns_post_metadata(self, monkeypatch):
+        brand = SimpleNamespace(id=uuid4(), instagram_account_id="1784")
         upload_id = uuid4()
         generation_output_id = uuid4()
         posted_at = datetime.now(timezone.utc)
 
         async def fake_load_brand():
             return brand
+
+        async def fake_get_connection(self, _brand_id):
+            return SimpleNamespace(
+                is_active=True,
+                token_expires_at=datetime.now(timezone.utc) + timedelta(days=30),
+            )
 
         async def fake_apply_user_token_async(_settings, _brand):
             return True
@@ -488,6 +533,11 @@ class TestMobileUploads:
                 return False
 
         monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
+        monkeypatch.setattr(
+            mobile_app.InstagramAuthService,
+            "get_connection",
+            fake_get_connection,
+        )
         monkeypatch.setattr(
             mobile_app,
             "apply_user_token_async",
@@ -1467,7 +1517,7 @@ class TestCP20SelectAccount:
 
 
 class TestCP20ManualAccount:
-    """POST /api/mobile/instagram/manual-account — 직접 입력 IG ID 로 save_connection."""
+    """POST /api/mobile/instagram/manual-account — 직접 입력한 username 으로 save_connection."""
 
     async def test_post_manual_saves_connection(self, monkeypatch):
         brand_id = uuid4()
@@ -1483,12 +1533,12 @@ class TestCP20ManualAccount:
             source="settings",
         )
 
-        async def fake_manual(self, token, ig_id):
+        async def fake_resolve(self, token, username):
             return {
-                "instagram_account_id": ig_id,
-                "instagram_username": "manual_user",
-                "facebook_page_id": None,
-                "facebook_page_name": "수동 연결",
+                "instagram_account_id": "ig1",
+                "instagram_username": username.removeprefix("@"),
+                "facebook_page_id": "pg1",
+                "facebook_page_name": "A",
             }
 
         captured: dict = {}
@@ -1497,14 +1547,60 @@ class TestCP20ManualAccount:
             captured["ig_info"] = ig_info
             return SimpleNamespace(id=uuid4(), brand_id=brand_id)
 
-        monkeypatch.setattr(InstagramAuthService, "fetch_instagram_account_manually", fake_manual)
+        monkeypatch.setattr(InstagramAuthService, "resolve_instagram_username", fake_resolve)
         monkeypatch.setattr(InstagramAuthService, "save_connection", fake_save)
 
         response = await mobile_app.mobile_instagram_manual_account(
-            mobile_app.MobileInstagramManualRequest(instagram_business_account_id="17841499999999999")
+            mobile_app.MobileInstagramManualRequest(instagram_username="@manual_user")
         )
 
-        assert captured["ig_info"]["instagram_account_id"] == "17841499999999999"
+        assert captured["ig_info"]["instagram_account_id"] == "ig1"
         assert captured["ig_info"]["instagram_username"] == "manual_user"
         assert response.status == "connected"
         assert brand_id not in mobile_app.PENDING_IG_TOKENS
+
+    async def test_resolves_username_against_candidate_accounts(self, monkeypatch):
+        async def fake_list(self, token):
+            return [
+                {
+                    "instagram_account_id": "ig1",
+                    "instagram_username": "cafe_a",
+                    "facebook_page_id": "pg1",
+                    "facebook_page_name": "A",
+                },
+                {
+                    "instagram_account_id": "ig2",
+                    "instagram_username": "Cafe_B",
+                    "facebook_page_id": "pg2",
+                    "facebook_page_name": "B",
+                },
+            ]
+
+        monkeypatch.setattr(InstagramAuthService, "list_candidate_accounts", fake_list)
+
+        service = InstagramAuthService(mobile_app.settings)
+        resolved = await service.resolve_instagram_username("token", "@cafe_b")
+
+        assert resolved["instagram_account_id"] == "ig2"
+        assert resolved["facebook_page_name"] == "B"
+
+    async def test_username_not_in_candidates_raises_actionable_message(self, monkeypatch):
+        async def fake_list(self, token):
+            return [
+                {
+                    "instagram_account_id": "ig1",
+                    "instagram_username": "cafe_a",
+                    "facebook_page_id": "pg1",
+                    "facebook_page_name": "A",
+                }
+            ]
+
+        monkeypatch.setattr(InstagramAuthService, "list_candidate_accounts", fake_list)
+
+        service = InstagramAuthService(mobile_app.settings)
+
+        with pytest.raises(ValueError) as exc:
+            await service.resolve_instagram_username("token", "@missing_cafe")
+
+        assert "현재 Meta 로그인 계정에서 찾을 수 없습니다" in str(exc.value)
+        assert "앱 Role" in str(exc.value)

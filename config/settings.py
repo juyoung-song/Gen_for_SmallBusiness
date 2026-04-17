@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     FREEIMAGE_API_KEY: str = "6d207e02198a847aa98d0a2a901485a5"
     META_ACCESS_TOKEN: str = ""
     INSTAGRAM_ACCOUNT_ID: str = ""
+    ALLOW_DEFAULT_INSTAGRAM_UPLOAD: bool = False
     META_APP_ID: str = ""
     META_APP_SECRET: str = ""
     # legacy fallback. Streamlit/Mobile 별 redirect 가 없을 때만 사용.
@@ -92,6 +93,12 @@ class Settings(BaseSettings):
     IMAGE_WORKER_TIMEOUT: float = 180.0
     IMAGE_WORKER_HOST: str = "0.0.0.0"
     IMAGE_WORKER_PORT: int = 8005
+
+    # ── Instagram capture worker (internal demo fallback) ──
+    # Mac 로컬 캡처 워커를 Cloudflare Tunnel 등으로 노출했을 때 VM mobile_app 이 호출.
+    INSTAGRAM_CAPTURE_WORKER_URL: str = ""
+    INSTAGRAM_CAPTURE_WORKER_TOKEN: str = ""
+    INSTAGRAM_CAPTURE_WORKER_TIMEOUT: float = 60.0
 
     # ── API 요청 설정 ──
     TEXT_TIMEOUT: float = 180.0    # GPT 호출 타임아웃 (초)

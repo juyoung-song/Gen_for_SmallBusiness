@@ -28,8 +28,12 @@
 7. amend 로 최종 메시지 교체
 
 ## Project Context
-- 브랜치: `refactor/flow` (스키마 리팩터 진행 중)
-- DB: SQLite + aiosqlite, `data/history.db`. Alembic 미사용, `Base.metadata.create_all` 로 부트스트랩.
+- 현재 운영/테스트 브랜치: `codex/oauth-only-mobile-upload`
+- 진입점: `mobile_app.py` + Stitch PWA. Streamlit `app.py` 문서는 legacy 참고로만 본다.
+- 운영 DB: SQLite + aiosqlite, `/srv/brewgram/data/history.db`. 로컬 개발은 `APP_DATA_DIR`/`SQLITE_DB_PATH` 설정에 따름. Alembic 미사용, `Base.metadata.create_all` 로 부트스트랩.
 - 스키마: 6 테이블 (brands / reference_images / generations / generation_outputs / instagram_connections / generated_uploads). `docs/schema.md` 가 단일 진실 원천.
 - LLM: OpenAI (langfuse.openai 래퍼). Langfuse Cloud 로 trace 자동 수집.
+- 이미지 생성: 기본은 `IMAGE_BACKEND_KIND=openai_image`. `remote_worker` 모드에서만 `worker_api.py`를 사용.
+- Instagram 캡처: VM IP 429 회피용으로 Mac 로컬 `scripts/instagram_capture_worker.py` + Cloudflare Tunnel을 선택적으로 사용.
+- 모바일 업로드: `.env`의 `META_ACCESS_TOKEN` fallback 금지. 사용자가 OAuth로 직접 연결한 계정만 사용.
 - 설계 원칙: 브랜드 불변 / 스타일-구도 분리 / 1계정 1브랜드 / 프롬프트→결과 추적(Langfuse trace_id).

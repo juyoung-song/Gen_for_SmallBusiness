@@ -1,5 +1,9 @@
 # Shared `team1` VM Worker Guide
 
+> Legacy note: 이 문서는 예전 “각 팀원이 Mac 로컬에서 `mobile_app.py`를 실행하고 VM worker를 SSH 터널로 공유”하던 구조를 설명한다.
+> 현재 운영 기준은 [BREWGRAM_WORKER.md](BREWGRAM_WORKER.md)와 [README.md](README.md)를 우선한다.
+> 현재 `openai_image` 모드에서는 `worker_api.py` 공유가 필요 없을 수 있다.
+
 이 문서는 **이미 만들어진 공용 GCP VM `team1`** 을 이미지 워커로 사용하고,
 각 팀원이 **자기 로컬 브랜치에서** `mobile_app.py` 와 Stitch UI를 실행하는 방법을 정리한 가이드다.
 

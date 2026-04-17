@@ -8,14 +8,13 @@
 Internet
   -> Caddy (80/443, TLS 종료)
   -> mobile_app.py (127.0.0.1:8011)
-  -> worker_api.py (127.0.0.1:8010)
+  -> [optional] worker_api.py (127.0.0.1:8010, remote_worker 모드)
 ```
 
 핵심 원칙:
 - 외부 공개는 `mobile_app`만 한다.
-- `worker_api`는 같은 VM 내부 루프백(`127.0.0.1`)으로만 연다.
-- `mobile_app`는 `IMAGE_BACKEND_KIND=remote_worker`,
-  `IMAGE_WORKER_URL=http://127.0.0.1:8010`으로 내부 워커를 호출한다.
+- 기본 `openai_image` 모드에서는 `mobile_app`가 OpenAI 이미지 API를 직접 호출하며 `worker_api`가 필요 없다.
+- `remote_worker` 모드에서만 `worker_api`를 같은 VM 내부 루프백(`127.0.0.1`)으로 연다.
 - 앱 데이터는 repo 밖 `APP_DATA_DIR`로 분리해 code pull/redeploy와 독립시킨다.
 - DuckDNS는 현재 VM IP를 갱신하고, Caddy가 `brewgram.duckdns.org`에 HTTPS를 붙인다.
 
@@ -23,7 +22,7 @@ Internet
 
 - `Caddy`: `:80`, `:443`
 - `mobile_app`: `127.0.0.1:8011`
-- `worker_api`: `127.0.0.1:8010`
+- `worker_api`: `127.0.0.1:8010` (`remote_worker` 모드에서만)
 
 ## 2. 준비물
 
@@ -60,14 +59,22 @@ Internet
 `/etc/brewgram/mobile_app.env` 예시:
 - `APP_DATA_DIR=/srv/brewgram/data`
 - `OPENAI_API_KEY`
-- `IMAGE_BACKEND_KIND=remote_worker`
-- `IMAGE_WORKER_URL=http://127.0.0.1:8010`
-- `IMAGE_WORKER_TOKEN=...`
+- `IMAGE_BACKEND_KIND=openai_image`
 - `FREEIMAGE_API_KEY=...`
 - `META_APP_ID=...`
 - `META_APP_SECRET=...`
 - `TOKEN_ENCRYPTION_KEY=...`
 - `META_REDIRECT_URI_MOBILE=https://brewgram.duckdns.org/api/mobile/instagram/callback`
+- `ALLOW_DEFAULT_INSTAGRAM_UPLOAD=false` (선택: VM 고정 계정 업로드 시 `true`)
+- `META_ACCESS_TOKEN=...` (선택: VM 고정 계정 업로드 시)
+- `INSTAGRAM_ACCOUNT_ID=...` (선택: VM 고정 계정 업로드 시)
+- `INSTAGRAM_CAPTURE_WORKER_URL=...` (선택, Mac 캡처 워커 사용 시)
+- `INSTAGRAM_CAPTURE_WORKER_TOKEN=...` (선택)
+
+`remote_worker` 모드에서만 추가:
+- `IMAGE_BACKEND_KIND=remote_worker`
+- `IMAGE_WORKER_URL=http://127.0.0.1:8010`
+- `IMAGE_WORKER_TOKEN=...`
 
 `/etc/brewgram/worker_api.env` 예시:
 - `APP_DATA_DIR=/srv/brewgram/data`
@@ -120,9 +127,14 @@ sudo systemctl reload caddy
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now brewgram-worker.service
 sudo systemctl enable --now brewgram-mobile.service
 sudo systemctl enable --now duckdns-refresh.timer
+```
+
+`remote_worker` 모드일 때만:
+
+```bash
+sudo systemctl enable --now brewgram-worker.service
 ```
 
 ## 7. 점검 명령
@@ -130,9 +142,14 @@ sudo systemctl enable --now duckdns-refresh.timer
 로컬 VM:
 
 ```bash
-curl http://127.0.0.1:8010/health
 curl http://127.0.0.1:8011/health
 curl -I http://127.0.0.1:8011/stitch/manifest.webmanifest
+```
+
+`remote_worker` 모드일 때만:
+
+```bash
+curl http://127.0.0.1:8010/health
 ```
 
 외부:
@@ -150,28 +167,39 @@ curl -I https://brewgram.duckdns.org/stitch/service-worker.js
 - Meta 앱의 Valid OAuth Redirect URIs 에
   `https://brewgram.duckdns.org/api/mobile/instagram/callback` 추가
 - 테스트 계정 App Role / Facebook Page 권한 확인
+- 모바일 업로드는 기본적으로 OAuth로 직접 연결된 계정만 사용. 내부 데모에서 VM 고정 계정을 쓰려면 `ALLOW_DEFAULT_INSTAGRAM_UPLOAD=true`, `META_ACCESS_TOKEN`, `INSTAGRAM_ACCOUNT_ID`를 함께 설정
 
-## 9. GitHub Actions 자동 배포
+## 9. 배포 운영 기준
 
-자동 배포 방식:
+현재 repo에서는 GitHub Actions 자동 배포를 사용하지 않는다.
+VM 반영은 SSH로 접속한 뒤 수동 배포 스크립트 또는 수동 명령을 실행한다.
 
-```text
-push to merge/dev
-  -> GitHub Actions
-  -> SSH to VM
-  -> /usr/local/bin/deploy-brewgram.sh
-  -> git pull --ff-only + uv sync + playwright install chromium + systemd restart
+수동 배포 스크립트:
+
+```bash
+BREWGRAM_DEPLOY_BRANCH=codex/oauth-only-mobile-upload deploy-brewgram.sh
 ```
 
-GitHub repo secrets:
-- `VM_HOST`
-- `VM_USER`
-- `VM_SSH_KEY`
+브랜치를 바꿀 때는 `BREWGRAM_DEPLOY_BRANCH` 값만 바꾼다.
 
-워크플로 파일:
-- `.github/workflows/deploy-infra.yml`
+수동 명령:
+
+```bash
+cd ~/Gen_for_SmallBusiness
+git fetch origin
+git switch codex/oauth-only-mobile-upload
+git pull --ff-only origin codex/oauth-only-mobile-upload
+uv sync
+uv run python -m playwright install chromium
+sudo systemctl restart brewgram-mobile.service
+```
+
+`remote_worker` 모드이면 마지막 줄 대신:
+
+```bash
+sudo systemctl restart brewgram-worker.service brewgram-mobile.service
+```
 
 주의:
-- VM 사용자 계정이 `sudo systemctl`을 비밀번호 없이 실행할 수 있어야 한다.
 - Playwright Chromium 실행에 필요한 OS 패키지는 VM 최초 세팅 때 `sudo env PATH="$PATH" /home/spai0608/.local/bin/uv run python -m playwright install-deps chromium`으로 1회 설치한다.
 - VM 작업 트리에 수동 수정이 남아 있으면 `git pull --ff-only`가 실패할 수 있다.
