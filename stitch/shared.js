@@ -1308,14 +1308,12 @@
     }
     if (chips) {
       chips.innerHTML = "";
-      const chipValues = [brand.brand_atmosphere, "브랜드 저장 완료"].filter(Boolean);
-      chipValues.forEach((value, index) => {
+      const chipValues = ["브랜드 저장 완료"];
+      chipValues.forEach((value) => {
         const span = document.createElement("span");
         span.className =
-          index === 0
-            ? "px-3 py-1 bg-[rgba(255,116,72,0.15)] text-[#d95c39] text-[10px] font-bold rounded-full tracking-wider"
-            : "px-3 py-1 bg-[rgba(255,179,71,0.14)] text-on-surface-variant text-[10px] font-bold rounded-full tracking-wider";
-        span.textContent = index === 0 ? `#${value}` : value;
+          "px-3 py-1 bg-[rgba(255,179,71,0.14)] text-on-surface-variant text-[10px] font-bold rounded-full tracking-wider";
+        span.textContent = value;
         chips.appendChild(span);
       });
     }
@@ -1535,7 +1533,6 @@
 
     if (statusList) {
       const statuses = [
-        brand?.brand_atmosphere ? `#${brand.brand_atmosphere}` : "브랜드 세팅 완료",
         bootstrap?.image_backend_kind === "remote_worker"
           ? "실제 이미지 생성 연결됨"
           : bootstrap?.image_backend_kind === "mock"
