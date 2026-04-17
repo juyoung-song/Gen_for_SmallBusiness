@@ -2349,14 +2349,8 @@
           },
         });
         lastCaptionResult = caption;
-        captionBlock.innerHTML = `
-          <div class="result-card">
-            <h3 class="result-card__title">피드 캡션</h3>
-            <div class="copy-line" style="white-space:pre-wrap;">${escapeHtml(caption.caption)}</div>
-            <div class="copy-line">${escapeHtml(caption.hashtags)}</div>
-          </div>
-        `;
-        captionBlock.classList.remove("hidden");
+        // NOTE: 별도 캡션 블럭(#result-caption-block) 은 UI 에서 제거됨. 생성된
+        // 캡션/해시태그는 아래 인스타 프리뷰의 .ig-caption 영역에 embed.
         // 캡션 생성 성공 시에만 인스타 피드 미리보기 + 업로드 버튼 + 업로드 안내 노출
         previewBlock?.classList.remove("hidden");
         uploadFeedButton?.classList.remove("hidden");
