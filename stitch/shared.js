@@ -583,7 +583,7 @@
       return {
         flag,
         tone: "neutral",
-        message: "Instagram professional account를 찾지 못했습니다. 아래에 Instagram 계정 ID를 입력해 연결을 시도해주세요.",
+        message: "Instagram professional account를 찾지 못했습니다. 아래에 @username을 입력해 연결을 시도해주세요.",
       };
     }
     return {
@@ -1179,12 +1179,12 @@
     igManualConfirm?.addEventListener("click", async () => {
       const igId = igManualInput?.value?.trim();
       if (!igId) {
-        setStatus(statusNode, "Instagram 계정 ID를 입력해주세요.", "error");
+        setStatus(statusNode, "Instagram @username을 입력해주세요.", "error");
         return;
       }
       try {
         setStatus(statusNode, "계정 확인 중…", "loading");
-        await api("/instagram/manual-account", { method: "POST", body: { instagram_business_account_id: igId } });
+        await api("/instagram/manual-account", { method: "POST", body: { instagram_username: igId } });
         igManualPanel?.classList.add("hidden");
         await loadState();
         setStatus(statusNode, "인스타그램 계정 연결이 완료되었습니다.", "success");
@@ -1723,14 +1723,14 @@
     igManualConfirm?.addEventListener("click", async () => {
       const igId = igManualInput?.value?.trim();
       if (!igId) {
-        setStatus(statusNode, "Instagram 계정 ID를 입력해주세요.", "error");
+        setStatus(statusNode, "Instagram @username을 입력해주세요.", "error");
         return;
       }
       try {
         setStatus(statusNode, "계정 확인 중…", "loading");
         await api("/instagram/manual-account", {
           method: "POST",
-          body: { instagram_business_account_id: igId },
+          body: { instagram_username: igId },
         });
         igManualPanel?.classList.add("hidden");
         await loadSettingsStatus();

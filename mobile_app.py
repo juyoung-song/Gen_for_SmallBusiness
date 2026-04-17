@@ -225,10 +225,8 @@ class MobileInstagramSelectRequest(BaseModel):
 
 
 class MobileInstagramManualRequest(BaseModel):
-    # NOTE: PR #17 의 username 통일 의도는 유효하지만, OAuth 동의 화면에서 Page가
-    # 허용되지 않아 `/me/accounts` 가 빈 배열로 오는 환경에서는 username 경로가
-    # 동작 불가. 환경(Meta 앱 Page 접근 권한) 문제 해결 후 username 으로 재전환 가능.
-    instagram_business_account_id: str
+    # [TEST] username 경로 복원 (테스트용 — 끝나면 discard)
+    instagram_username: str
 
 
 class MobileInstagramConnectedResponse(BaseModel):
@@ -1184,8 +1182,8 @@ async def mobile_instagram_manual_account(
 
     auth_service = InstagramAuthService(settings)
     try:
-        ig_info = await auth_service.fetch_instagram_account_manually(
-            pending.access_token, payload.instagram_business_account_id
+        ig_info = await auth_service.resolve_instagram_username(
+            pending.access_token, payload.instagram_username
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
