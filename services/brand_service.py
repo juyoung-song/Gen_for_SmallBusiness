@@ -1,9 +1,8 @@
 """Brand CRUD 서비스.
 
-docs/schema.md §3.1 기준:
-- 브랜드는 불변. create() 1회, 이후 get() 만. update() 미제공.
-- 인스타 연결 단계에서만 instagram_account_id/username 을 한 번 채우는 허용
-  (link_instagram) — 이는 "수정" 이 아니라 "최초 연결" 로 본다.
+docs/schema.md §3.1 기준의 최초 설계는 브랜드 불변 모델이었지만, 모바일
+온보딩 재분석 흐름에서는 기존 생성/인스타 연결을 유지한 채 브랜드 입력과
+style_prompt 를 갱신할 수 있어야 한다.
 """
 
 from uuid import UUID
@@ -63,6 +62,38 @@ class BrandService:
             style_prompt=style_prompt,
         )
         self.session.add(brand)
+        await self.session.commit()
+        await self.session.refresh(brand)
+        return brand
+
+    async def update_profile(
+        self,
+        brand_id: UUID,
+        *,
+        name: str,
+        color_hex: str,
+        logo_path: str | None,
+        input_instagram_url: str,
+        input_description: str,
+        input_mood: str,
+        style_prompt: str,
+    ) -> Brand:
+        """브랜드 입력값과 분석 결과를 갱신한다.
+
+        instagram_account_id / instagram_username 은 연결 상태이므로 건드리지 않는다.
+        """
+        brand = await self.get(brand_id)
+        if brand is None:
+            raise ValueError(f"brand_id={brand_id} 를 찾을 수 없음")
+
+        brand.name = name
+        brand.color_hex = color_hex
+        brand.logo_path = logo_path
+        brand.input_instagram_url = input_instagram_url
+        brand.input_description = input_description
+        brand.input_mood = input_mood
+        brand.style_prompt = style_prompt
+
         await self.session.commit()
         await self.session.refresh(brand)
         return brand

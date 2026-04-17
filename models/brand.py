@@ -34,12 +34,12 @@ class Brand(Base):
     color_hex: Mapped[str] = mapped_column(String(7), nullable=False)
     logo_path: Mapped[str | None] = mapped_column(String(512), nullable=True, default=None)
 
-    # 스타일 입력 (불변 박제)
+    # 스타일 입력 (온보딩 재분석 시 갱신 가능)
     input_instagram_url: Mapped[str] = mapped_column(Text, nullable=False)
     input_description: Mapped[str] = mapped_column(Text, nullable=False)
     input_mood: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # 스타일 분석 결과 (불변)
+    # 스타일 분석 결과 (온보딩 재분석 시 갱신 가능)
     style_prompt: Mapped[str] = mapped_column(Text, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(

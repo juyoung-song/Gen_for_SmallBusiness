@@ -122,6 +122,7 @@ class MobileInstagramSummary(BaseModel):
     expired: bool = False
     upload_ready: bool
     connection_source: Literal["oauth", "env", "none"] = "none"
+    instagram_account_id: str | None = None
     username: str | None = None
     page_name: str | None = None
     expires_at: datetime | None = None
@@ -463,6 +464,25 @@ def _build_brand_prompt(brand: Brand) -> str:
     return "\n".join(prefix_lines) + ("\n\n" if prefix_lines else "") + brand.style_prompt
 
 
+def _brand_inputs_match(
+    brand: Brand,
+    *,
+    name: str,
+    color_hex: str,
+    input_instagram_url: str,
+    input_description: str,
+    input_mood: str,
+) -> bool:
+    """저장된 브랜드 입력과 새 온보딩 입력이 같은지 비교한다."""
+    return (
+        brand.name == name
+        and brand.color_hex == color_hex
+        and brand.input_instagram_url == input_instagram_url
+        and brand.input_description == input_description
+        and brand.input_mood == input_mood
+    )
+
+
 async def _load_brand_prompt() -> str:
     brand = await _load_brand()
     if brand is None:
@@ -513,11 +533,7 @@ async def _load_brand() -> Brand | None:
 
 async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary:
     oauth_available = settings.is_instagram_oauth_configured_for("mobile")
-    default_upload_ready = bool(
-        settings.ALLOW_DEFAULT_INSTAGRAM_UPLOAD
-        and settings.META_ACCESS_TOKEN
-        and settings.INSTAGRAM_ACCOUNT_ID
-    )
+    default_upload_ready = bool(settings.META_ACCESS_TOKEN and settings.INSTAGRAM_ACCOUNT_ID)
 
     if brand is not None:
         connection = await InstagramAuthService(settings).get_connection(brand.id)
@@ -541,6 +557,7 @@ async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary
                     expired=False,
                     upload_ready=True,
                     connection_source="oauth",
+                    instagram_account_id=getattr(brand, "instagram_account_id", None),
                     username=username,
                     page_name=connection.facebook_page_name,
                     expires_at=expires_at,
@@ -553,6 +570,7 @@ async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary
                     expired=True,
                     upload_ready=False,
                     connection_source="none",
+                    instagram_account_id=getattr(brand, "instagram_account_id", None),
                     username=username,
                     page_name=connection.facebook_page_name,
                     expires_at=expires_at,
@@ -566,7 +584,9 @@ async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary
             expired=False,
             upload_ready=True,
             connection_source="env",
-            page_name="기본 업로드 계정",
+            instagram_account_id=settings.INSTAGRAM_ACCOUNT_ID,
+            username=settings.INSTAGRAM_ACCOUNT_ID,
+            page_name=f"Instagram ID {settings.INSTAGRAM_ACCOUNT_ID}",
         )
 
     return MobileInstagramSummary(
@@ -634,8 +654,7 @@ async def _resolve_upload_context() -> tuple[Brand, object]:
 
     upload_settings = settings.model_copy(deep=True)
     default_upload_ready = bool(
-        upload_settings.ALLOW_DEFAULT_INSTAGRAM_UPLOAD
-        and upload_settings.META_ACCESS_TOKEN
+        upload_settings.META_ACCESS_TOKEN
         and upload_settings.INSTAGRAM_ACCOUNT_ID
     )
 
@@ -661,8 +680,7 @@ async def _resolve_upload_context() -> tuple[Brand, object]:
 
     if default_upload_ready:
         logger.warning(
-            "모바일 업로드가 VM 기본 Instagram 계정 fallback을 사용합니다. "
-            "ALLOW_DEFAULT_INSTAGRAM_UPLOAD=true"
+            "모바일 업로드가 VM env 기본 Instagram 계정 fallback을 사용합니다."
         )
         return brand, upload_settings
 
@@ -1211,20 +1229,40 @@ async def complete_onboarding(
 ) -> MobileOnboardingResponse:
     async with AsyncSessionLocal() as session:
         existing = await BrandService(session).get_first()
-    if existing is not None:
-        return MobileOnboardingResponse(
-            status="existing",
-            brand=_serialize_brand(existing),
-            warnings=[],
-        )
 
     warnings: list[str] = []
 
     brand_name = payload.brand_name.strip()
     brand_color = (payload.brand_color or "").strip()
+    normalized_brand_color = brand_color or "#ff7448"
     brand_atmosphere = payload.brand_atmosphere.strip()
     freetext = payload.freetext.strip()
     instagram_url = payload.instagram_url.strip()
+    has_uploaded_logo = payload.logo is not None
+    has_new_reference_images = bool(payload.reference_images)
+    existing_inputs_match = (
+        existing is not None
+        and _brand_inputs_match(
+            existing,
+            name=brand_name,
+            color_hex=normalized_brand_color,
+            input_instagram_url=instagram_url,
+            input_description=freetext,
+            input_mood=brand_atmosphere,
+        )
+    )
+
+    if (
+        existing is not None
+        and existing_inputs_match
+        and not has_uploaded_logo
+        and not has_new_reference_images
+    ):
+        return MobileOnboardingResponse(
+            status="existing",
+            brand=_serialize_brand(existing),
+            warnings=[],
+        )
 
     logo_path: str | None = None
     if payload.logo is not None:
@@ -1234,6 +1272,8 @@ async def complete_onboarding(
             extension=_infer_extension(payload.logo),
         )
         logo_path = str(saved_logo)
+    elif existing is not None and existing.logo_path:
+        logo_path = existing.logo_path
     else:
         # CP14: 로고 미업로드 시 PIL 워드마크 자동 생성 (Streamlit 흐름과 동등).
         # CP15 OpenAIImageBackend 가 logo_path 를 필수로 요구하므로 항상 채워둔다.
@@ -1245,7 +1285,7 @@ async def complete_onboarding(
         saved_logo = await run_in_threadpool(
             generator.generate_and_save,
             name=brand_name,
-            color_hex=brand_color or "#ff7448",
+            color_hex=normalized_brand_color,
         )
         logo_path = str(saved_logo)
 
@@ -1290,7 +1330,16 @@ async def complete_onboarding(
                 warnings.append(
                     "인스타그램 캡처는 실패했지만, 입력한 내용과 업로드한 이미지로 계속 진행했습니다."
                 )
-    if analysis_images and settings.is_api_ready:
+    preserve_existing_content = (
+        existing is not None
+        and existing_inputs_match
+        and has_uploaded_logo
+        and not has_new_reference_images
+    )
+
+    if preserve_existing_content:
+        content = existing.style_prompt
+    elif analysis_images and settings.is_api_ready:
         analyzer = GPTVisionAnalyzer(settings)
         merged_freetext = _merge_structured_inputs_into_freetext(
             description=freetext,
@@ -1340,18 +1389,32 @@ async def complete_onboarding(
 
     async with AsyncSessionLocal() as session:
         brand_service = BrandService(session)
-        brand_record = await brand_service.create(
-            name=brand_name,
-            color_hex=brand_color or "#ff7448",
-            logo_path=logo_path,
-            input_instagram_url=instagram_url,
-            input_description=freetext,
-            input_mood=brand_atmosphere,
-            style_prompt=content,
-        )
+        if existing is None:
+            brand_record = await brand_service.create(
+                name=brand_name,
+                color_hex=normalized_brand_color,
+                logo_path=logo_path,
+                input_instagram_url=instagram_url,
+                input_description=freetext,
+                input_mood=brand_atmosphere,
+                style_prompt=content,
+            )
+            status: Literal["created", "updated"] = "created"
+        else:
+            brand_record = await brand_service.update_profile(
+                existing.id,
+                name=brand_name,
+                color_hex=normalized_brand_color,
+                logo_path=logo_path,
+                input_instagram_url=instagram_url,
+                input_description=freetext,
+                input_mood=brand_atmosphere,
+                style_prompt=content,
+            )
+            status = "updated"
 
     return MobileOnboardingResponse(
-        status="created",
+        status=status,
         brand=_serialize_brand(brand_record),
         warnings=warnings,
     )

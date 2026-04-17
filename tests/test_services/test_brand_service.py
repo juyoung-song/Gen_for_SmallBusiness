@@ -1,10 +1,4 @@
-"""BrandService 테스트.
-
-docs/schema.md §3.1 원칙 확인:
-- 불변 엔티티 (update API 제공 안 함)
-- instagram_account_id UNIQUE
-- link_instagram 은 1회성 연결 허용
-"""
+"""BrandService 테스트."""
 
 import pytest
 
@@ -27,6 +21,54 @@ class TestBrandServiceCreate:
         assert brand.name == "구름 베이커리"
         assert brand.instagram_account_id is None  # 연결 전
         assert brand.created_at is not None
+
+
+class TestBrandServiceUpdateProfile:
+    async def test_update_profile_changes_brand_inputs_and_preserves_instagram(
+        self, db_session, brand_factory
+    ):
+        brand = await brand_factory(
+            instagram_account_id="17841000000000001",
+            instagram_username="old_user",
+        )
+        svc = BrandService(db_session)
+
+        updated = await svc.update_profile(
+            brand.id,
+            name="새 구름",
+            color_hex="#112233",
+            logo_path="/tmp/new-logo.png",
+            input_instagram_url="https://instagram.com/new",
+            input_description="수정된 설명",
+            input_mood="차분한",
+            style_prompt="새 브랜드 분석",
+        )
+
+        assert updated.name == "새 구름"
+        assert updated.color_hex == "#112233"
+        assert updated.logo_path == "/tmp/new-logo.png"
+        assert updated.input_instagram_url == "https://instagram.com/new"
+        assert updated.input_description == "수정된 설명"
+        assert updated.input_mood == "차분한"
+        assert updated.style_prompt == "새 브랜드 분석"
+        assert updated.instagram_account_id == "17841000000000001"
+        assert updated.instagram_username == "old_user"
+
+    async def test_update_profile_raises_when_brand_missing(self, db_session):
+        import uuid
+
+        svc = BrandService(db_session)
+        with pytest.raises(ValueError):
+            await svc.update_profile(
+                uuid.uuid4(),
+                name="missing",
+                color_hex="#112233",
+                logo_path=None,
+                input_instagram_url="",
+                input_description="",
+                input_mood="",
+                style_prompt="",
+            )
 
 
 class TestBrandServiceGet:

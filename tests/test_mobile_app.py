@@ -254,7 +254,7 @@ class TestInstagramSummary:
         assert summary.connection_source == "oauth"
         assert summary.username == "bakery_owner"
 
-    async def test_requires_oauth_connection_even_when_env_upload_is_configured(self, monkeypatch):
+    async def test_reports_env_account_when_token_and_account_id_are_configured(self, monkeypatch):
         async def fake_get_connection(self, _brand_id):
             return None
 
@@ -274,9 +274,12 @@ class TestInstagramSummary:
 
         summary = await mobile_app._load_instagram_summary(None)
 
-        assert summary.connected is False
-        assert summary.upload_ready is False
-        assert summary.connection_source == "none"
+        assert summary.connected is True
+        assert summary.upload_ready is True
+        assert summary.connection_source == "env"
+        assert summary.connect_available is True
+        assert summary.instagram_account_id == "1784"
+        assert summary.username == "1784"
 
     async def test_reports_default_env_account_when_explicitly_enabled(self, monkeypatch):
         async def fake_get_connection(self, _brand_id):
@@ -296,6 +299,7 @@ class TestInstagramSummary:
         assert summary.connected is True
         assert summary.upload_ready is True
         assert summary.connection_source == "env"
+        assert summary.instagram_account_id == "1784"
 
 
 class TestInstagramOnboardingFlow:
@@ -438,6 +442,9 @@ class TestMobileUploads:
             "apply_user_token_async",
             fake_apply_user_token_async,
         )
+        monkeypatch.setattr(mobile_app.settings, "META_ACCESS_TOKEN", "")
+        monkeypatch.setattr(mobile_app.settings, "INSTAGRAM_ACCOUNT_ID", "")
+        monkeypatch.setattr(mobile_app.settings, "ALLOW_DEFAULT_INSTAGRAM_UPLOAD", False)
 
         with pytest.raises(HTTPException) as exc_info:
             await mobile_app.mobile_upload_feed(
@@ -451,7 +458,7 @@ class TestMobileUploads:
         assert exc_info.value.status_code == 409
         assert "연결" in exc_info.value.detail
 
-    async def test_resolve_upload_context_uses_default_env_account_when_enabled(
+    async def test_resolve_upload_context_uses_default_env_account_when_configured(
         self, monkeypatch
     ):
         brand = SimpleNamespace(id=uuid4())
@@ -462,7 +469,7 @@ class TestMobileUploads:
         monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
         monkeypatch.setattr(mobile_app.settings, "META_ACCESS_TOKEN", "fallback-token")
         monkeypatch.setattr(mobile_app.settings, "INSTAGRAM_ACCOUNT_ID", "1784")
-        monkeypatch.setattr(mobile_app.settings, "ALLOW_DEFAULT_INSTAGRAM_UPLOAD", True)
+        monkeypatch.setattr(mobile_app.settings, "ALLOW_DEFAULT_INSTAGRAM_UPLOAD", False)
 
         resolved_brand, upload_settings = await mobile_app._resolve_upload_context()
 
@@ -647,6 +654,109 @@ class TestCP17OnboardingAutoLogo:
         assert captured["create_kwargs"]["logo_path"].endswith(".png")
         # 응답 status 도 created 여야 (existing fallback 이 아님)
         assert response.status == "created"
+
+
+class TestMobileOnboardingBrandUpdate:
+    async def test_complete_onboarding_updates_existing_brand_when_inputs_change(
+        self, monkeypatch
+    ):
+        brand_id = uuid4()
+        existing = SimpleNamespace(
+            id=brand_id,
+            name="이전 브랜드",
+            color_hex="#5562EA",
+            input_instagram_url="",
+            input_description="이전 설명",
+            input_mood="따뜻한",
+            logo_path="/tmp/existing-logo.png",
+            style_prompt="이전 분석",
+        )
+        captured: dict = {}
+
+        async def fake_get_first(self):
+            return existing
+
+        async def fake_update_profile(self, brand_id_arg, **kwargs):
+            captured["brand_id"] = brand_id_arg
+            captured["kwargs"] = kwargs
+            return SimpleNamespace(
+                id=brand_id_arg,
+                name=kwargs["name"],
+                color_hex=kwargs["color_hex"],
+                input_instagram_url=kwargs["input_instagram_url"],
+                input_description=kwargs["input_description"],
+                input_mood=kwargs["input_mood"],
+                logo_path=kwargs["logo_path"],
+                style_prompt=kwargs["style_prompt"],
+            )
+
+        monkeypatch.setattr(mobile_app.BrandService, "get_first", fake_get_first)
+        monkeypatch.setattr(
+            mobile_app.BrandService, "update_profile", fake_update_profile
+        )
+        monkeypatch.setattr(
+            type(mobile_app.settings), "is_api_ready", property(lambda self: False)
+        )
+
+        response = await mobile_app.complete_onboarding(
+            mobile_app.MobileOnboardingRequest(
+                brand_name="새 브랜드",
+                brand_color="#123456",
+                brand_atmosphere="차분한",
+                freetext="새 설명",
+                instagram_url="",
+                logo=None,
+            )
+        )
+
+        assert response.status == "updated"
+        assert captured["brand_id"] == brand_id
+        assert captured["kwargs"]["name"] == "새 브랜드"
+        assert captured["kwargs"]["color_hex"] == "#123456"
+        assert captured["kwargs"]["input_description"] == "새 설명"
+        assert captured["kwargs"]["input_mood"] == "차분한"
+        assert captured["kwargs"]["logo_path"] == "/tmp/existing-logo.png"
+        assert "새 브랜드" in captured["kwargs"]["style_prompt"]
+        assert "새 설명" in captured["kwargs"]["style_prompt"]
+
+    async def test_complete_onboarding_reuses_existing_when_inputs_match(
+        self, monkeypatch
+    ):
+        existing = SimpleNamespace(
+            id=uuid4(),
+            name="구름",
+            color_hex="#5562EA",
+            input_instagram_url="",
+            input_description="베이커리 카페",
+            input_mood="따뜻한",
+            logo_path="/tmp/existing-logo.png",
+            style_prompt="기존 분석",
+        )
+
+        async def fake_get_first(self):
+            return existing
+
+        async def fail_update_profile(self, *args, **kwargs):
+            raise AssertionError("동일 입력에서는 브랜드를 업데이트하면 안 됩니다.")
+
+        monkeypatch.setattr(mobile_app.BrandService, "get_first", fake_get_first)
+        monkeypatch.setattr(
+            mobile_app.BrandService, "update_profile", fail_update_profile
+        )
+
+        response = await mobile_app.complete_onboarding(
+            mobile_app.MobileOnboardingRequest(
+                brand_name="구름",
+                brand_color="#5562EA",
+                brand_atmosphere="따뜻한",
+                freetext="베이커리 카페",
+                instagram_url="",
+                logo=None,
+            )
+        )
+
+        assert response.status == "existing"
+        assert response.brand.content == "기존 분석"
 
 
 class TestCP17GenerateLogoPathInjection:
