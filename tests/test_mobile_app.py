@@ -1517,7 +1517,12 @@ class TestCP20SelectAccount:
 
 
 class TestCP20ManualAccount:
-    """POST /api/mobile/instagram/manual-account — 직접 입력한 username 으로 save_connection."""
+    """POST /api/mobile/instagram/manual-account — 직접 입력한 IG 숫자 ID 로 save_connection.
+
+    NOTE: PR #17 의 username 통일 의도는 유효하나, OAuth 동의 화면 Page 체크 누락으로
+    `/me/accounts` 가 빈 배열이 되는 환경에서 username 경로는 동작 불가. 환경 해결 후
+    username 방식으로 재전환 가능 (`resolve_instagram_username` 메서드는 존치).
+    """
 
     async def test_post_manual_saves_connection(self, monkeypatch):
         brand_id = uuid4()
@@ -1533,12 +1538,12 @@ class TestCP20ManualAccount:
             source="settings",
         )
 
-        async def fake_resolve(self, token, username):
+        async def fake_fetch(self, token, instagram_id):
             return {
-                "instagram_account_id": "ig1",
-                "instagram_username": username.removeprefix("@"),
-                "facebook_page_id": "pg1",
-                "facebook_page_name": "A",
+                "instagram_account_id": instagram_id,
+                "instagram_username": "manual_user",
+                "facebook_page_id": None,
+                "facebook_page_name": "수동 연결",
             }
 
         captured: dict = {}
@@ -1547,14 +1552,14 @@ class TestCP20ManualAccount:
             captured["ig_info"] = ig_info
             return SimpleNamespace(id=uuid4(), brand_id=brand_id)
 
-        monkeypatch.setattr(InstagramAuthService, "resolve_instagram_username", fake_resolve)
+        monkeypatch.setattr(InstagramAuthService, "fetch_instagram_account_manually", fake_fetch)
         monkeypatch.setattr(InstagramAuthService, "save_connection", fake_save)
 
         response = await mobile_app.mobile_instagram_manual_account(
-            mobile_app.MobileInstagramManualRequest(instagram_username="@manual_user")
+            mobile_app.MobileInstagramManualRequest(instagram_business_account_id="17841433263101282")
         )
 
-        assert captured["ig_info"]["instagram_account_id"] == "ig1"
+        assert captured["ig_info"]["instagram_account_id"] == "17841433263101282"
         assert captured["ig_info"]["instagram_username"] == "manual_user"
         assert response.status == "connected"
         assert brand_id not in mobile_app.PENDING_IG_TOKENS

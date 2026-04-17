@@ -225,7 +225,10 @@ class MobileInstagramSelectRequest(BaseModel):
 
 
 class MobileInstagramManualRequest(BaseModel):
-    instagram_username: str
+    # NOTE: PR #17 의 username 통일 의도는 유효하지만, OAuth 동의 화면에서 Page가
+    # 허용되지 않아 `/me/accounts` 가 빈 배열로 오는 환경에서는 username 경로가
+    # 동작 불가. 환경(Meta 앱 Page 접근 권한) 문제 해결 후 username 으로 재전환 가능.
+    instagram_business_account_id: str
 
 
 class MobileInstagramConnectedResponse(BaseModel):
@@ -1137,7 +1140,10 @@ async def mobile_instagram_select_account(
         raise HTTPException(status_code=404, detail="대기 중인 Instagram 연결 정보가 없습니다.")
 
     auth_service = InstagramAuthService(settings)
-    candidates = await auth_service.list_candidate_accounts(pending.access_token)
+    try:
+        candidates = await auth_service.list_candidate_accounts(pending.access_token)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     selected = next(
         (c for c in candidates if c["instagram_account_id"] == payload.instagram_account_id),
@@ -1177,9 +1183,12 @@ async def mobile_instagram_manual_account(
         raise HTTPException(status_code=404, detail="대기 중인 Instagram 연결 정보가 없습니다.")
 
     auth_service = InstagramAuthService(settings)
-    ig_info = await auth_service.resolve_instagram_username(
-        pending.access_token, payload.instagram_username
-    )
+    try:
+        ig_info = await auth_service.fetch_instagram_account_manually(
+            pending.access_token, payload.instagram_business_account_id
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     await auth_service.save_connection(
         brand_id=brand.id,

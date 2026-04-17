@@ -316,3 +316,29 @@
 - [x] **20.S.3** 페이지 1개 + IG 1개 → 자동 완료 (실계정 환경 미확보, 코드 경로 테스트로 갈음)
 - [ ] **20.S.4** 잘못된 ID 수동 입력 → 에러 토스트
 - [x] **20.S.5** 회귀: CP19/CP17/CP18 기능 유지 (pytest 34 passed)
+
+---
+
+## CP22b — manual 경로 회귀 롤백 + API 에러 표시 개선 (2026-04-17 완료, 커밋 4e09eb5)
+
+**배경**: PR #17 (`4804bf2 fix: resolve instagram account by username`) 로 manual 입력이 `@username` → `resolve_instagram_username()` (내부적으로 `/me/accounts` 경유) 로 변경. 그러나 OAuth 동의 화면에서 Page 가 허용되지 않은 환경(`/me/accounts` = `{'data': []}`) 에서는 manual 경로가 구조적으로 성공 불가 → 내부 데모 환경에서 "입력한 @username을 찾을 수 없습니다" 에러. UI 에는 `[object Object]` 표시(FastAPI 422 `detail` 배열 미처리).
+
+### 변경
+- [x] **22b.1** `stitch/shared.js` `api()` — `humanizeApiError()` 추가, 422 `detail` 배열을 `.msg` 추출 문자열로 변환
+- [x] **22b.2** `mobile_app.py` select/manual 핸들러 — `ValueError` → `HTTPException(400)` 매핑
+- [x] **22b.3** `MobileInstagramManualRequest.instagram_username` → `instagram_business_account_id` 롤백 (TODO 주석 포함)
+- [x] **22b.4** manual 핸들러 — `resolve_instagram_username()` → `fetch_instagram_account_manually()` 롤백
+- [x] **22b.5** `stitch/shared.js` manual payload 필드명 + 에러 메시지 복원 (settings + onboarding 양쪽)
+- [x] **22b.6** `stitch/settings.html` / `stitch/onboarding-instagram.html` — 패널 제목/안내/placeholder 를 "Instagram 계정 ID(숫자)" 로 복원
+- [x] **22b.7** `tests/test_mobile_app.py` `TestCP20ManualAccount::test_post_manual_saves_connection` 를 ID 기반 호출로 재작성 (`resolve_instagram_username` service-level 테스트는 존치)
+- [x] **22b.8** SW 캐시 v23 → v24
+
+### 📱 스모크
+- [x] **22b.S.1** 설정 → Meta 연결 → `manual_required` 분기 → `.env INSTAGRAM_ACCOUNT_ID` prefill 된 input → 연결 성공 (Clear site data 후 확인)
+
+### 유지
+- `InstagramAuthService.resolve_instagram_username()` 메서드 자체 + service-level 테스트 2개 (`test_resolves_username_against_candidate_accounts`, `test_username_not_in_candidates_raises_actionable_message`) → 환경(OAuth 동의 Page 체크) 해결 후 username 방식 재도입 대비.
+
+### TODO
+- OAuth 동의 화면에서 Page 접근이 정상 부여되도록 환경 점검 (Meta 앱 Business Login use case / 동의 화면 Pages 기본 체크).
+- 해결되면 manual 경로를 다시 `instagram_username` 기반으로 전환 (이 롤백 커밋이 참조점).

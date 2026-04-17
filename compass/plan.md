@@ -507,6 +507,34 @@ Phase 2 — MVP 완성 (기능 추가)
 
 ---
 
+### ✅ CP22b — manual 경로 회귀 롤백 + API 에러 표시 개선 (2026-04-17 완료, 커밋 4e09eb5)
+
+**배경**: PR #17 (`4804bf2`) 이 manual 입력을 `@username` → `resolve_instagram_username()` 으로 일원화. 이 함수는 내부적으로 `list_candidate_accounts()` (즉 `/me/accounts`) 를 다시 돈다. 그런데 `/me/accounts` 가 빈 배열을 돌려주는 조건(= callback 시점의 후보 0 = `manual_required` 분기 트리거 조건) 에서는 manual 경로도 같은 조건으로 돌아가 **구조적으로 성공 불가**. 실제 내부 데모 환경이 이 상태라, OAuth 로그인은 성공하고 `PENDING_IG_TOKENS` 에 토큰이 쌓인 뒤, manual 입력이 항상 400 "찾을 수 없습니다" 로 떨어졌음. 추가로 FastAPI 422 `detail` 배열이 UI 에 `[object Object]` 로 노출되어 실제 에러 메시지가 가려지는 문제도 동반.
+
+**진단** (서버 로그로 `/me/accounts` raw response 찍어 확인): `{'data': []}`. 즉 OAuth 동의 화면에서 Page 가 앱에 허용되지 않은 환경. Page↔IG 링크는 GUI 상 존재하지만, 로그인한 Facebook 계정에서 그 Page 가 이 앱에 공유되지 않아 Graph API 가 빈 배열 반환.
+
+**결정**: 환경(OAuth 동의 Page 체크 / Business Login use case) 해결은 별도 작업으로 미루고, manual 경로를 **PR #17 이전 IG 숫자 ID 방식으로 롤백**. `fetch_instagram_account_manually()` 는 `/{ig_id}` 를 직접 조회해 Page 연결 여부와 무관하게 동작 → `.env INSTAGRAM_ACCOUNT_ID` prefill 과 결합해 한 번의 클릭으로 연결 복구.
+
+**변경 요약**:
+- `MobileInstagramManualRequest.instagram_username` → `instagram_business_account_id` (TODO 주석)
+- manual 핸들러: `resolve_instagram_username()` → `fetch_instagram_account_manually()`
+- select/manual 핸들러: `ValueError` → `HTTPException(400)` 매핑 추가 (공통 방어)
+- `stitch/shared.js`: `humanizeApiError()` 추가 (422 detail 배열 처리), manual payload 필드명 복원
+- `stitch/settings.html` + `onboarding-instagram.html`: 패널 문구 / placeholder 를 "Instagram 계정 ID(숫자)" 로 복원
+- `tests/test_mobile_app.py` `TestCP20ManualAccount::test_post_manual_saves_connection` ID 기반으로 재작성
+- SW 캐시 v23 → v24
+
+**유지 (재도입 대비)**:
+- `InstagramAuthService.resolve_instagram_username()` 메서드 + service-level 테스트 2개
+- select_required 경로의 username 표시/선택 UX (PR #17 장점)
+
+**📱 스모크**:
+- [x] **22b.S.1** `.env INSTAGRAM_ACCOUNT_ID` prefill 된 input 으로 연결 성공 (DevTools "Clear site data" 로 SW v23 캐시된 구 JS 무효화 후 재현 확인)
+
+**TODO**: OAuth 동의 화면에서 Page 가 정상 부여되도록 Meta 앱 설정(Use case/Pages 기본 체크) 점검 → 해결되면 manual 경로를 다시 username 기반으로 전환 가능. 본 커밋이 참조점.
+
+---
+
 ### ✅ CP19 — 신상품 토글 + 기존 상품 선택 UI (2026-04-15 완료)
 
 **배경**: Streamlit (`app.py`) 에서 정상 동작하던 신상품 토글 / 기존 상품 선택 흐름이 mobile 에 일부 누락. `_save_generation_outputs()` 가 `product_image_path=None`, `is_new_product=False` 하드코딩 중이라 DB 저장도 미동작. codex/infra `198579e` 가 동일 기능 구현했지만 LogoAutoGenerator 제거 + Langfuse 헤더가 섞여 있어 수동 선별 포팅.
