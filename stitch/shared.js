@@ -810,15 +810,37 @@
     brandNameInput.value = state.onboarding.brandName || "";
     atmosphereInput.value = state.onboarding.brandAtmosphere || "";
 
+    const presetColors = Array.from(colorButtons).map((b) =>
+      (b.dataset.brandColor || "").toLowerCase(),
+    );
+    const customSwatch = customColorTrigger?.querySelector("div");
+    const customLabel = customColorTrigger?.querySelector(":scope > span");
+    const customIcon = customSwatch?.querySelector(".material-symbols-outlined");
+
     const setActiveColor = (value) => {
+      const normalized = (value || "").toLowerCase();
+      const isCustom = Boolean(normalized) && !presetColors.includes(normalized);
       colorButtons.forEach((button) => {
-        const isActive = button.dataset.brandColor === value;
+        const isActive = (button.dataset.brandColor || "").toLowerCase() === normalized;
         const swatch = button.querySelector("div");
         swatch?.classList.toggle("ring-2", isActive);
         swatch?.classList.toggle("ring-offset-4", isActive);
         swatch?.classList.toggle("ring-[#ff8a7a]", isActive);
         swatch?.classList.toggle("ring-offset-white", isActive);
       });
+      if (customSwatch) {
+        customSwatch.classList.toggle("ring-2", isCustom);
+        customSwatch.classList.toggle("ring-offset-4", isCustom);
+        customSwatch.classList.toggle("ring-[#ff8a7a]", isCustom);
+        customSwatch.classList.toggle("ring-offset-white", isCustom);
+        customSwatch.style.background = isCustom ? normalized : "";
+      }
+      if (customIcon) {
+        customIcon.style.display = isCustom ? "none" : "";
+      }
+      if (customLabel) {
+        customLabel.textContent = isCustom ? `직접 선택 · ${normalized.toUpperCase()}` : "직접 선택";
+      }
       if (customColorInput) {
         customColorInput.value = value || "#ff7448";
       }
