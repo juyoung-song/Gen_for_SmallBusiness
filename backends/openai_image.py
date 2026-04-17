@@ -155,6 +155,42 @@ class OpenAIImageBackend:
 # ─────────────────────────────────────────────────────────────
 # 실제 OpenAI 클라이언트 어댑터 (Langfuse span 포함)
 # ─────────────────────────────────────────────────────────────
+def _start_image_generation_span(
+    *,
+    name: str,
+    model: str,
+    prompt: str,
+    image_count: int,
+    size: str,
+    image_names: list[str],
+):
+    """Langfuse generation observation 컨텍스트. 비활성이면 nullcontext 로 폴백.
+
+    `langfuse.openai` 래퍼는 text/chat API 만 자동 추적한다. images.edit /
+    images.generate 는 자동 래핑 대상이 아니므로 명시적 observation 생성이 필요.
+    """
+    import contextlib
+
+    try:
+        from langfuse import get_client
+
+        client = get_client()
+        return client.start_as_current_observation(
+            as_type="generation",
+            name=name,
+            model=model,
+            input={
+                "prompt": prompt,
+                "image_count": image_count,
+                "size": size,
+                "image_names": image_names,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001 — Langfuse 비활성 / 키 미설정 방어
+        logger.warning("Langfuse image generation span 시작 실패 → 추적 없이 진행: %s", exc)
+        return contextlib.nullcontext()
+
+
 class _RealOpenAIImageClient:
     """langfuse.openai.OpenAI.images.edit 를 ImageClient 프로토콜로 감싼 구현체."""
 
@@ -171,20 +207,42 @@ class _RealOpenAIImageClient:
         prompt: str,
         size: str,
     ) -> bytes:
-        files = []
-        for name, data in images:
-            buf = io.BytesIO(data)
-            buf.name = name
-            files.append(buf)
-
-        resp = self._openai.images.edit(
+        image_names = [name for name, _ in images]
+        with _start_image_generation_span(
+            name="image.edit",
             model=model,
-            image=files,
             prompt=prompt,
-            size=size,  # type: ignore[arg-type]
-            n=1,
-        )
-        b64 = resp.data[0].b64_json
-        if not b64:
-            raise RuntimeError("gpt-image-1 응답에 b64_json 데이터가 없습니다")
-        return base64.b64decode(b64)
+            image_count=len(images),
+            size=size,
+            image_names=image_names,
+        ) as generation:
+            files = []
+            for name, data in images:
+                buf = io.BytesIO(data)
+                buf.name = name
+                files.append(buf)
+
+            resp = self._openai.images.edit(
+                model=model,
+                image=files,
+                prompt=prompt,
+                size=size,  # type: ignore[arg-type]
+                n=1,
+            )
+            b64 = resp.data[0].b64_json
+            if not b64:
+                raise RuntimeError("gpt-image-1 응답에 b64_json 데이터가 없습니다")
+            result_bytes = base64.b64decode(b64)
+
+            try:
+                if generation is not None and hasattr(generation, "update"):
+                    generation.update(
+                        output={
+                            "size_bytes": len(result_bytes),
+                            "n": 1,
+                        },
+                    )
+            except Exception as exc:  # noqa: BLE001 — observation 업데이트 실패해도 생성은 성공해야 함
+                logger.warning("Langfuse generation update 실패: %s", exc)
+
+            return result_bytes
