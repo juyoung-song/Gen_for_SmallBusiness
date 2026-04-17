@@ -384,6 +384,7 @@
         expired: false,
         upload_ready: false,
         connection_source: "none",
+        instagram_account_id: null,
         username: null,
         page_name: null,
         expires_at: null,
@@ -393,7 +394,9 @@
 
   function instagramStatusLabel(summary) {
     if (summary.connected && summary.connection_source === "env") {
-      return "기본 업로드 계정 사용 중";
+      return summary.instagram_account_id
+        ? `Instagram ID ${summary.instagram_account_id}`
+        : "기본 업로드 계정 사용 중";
     }
     if (summary.connected && summary.username) {
       return `@${summary.username}`;
@@ -461,7 +464,8 @@
   function instagramGuideCopy(summary) {
     if (summary.connected) {
       if (summary.connection_source === "env") {
-        return "기본 업로드 계정이 설정되어 있어요. 업로드 버튼은 VM env에 등록된 계정으로 게시를 시도합니다.";
+        const idText = summary.instagram_account_id ? ` (${summary.instagram_account_id})` : "";
+        return `기본 업로드 계정${idText}이 설정되어 있어요. 업로드 버튼은 VM env에 등록된 계정으로 게시를 시도합니다.`;
       }
       const handle = summary.username ? `@${summary.username}` : "연결된 계정";
       return `${handle} 계정이 연결되어 있어요. 자동 업로드 API만 붙이면 지금 업로드 버튼이 바로 이 계정으로 이어집니다.`;
@@ -1202,8 +1206,9 @@
       }
       if (copyNode) {
         if (summary.connected) {
-          copyNode.textContent =
-            "계정 연결이 끝났어요. 이후 메인 화면과 업로드 준비 상태에 이 연결 정보를 바로 반영합니다.";
+          copyNode.textContent = summary.connection_source === "env"
+            ? "VM env에 등록된 Instagram ID를 기본 업로드 계정으로 사용합니다. Meta 로그인 없이 바로 다음 단계로 진행하세요."
+            : "계정 연결이 끝났어요. 이후 메인 화면과 업로드 준비 상태에 이 연결 정보를 바로 반영합니다.";
         } else if (summary.expired) {
           copyNode.textContent =
             "이전 연결이 만료되었습니다. 지금 다시 연결하거나, 나중에 설정 화면에서 이어서 연결할 수 있습니다.";
@@ -1220,14 +1225,18 @@
       }
       if (noteNode) {
         noteNode.textContent = summary.connected
-          ? "설정 화면에서 언제든 재연결하거나 해제할 수 있습니다."
+          ? summary.connection_source === "env"
+            ? "계정을 바꾸려면 VM env의 META_ACCESS_TOKEN / INSTAGRAM_ACCOUNT_ID를 수정하고 앱을 재시작하세요."
+            : "설정 화면에서 언제든 재연결하거나 해제할 수 있습니다."
           : "이 단계는 선택입니다. 지금 건너뛰어도 메인 화면에서 홍보물 만들기를 바로 시작할 수 있습니다.";
       }
 
       if (connectButton) {
         connectButton.classList.toggle(
           "hidden",
-          !bootstrap?.onboarding_completed || !summary.connect_available || summary.connected,
+          !bootstrap?.onboarding_completed ||
+            !summary.connect_available ||
+            (summary.connected && summary.connection_source !== "env"),
         );
         connectButton.textContent = summary.expired ? "Meta로 다시 연결하기" : "Meta로 계속하기";
       }

@@ -122,6 +122,7 @@ class MobileInstagramSummary(BaseModel):
     expired: bool = False
     upload_ready: bool
     connection_source: Literal["oauth", "env", "none"] = "none"
+    instagram_account_id: str | None = None
     username: str | None = None
     page_name: str | None = None
     expires_at: datetime | None = None
@@ -532,11 +533,7 @@ async def _load_brand() -> Brand | None:
 
 async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary:
     oauth_available = settings.is_instagram_oauth_configured_for("mobile")
-    default_upload_ready = bool(
-        settings.ALLOW_DEFAULT_INSTAGRAM_UPLOAD
-        and settings.META_ACCESS_TOKEN
-        and settings.INSTAGRAM_ACCOUNT_ID
-    )
+    default_upload_ready = bool(settings.META_ACCESS_TOKEN and settings.INSTAGRAM_ACCOUNT_ID)
 
     if brand is not None:
         connection = await InstagramAuthService(settings).get_connection(brand.id)
@@ -560,6 +557,7 @@ async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary
                     expired=False,
                     upload_ready=True,
                     connection_source="oauth",
+                    instagram_account_id=getattr(brand, "instagram_account_id", None),
                     username=username,
                     page_name=connection.facebook_page_name,
                     expires_at=expires_at,
@@ -572,6 +570,7 @@ async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary
                     expired=True,
                     upload_ready=False,
                     connection_source="none",
+                    instagram_account_id=getattr(brand, "instagram_account_id", None),
                     username=username,
                     page_name=connection.facebook_page_name,
                     expires_at=expires_at,
@@ -585,7 +584,9 @@ async def _load_instagram_summary(brand: Brand | None) -> MobileInstagramSummary
             expired=False,
             upload_ready=True,
             connection_source="env",
-            page_name="기본 업로드 계정",
+            instagram_account_id=settings.INSTAGRAM_ACCOUNT_ID,
+            username=settings.INSTAGRAM_ACCOUNT_ID,
+            page_name=f"Instagram ID {settings.INSTAGRAM_ACCOUNT_ID}",
         )
 
     return MobileInstagramSummary(
@@ -653,8 +654,7 @@ async def _resolve_upload_context() -> tuple[Brand, object]:
 
     upload_settings = settings.model_copy(deep=True)
     default_upload_ready = bool(
-        upload_settings.ALLOW_DEFAULT_INSTAGRAM_UPLOAD
-        and upload_settings.META_ACCESS_TOKEN
+        upload_settings.META_ACCESS_TOKEN
         and upload_settings.INSTAGRAM_ACCOUNT_ID
     )
 
@@ -680,8 +680,7 @@ async def _resolve_upload_context() -> tuple[Brand, object]:
 
     if default_upload_ready:
         logger.warning(
-            "모바일 업로드가 VM 기본 Instagram 계정 fallback을 사용합니다. "
-            "ALLOW_DEFAULT_INSTAGRAM_UPLOAD=true"
+            "모바일 업로드가 VM env 기본 Instagram 계정 fallback을 사용합니다."
         )
         return brand, upload_settings
 

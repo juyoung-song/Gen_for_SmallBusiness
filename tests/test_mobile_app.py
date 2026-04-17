@@ -254,7 +254,7 @@ class TestInstagramSummary:
         assert summary.connection_source == "oauth"
         assert summary.username == "bakery_owner"
 
-    async def test_requires_oauth_connection_even_when_env_upload_is_configured(self, monkeypatch):
+    async def test_reports_env_account_when_token_and_account_id_are_configured(self, monkeypatch):
         async def fake_get_connection(self, _brand_id):
             return None
 
@@ -274,9 +274,12 @@ class TestInstagramSummary:
 
         summary = await mobile_app._load_instagram_summary(None)
 
-        assert summary.connected is False
-        assert summary.upload_ready is False
-        assert summary.connection_source == "none"
+        assert summary.connected is True
+        assert summary.upload_ready is True
+        assert summary.connection_source == "env"
+        assert summary.connect_available is True
+        assert summary.instagram_account_id == "1784"
+        assert summary.username == "1784"
 
     async def test_reports_default_env_account_when_explicitly_enabled(self, monkeypatch):
         async def fake_get_connection(self, _brand_id):
@@ -296,6 +299,7 @@ class TestInstagramSummary:
         assert summary.connected is True
         assert summary.upload_ready is True
         assert summary.connection_source == "env"
+        assert summary.instagram_account_id == "1784"
 
 
 class TestInstagramOnboardingFlow:
@@ -438,6 +442,9 @@ class TestMobileUploads:
             "apply_user_token_async",
             fake_apply_user_token_async,
         )
+        monkeypatch.setattr(mobile_app.settings, "META_ACCESS_TOKEN", "")
+        monkeypatch.setattr(mobile_app.settings, "INSTAGRAM_ACCOUNT_ID", "")
+        monkeypatch.setattr(mobile_app.settings, "ALLOW_DEFAULT_INSTAGRAM_UPLOAD", False)
 
         with pytest.raises(HTTPException) as exc_info:
             await mobile_app.mobile_upload_feed(
@@ -451,7 +458,7 @@ class TestMobileUploads:
         assert exc_info.value.status_code == 409
         assert "연결" in exc_info.value.detail
 
-    async def test_resolve_upload_context_uses_default_env_account_when_enabled(
+    async def test_resolve_upload_context_uses_default_env_account_when_configured(
         self, monkeypatch
     ):
         brand = SimpleNamespace(id=uuid4())
@@ -462,7 +469,7 @@ class TestMobileUploads:
         monkeypatch.setattr(mobile_app, "_load_brand", fake_load_brand)
         monkeypatch.setattr(mobile_app.settings, "META_ACCESS_TOKEN", "fallback-token")
         monkeypatch.setattr(mobile_app.settings, "INSTAGRAM_ACCOUNT_ID", "1784")
-        monkeypatch.setattr(mobile_app.settings, "ALLOW_DEFAULT_INSTAGRAM_UPLOAD", True)
+        monkeypatch.setattr(mobile_app.settings, "ALLOW_DEFAULT_INSTAGRAM_UPLOAD", False)
 
         resolved_brand, upload_settings = await mobile_app._resolve_upload_context()
 
