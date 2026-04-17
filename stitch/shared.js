@@ -286,6 +286,14 @@
     window.location.href = path;
   }
 
+  function applyBrandLogo(bootstrap) {
+    const url = bootstrap?.brand?.brand_logo_url;
+    if (!url) return;
+    document.querySelectorAll(".brand-mark").forEach((img) => {
+      img.src = url;
+    });
+  }
+
   function isStandaloneDisplay() {
     return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
   }
@@ -812,27 +820,51 @@
     const logoName = selectOne("#brand-logo-name");
     const logoPreview = selectOne("#brand-logo-preview");
     const logoPlaceholder = selectOne("#brand-logo-placeholder");
+    const logoGuide = selectOne("#brand-logo-guide");
 
     const showLogoPreview = (dataUrl) => {
       if (logoPreview && dataUrl) {
         logoPreview.src = dataUrl;
         logoPreview.classList.remove("hidden");
         logoPlaceholder?.classList.add("hidden");
+        logoGuide?.classList.add("hidden");
       }
     };
 
     brandNameInput.value = state.onboarding.brandName || "";
     atmosphereInput.value = state.onboarding.brandAtmosphere || "";
 
+    const presetColors = Array.from(colorButtons).map((b) =>
+      (b.dataset.brandColor || "").toLowerCase(),
+    );
+    const customSwatch = customColorTrigger?.querySelector("div");
+    const customLabel = customColorTrigger?.querySelector(":scope > span");
+    const customIcon = customSwatch?.querySelector(".material-symbols-outlined");
+
     const setActiveColor = (value) => {
+      const normalized = (value || "").toLowerCase();
+      const isCustom = Boolean(normalized) && !presetColors.includes(normalized);
       colorButtons.forEach((button) => {
-        const isActive = button.dataset.brandColor === value;
+        const isActive = (button.dataset.brandColor || "").toLowerCase() === normalized;
         const swatch = button.querySelector("div");
         swatch?.classList.toggle("ring-2", isActive);
         swatch?.classList.toggle("ring-offset-4", isActive);
         swatch?.classList.toggle("ring-[#ff8a7a]", isActive);
         swatch?.classList.toggle("ring-offset-white", isActive);
       });
+      if (customSwatch) {
+        customSwatch.classList.toggle("ring-2", isCustom);
+        customSwatch.classList.toggle("ring-offset-4", isCustom);
+        customSwatch.classList.toggle("ring-[#ff8a7a]", isCustom);
+        customSwatch.classList.toggle("ring-offset-white", isCustom);
+        customSwatch.style.background = isCustom ? normalized : "";
+      }
+      if (customIcon) {
+        customIcon.style.display = isCustom ? "none" : "";
+      }
+      if (customLabel) {
+        customLabel.textContent = isCustom ? `직접 선택 · ${normalized.toUpperCase()}` : "직접 선택";
+      }
       if (customColorInput) {
         customColorInput.value = value || "#ff7448";
       }
@@ -856,6 +888,7 @@
 
     if (state.onboarding.logo?.name && logoName) {
       logoName.textContent = state.onboarding.logo.name;
+      logoName.classList.remove("hidden");
     }
     if (state.onboarding.logo?.data_url) {
       showLogoPreview(state.onboarding.logo.data_url);
@@ -939,6 +972,7 @@
       });
       if (logoName) {
         logoName.textContent = payload.name;
+        logoName.classList.remove("hidden");
       }
       showLogoPreview(payload.data_url);
     });
@@ -1143,6 +1177,7 @@
     try {
       const bootstrap = await api("/bootstrap");
       lastBootstrap = bootstrap;
+      applyBrandLogo(bootstrap);
       if (bootstrap.onboarding_completed) {
         navigate(PATHS.home);
         return;
@@ -1294,6 +1329,7 @@
         instagram,
         instagram_ready: instagram.upload_ready,
       };
+      applyBrandLogo(bootstrap);
       if (!bootstrap.onboarding_completed) {
         navigate(PATHS.welcome);
         return null;
@@ -1349,20 +1385,31 @@
     const colorLabel = selectOne("#brand-summary-color-label");
     const logoStatus = selectOne("#brand-summary-logo-status");
     const statusHint = selectOne("#reference-pool-hint");
+    const logoImg = selectOne("#brand-summary-logo-img");
+    const logoInitial = selectOne("#brand-summary-logo-initial");
 
     if (name) {
       name.textContent = brand.brand_name || "우리 브랜드";
     }
+    if (logoImg && logoInitial) {
+      if (brand.brand_logo_url) {
+        logoImg.src = brand.brand_logo_url;
+        logoImg.classList.remove("hidden");
+        logoInitial.classList.add("hidden");
+      } else {
+        logoImg.classList.add("hidden");
+        logoInitial.classList.remove("hidden");
+        logoInitial.textContent = (brand.brand_name || "브").trim().charAt(0) || "브";
+      }
+    }
     if (chips) {
       chips.innerHTML = "";
-      const chipValues = [brand.brand_atmosphere, "브랜드 저장 완료"].filter(Boolean);
-      chipValues.forEach((value, index) => {
+      const chipValues = ["브랜드 저장 완료"];
+      chipValues.forEach((value) => {
         const span = document.createElement("span");
         span.className =
-          index === 0
-            ? "px-3 py-1 bg-[rgba(255,116,72,0.15)] text-[#d95c39] text-[10px] font-bold rounded-full tracking-wider"
-            : "px-3 py-1 bg-[rgba(255,179,71,0.14)] text-on-surface-variant text-[10px] font-bold rounded-full tracking-wider";
-        span.textContent = index === 0 ? `#${value}` : value;
+          "px-3 py-1 bg-[rgba(255,179,71,0.14)] text-on-surface-variant text-[10px] font-bold rounded-full tracking-wider";
+        span.textContent = value;
         chips.appendChild(span);
       });
     }
@@ -1582,7 +1629,6 @@
 
     if (statusList) {
       const statuses = [
-        brand?.brand_atmosphere ? `#${brand.brand_atmosphere}` : "브랜드 세팅 완료",
         bootstrap?.image_backend_kind === "remote_worker"
           ? "실제 이미지 생성 연결됨"
           : bootstrap?.image_backend_kind === "mock"
@@ -1623,6 +1669,7 @@
         return;
       }
       lastBootstrap = bootstrap;
+      applyBrandLogo(bootstrap);
       renderHome(bootstrap);
     } catch (error) {
       setStatus(statusNode, error.message, "error");
@@ -1636,6 +1683,7 @@
         navigate(PATHS.welcome);
         return;
       }
+      applyBrandLogo(bootstrap);
     } catch (_) {
       navigate(PATHS.welcome);
       return;
@@ -1873,6 +1921,7 @@
         api("/bootstrap"),
         api("/instagram/status"),
       ]);
+      applyBrandLogo(bootstrap);
       if (!bootstrap.onboarding_completed) {
         navigate(PATHS.welcome);
         return null;
@@ -2026,9 +2075,11 @@
       if (dataUrl) {
         productImageThumb.src = dataUrl;
         productImageThumbWrap.classList.remove("hidden");
+        productImageTrigger?.classList.add("hidden");
       } else {
         productImageThumb.removeAttribute("src");
         productImageThumbWrap.classList.add("hidden");
+        productImageTrigger?.classList.remove("hidden");
       }
     };
     const referenceUrlInput = selectOne("#create-reference-url");
@@ -2043,9 +2094,11 @@
       if (dataUrl) {
         referenceThumb.src = dataUrl;
         referenceThumbWrap.classList.remove("hidden");
+        referenceTrigger?.classList.add("hidden");
       } else {
         referenceThumb.removeAttribute("src");
         referenceThumbWrap.classList.add("hidden");
+        referenceTrigger?.classList.remove("hidden");
       }
     };
     const submitButton = selectOne("#create-submit");
@@ -2068,6 +2121,7 @@
         return;
       }
       lastBootstrap = bootstrap;
+      applyBrandLogo(bootstrap);
       renderBrandSummary(bootstrap.brand, bootstrap);
     } catch (error) {
       setStatus(bootstrapStatus, error.message, "error");
@@ -2221,6 +2275,15 @@
     descriptionInput?.addEventListener("input", (event) => {
       patchState({ create: { productDescription: event.target.value } });
     });
+    const syncCustomGoalChipStyle = () => {
+      if (!customGoalInput) return;
+      const filled = Boolean(customGoalInput.value.trim());
+      customGoalInput.classList.toggle("bg-tertiary-container", filled);
+      customGoalInput.classList.toggle("text-on-tertiary-container", filled);
+      customGoalInput.classList.toggle("font-semibold", filled);
+      customGoalInput.classList.toggle("bg-surface-container-highest", !filled);
+    };
+    syncCustomGoalChipStyle();
     customGoalInput?.addEventListener("input", (event) => {
       const fallbackGoal = readState().create.isNewProduct
         ? NEW_PRODUCT_GOAL_PREFIX
@@ -2228,6 +2291,7 @@
       const nextGoal = event.target.value.trim() || fallbackGoal;
       patchState({ create: { goal: nextGoal } });
       applyGoalStyles(nextGoal);
+      syncCustomGoalChipStyle();
     });
     toneSelect?.addEventListener("change", (event) => {
       patchState({ create: { tone: event.target.value } });
@@ -2262,6 +2326,9 @@
     });
 
     productImageTrigger?.addEventListener("click", () => productImageInput?.click());
+    selectOne("#create-product-image-reupload")?.addEventListener("click", () =>
+      productImageInput?.click(),
+    );
     productImageInput?.addEventListener("change", async (event) => {
       const [file] = event.target.files || [];
       if (!file) return;
@@ -2274,6 +2341,9 @@
     });
 
     referenceTrigger?.addEventListener("click", () => referenceInput?.click());
+    selectOne("#create-reference-reupload")?.addEventListener("click", () =>
+      referenceInput?.click(),
+    );
     referenceInput?.addEventListener("change", async (event) => {
       const [file] = event.target.files || [];
       if (!file) return;
@@ -2357,14 +2427,8 @@
           },
         });
         lastCaptionResult = caption;
-        captionBlock.innerHTML = `
-          <div class="result-card">
-            <h3 class="result-card__title">피드 캡션</h3>
-            <div class="copy-line" style="white-space:pre-wrap;">${escapeHtml(caption.caption)}</div>
-            <div class="copy-line">${escapeHtml(caption.hashtags)}</div>
-          </div>
-        `;
-        captionBlock.classList.remove("hidden");
+        // NOTE: 별도 캡션 블럭(#result-caption-block) 은 UI 에서 제거됨. 생성된
+        // 캡션/해시태그는 아래 인스타 프리뷰의 .ig-caption 영역에 embed.
         // 캡션 생성 성공 시에만 인스타 피드 미리보기 + 업로드 버튼 + 업로드 안내 노출
         previewBlock?.classList.remove("hidden");
         uploadFeedButton?.classList.remove("hidden");
