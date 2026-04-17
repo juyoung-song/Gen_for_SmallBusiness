@@ -2193,6 +2193,15 @@
     descriptionInput?.addEventListener("input", (event) => {
       patchState({ create: { productDescription: event.target.value } });
     });
+    const syncCustomGoalChipStyle = () => {
+      if (!customGoalInput) return;
+      const filled = Boolean(customGoalInput.value.trim());
+      customGoalInput.classList.toggle("bg-tertiary-container", filled);
+      customGoalInput.classList.toggle("text-on-tertiary-container", filled);
+      customGoalInput.classList.toggle("font-semibold", filled);
+      customGoalInput.classList.toggle("bg-surface-container-highest", !filled);
+    };
+    syncCustomGoalChipStyle();
     customGoalInput?.addEventListener("input", (event) => {
       const fallbackGoal = readState().create.isNewProduct
         ? NEW_PRODUCT_GOAL_PREFIX
@@ -2200,6 +2209,7 @@
       const nextGoal = event.target.value.trim() || fallbackGoal;
       patchState({ create: { goal: nextGoal } });
       applyGoalStyles(nextGoal);
+      syncCustomGoalChipStyle();
     });
     toneSelect?.addEventListener("change", (event) => {
       patchState({ create: { tone: event.target.value } });
