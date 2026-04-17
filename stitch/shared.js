@@ -796,12 +796,14 @@
     const logoName = selectOne("#brand-logo-name");
     const logoPreview = selectOne("#brand-logo-preview");
     const logoPlaceholder = selectOne("#brand-logo-placeholder");
+    const logoGuide = selectOne("#brand-logo-guide");
 
     const showLogoPreview = (dataUrl) => {
       if (logoPreview && dataUrl) {
         logoPreview.src = dataUrl;
         logoPreview.classList.remove("hidden");
         logoPlaceholder?.classList.add("hidden");
+        logoGuide?.classList.add("hidden");
       }
     };
 
