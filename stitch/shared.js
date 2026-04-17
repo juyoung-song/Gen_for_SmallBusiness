@@ -189,7 +189,7 @@
   }
 
   function humanizeApiError(data, fallback = "요청 처리 중 오류가 발생했습니다.") {
-    const detail = data && data.detail;
+    const detail = data && (data.detail ?? data.message ?? data.error);
     if (Array.isArray(detail)) {
       const parts = detail
         .map((entry) => {
@@ -216,6 +216,17 @@
     return fallback;
   }
 
+  function normalizeStatusMessage(message) {
+    if (!message) return "";
+    if (typeof message === "string") {
+      return message === "[object Object]"
+        ? "요청 처리 중 오류가 발생했습니다. 서버 로그를 확인해주세요."
+        : message;
+    }
+    if (message instanceof Error) return normalizeStatusMessage(message.message);
+    return humanizeApiError({ detail: message });
+  }
+
   async function api(path, options = {}) {
     const response = await fetch(`${API_BASE}${path}`, {
       method: options.method || "GET",
@@ -236,7 +247,8 @@
 
   function setStatus(node, message, tone = "neutral") {
     if (!node) return;
-    if (!message) {
+    const normalizedMessage = normalizeStatusMessage(message);
+    if (!normalizedMessage) {
       node.classList.add("hidden");
       node.textContent = "";
       return;
@@ -250,7 +262,7 @@
     };
 
     node.className = `stitch-status ${toneClassMap[tone] || toneClassMap.neutral}`;
-    node.textContent = message;
+    node.textContent = normalizedMessage;
     node.classList.remove("hidden");
   }
 
