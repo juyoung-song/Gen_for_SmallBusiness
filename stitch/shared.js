@@ -1334,9 +1334,22 @@
     const colorLabel = selectOne("#brand-summary-color-label");
     const logoStatus = selectOne("#brand-summary-logo-status");
     const statusHint = selectOne("#reference-pool-hint");
+    const logoImg = selectOne("#brand-summary-logo-img");
+    const logoInitial = selectOne("#brand-summary-logo-initial");
 
     if (name) {
       name.textContent = brand.brand_name || "우리 브랜드";
+    }
+    if (logoImg && logoInitial) {
+      if (brand.brand_logo_url) {
+        logoImg.src = brand.brand_logo_url;
+        logoImg.classList.remove("hidden");
+        logoInitial.classList.add("hidden");
+      } else {
+        logoImg.classList.add("hidden");
+        logoInitial.classList.remove("hidden");
+        logoInitial.textContent = (brand.brand_name || "브").trim().charAt(0) || "브";
+      }
     }
     if (chips) {
       chips.innerHTML = "";
