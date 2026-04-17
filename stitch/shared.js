@@ -1998,9 +1998,11 @@
       if (dataUrl) {
         productImageThumb.src = dataUrl;
         productImageThumbWrap.classList.remove("hidden");
+        productImageTrigger?.classList.add("hidden");
       } else {
         productImageThumb.removeAttribute("src");
         productImageThumbWrap.classList.add("hidden");
+        productImageTrigger?.classList.remove("hidden");
       }
     };
     const referenceUrlInput = selectOne("#create-reference-url");
@@ -2015,9 +2017,11 @@
       if (dataUrl) {
         referenceThumb.src = dataUrl;
         referenceThumbWrap.classList.remove("hidden");
+        referenceTrigger?.classList.add("hidden");
       } else {
         referenceThumb.removeAttribute("src");
         referenceThumbWrap.classList.add("hidden");
+        referenceTrigger?.classList.remove("hidden");
       }
     };
     const submitButton = selectOne("#create-submit");
@@ -2244,6 +2248,9 @@
     });
 
     productImageTrigger?.addEventListener("click", () => productImageInput?.click());
+    selectOne("#create-product-image-reupload")?.addEventListener("click", () =>
+      productImageInput?.click(),
+    );
     productImageInput?.addEventListener("change", async (event) => {
       const [file] = event.target.files || [];
       if (!file) return;
@@ -2256,6 +2263,9 @@
     });
 
     referenceTrigger?.addEventListener("click", () => referenceInput?.click());
+    selectOne("#create-reference-reupload")?.addEventListener("click", () =>
+      referenceInput?.click(),
+    );
     referenceInput?.addEventListener("change", async (event) => {
       const [file] = event.target.files || [];
       if (!file) return;
