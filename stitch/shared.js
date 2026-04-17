@@ -274,6 +274,14 @@
     window.location.href = path;
   }
 
+  function applyBrandLogo(bootstrap) {
+    const url = bootstrap?.brand?.brand_logo_url;
+    if (!url) return;
+    document.querySelectorAll(".brand-mark").forEach((img) => {
+      img.src = url;
+    });
+  }
+
   function isStandaloneDisplay() {
     return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
   }
@@ -1123,6 +1131,7 @@
     try {
       const bootstrap = await api("/bootstrap");
       lastBootstrap = bootstrap;
+      applyBrandLogo(bootstrap);
       if (bootstrap.onboarding_completed) {
         navigate(PATHS.home);
         return;
@@ -1269,6 +1278,7 @@
         instagram,
         instagram_ready: instagram.upload_ready,
       };
+      applyBrandLogo(bootstrap);
       if (!bootstrap.onboarding_completed) {
         navigate(PATHS.welcome);
         return null;
@@ -1595,6 +1605,7 @@
         return;
       }
       lastBootstrap = bootstrap;
+      applyBrandLogo(bootstrap);
       renderHome(bootstrap);
     } catch (error) {
       setStatus(statusNode, error.message, "error");
@@ -1608,6 +1619,7 @@
         navigate(PATHS.welcome);
         return;
       }
+      applyBrandLogo(bootstrap);
     } catch (_) {
       navigate(PATHS.welcome);
       return;
@@ -1845,6 +1857,7 @@
         api("/bootstrap"),
         api("/instagram/status"),
       ]);
+      applyBrandLogo(bootstrap);
       if (!bootstrap.onboarding_completed) {
         navigate(PATHS.welcome);
         return null;
@@ -2044,6 +2057,7 @@
         return;
       }
       lastBootstrap = bootstrap;
+      applyBrandLogo(bootstrap);
       renderBrandSummary(bootstrap.brand, bootstrap);
     } catch (error) {
       setStatus(bootstrapStatus, error.message, "error");
