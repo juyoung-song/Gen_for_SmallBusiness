@@ -678,6 +678,117 @@
       font-weight: 700;
     }
 
+    .ai-proof-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.18fr) minmax(300px, 0.82fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .ai-before-after {
+      display: grid;
+      grid-template-columns: minmax(0, 0.84fr) 34px minmax(0, 1.16fr);
+      gap: 12px;
+      align-items: center;
+      height: 318px;
+    }
+
+    .ai-panel {
+      height: 100%;
+      min-height: 0;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 116, 72, 0.14);
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 16px 34px rgba(72, 48, 32, 0.06);
+      overflow: hidden;
+    }
+
+    .ai-panel--before {
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 14px;
+    }
+
+    .ai-panel-label {
+      width: fit-content;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: #fff0e9;
+      color: #a04431;
+      font-size: 12px;
+      line-height: 1;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .ai-panel--before strong {
+      color: #302719;
+      font-size: 26px;
+      line-height: 1.2;
+      font-weight: 950;
+    }
+
+    .ai-panel--before p {
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.5;
+      font-weight: 750;
+    }
+
+    .prompt-box {
+      border-radius: 8px;
+      padding: 13px;
+      background: #2f2e30;
+      color: #fffaf6;
+      font-size: 14px;
+      line-height: 1.45;
+      font-weight: 760;
+    }
+
+    .ai-arrow {
+      color: #c07f67;
+      font-size: 28px;
+      line-height: 1;
+      font-weight: 950;
+      text-align: center;
+    }
+
+    .ai-after-figure {
+      position: relative;
+      margin: 0;
+      display: grid;
+      grid-template-rows: 1fr auto;
+    }
+
+    .ai-after-figure img {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      object-fit: contain;
+      object-position: center;
+      display: block;
+      background: #f7f3ed;
+    }
+
+    .ai-after-figure figcaption {
+      padding: 12px 14px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      font-weight: 760;
+    }
+
+    .ai-proof-notes {
+      display: grid;
+      gap: 14px;
+    }
+
+    .ai-note-card {
+      min-height: 0;
+    }
+
     .workflow-compare {
       display: grid;
       gap: 14px;
@@ -895,6 +1006,8 @@
       .grid-2,
       .grid-3,
       .grid-4,
+      .ai-proof-layout,
+      .ai-before-after,
       .workflow-row,
       .source-grid {
         grid-template-columns: 1fr;
@@ -1658,8 +1771,44 @@
     <section class="slide active">
       <div class="slide-inner">
         <div class="topline">
+          <div class="brand"><span class="mark">B</span>Brewgram · 오프닝</div>
+          <div class="page-num">01</div>
+        </div>
+        <h2>먼저 이걸 보시겠습니다: AI 결과물 품질은 이미 꽤 좋아졌다</h2>
+        <div class="ai-proof-layout">
+          <div class="ai-before-after" aria-label="Duct Tape AI 활용 흐름 예시">
+            <div class="ai-panel ai-panel--before">
+              <span class="ai-panel-label">Before</span>
+              <strong>프롬프트와 레퍼런스</strong>
+              <p>요즘 이미지 생성 도구는 자연어 요청과 참고 이미지를 받아 포스터, 제품 이미지, 마케팅 비주얼을 만든다.</p>
+              <div class="prompt-box">“신상품을 돋보이게 하는 광고 비주얼. 읽히는 문구와 안정적인 레이아웃.”</div>
+            </div>
+            <div class="ai-arrow">→</div>
+            <figure class="ai-panel ai-after-figure">
+              <img src="https://pub-8160e804e2b84d43b76f39a1f7aeca7e.r2.dev/images/homepage/gallery/gpt-image-2-scenic-calendar.jpg" alt="Duct Tape AI 텍스트와 레이아웃 생성 예시 이미지" />
+              <figcaption>Duct Tape AI 공개 예시. 읽히는 텍스트와 구조화된 레이아웃을 보여준다.</figcaption>
+            </figure>
+          </div>
+          <div class="ai-proof-notes">
+            <div class="card metric teal ai-note-card">
+              <strong>27.2%</strong>
+              <span>소상공인의 디지털·스마트 기술 활용 비중. AI 활용률이 아니라 현장 디지털 도입의 참고 지표다.<a class="source" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806">S1</a></span>
+            </div>
+            <div class="card metric blue ai-note-card">
+              <strong>1.57명</strong>
+              <span>소상공인 기업체당 평균 종사자. 마케팅을 별도 직무로 분리하기 어렵다.<a class="source" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806">S1</a></span>
+            </div>
+          </div>
+        </div>
+        <p class="caption">해석: Duct Tape AI는 포스터, 패키징, 제품 사진, 마케팅 비주얼과 읽히는 텍스트·구조화된 레이아웃을 강조한다. 따라서 발표에서는 “AI 품질 부족”보다 “사장님의 업무 흐름 안착”을 문제로 잡는다.<a class="source-link" href="https://duct-tape.io/" target="_blank" rel="noreferrer">Duct Tape AI 소개</a><a class="source-link" href="https://duct-tape.app/" target="_blank" rel="noreferrer">Duct Tape AI 예시 갤러리</a><a class="source-link" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806" target="_blank" rel="noreferrer">중기부 실태조사</a></p>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
           <div class="brand"><span class="mark">B</span>Brewgram</div>
-          <div class="page-num">서비스 중심 발표자료 v1</div>
+          <div class="page-num">02</div>
         </div>
         <div class="title-layout">
           <div>
@@ -1673,37 +1822,9 @@
           </figure>
         </div>
         <div class="footer-note">
-          <span>발표 관점: 처음 듣는 청중에게 문제 상황 → 서비스 흐름 → 기대효과 순서로 설명</span>
+          <span>발표 관점: AI 품질 확인 → 현장 활용 장벽 → 서비스 흐름 → 기대효과</span>
           <span>HTML + 실제 앱 캡처 이미지</span>
         </div>
-      </div>
-    </section>
-
-    <section class="slide">
-      <div class="slide-inner">
-        <div class="topline">
-          <div class="brand"><span class="mark">B</span>문제 접근</div>
-          <div class="page-num">02</div>
-        </div>
-        <h2>AI 결과물은 이미 좋아졌다. 문제는 현장 업무로 이어지는가다</h2>
-        <div class="grid-3">
-          <div class="card metric coral">
-            <strong>AI 품질</strong>
-            <span>이미지와 홍보 문구 초안은 이미 꽤 그럴듯하게 만들어진다.</span>
-          </div>
-          <div class="card metric teal">
-            <strong>27.2%</strong>
-            <span>소상공인의 디지털·스마트 기술 활용 비중. AI 활용률이 아니라 현장 디지털 도입의 참고 지표다.<a class="source" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806">S1</a></span>
-          </div>
-          <div class="card metric blue">
-            <strong>1.57명</strong>
-            <span>소상공인 기업체당 평균 종사자. 마케팅을 별도 직무로 분리하기 어렵다.<a class="source" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806">S1</a></span>
-          </div>
-        </div>
-        <div class="quote-block">
-          Brewgram의 출발점은 “AI가 더 잘 만들 수 있나?”가 아니라 “좋은 AI 결과물을 사장님의 인스타 홍보 업무 끝까지 이어줄 수 있나?”이다.
-        </div>
-        <p class="caption">해석: 27.2%는 AI 자체 활용률이 아니라 소상공인의 디지털·스마트 기술 활용 비중이다. 따라서 발표에서는 “AI 품질”보다 “업무 흐름 안착”을 문제로 잡는다.<a class="source-link" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806" target="_blank" rel="noreferrer">중기부 실태조사</a></p>
       </div>
     </section>
 
@@ -1795,7 +1916,7 @@
           <div class="brand"><span class="mark">B</span>콘텐츠 병목</div>
           <div class="page-num">05</div>
         </div>
-        <h2>문제는 게시물을 만드는 시간이 아니라, 계속 만들어야 한다는 압박이다</h2>
+        <h2>한 번 만드는 것보다, 계속 만들어야 하는 압박이 병목이다</h2>
         <div class="grid-2">
           <div class="card">
             <h3>사업자들은 더 자주 올려야 한다고 느낀다</h3>
@@ -1834,7 +1955,7 @@
         </div>
         <div class="insight-strip">
           <span class="strip-label">문제 정의</span>
-          Brewgram이 줄여야 하는 것은 “프롬프트 입력 시간”이 아니라, 사장님이 오늘 올릴 홍보물을 끝까지 완성하는 데 걸리는 시간이다.
+          Brewgram이 줄이는 것은 프롬프트 입력 시간이 아니라, 사장님이 오늘 올릴 홍보물을 게시까지 끝내는 시간과 부담이다.
           <a class="source-link source-link--dark" href="https://www.marketingcharts.com/digital/social-media-232496" target="_blank" rel="noreferrer">마케터 시간 조사</a>
           <a class="source-link source-link--dark" href="https://www.marketingprofs.com/charts/2017/33002/how-long-does-it-take-to-create-a-piece-of-content" target="_blank" rel="noreferrer">콘텐츠 제작 시간</a>
         </div>
@@ -2088,39 +2209,10 @@
     <section class="slide">
       <div class="slide-inner">
         <div class="topline">
-          <div class="brand"><span class="mark">B</span>왜 지금인가</div>
+          <div class="brand"><span class="mark">B</span>서비스 포지셔닝</div>
           <div class="page-num">11</div>
         </div>
-        <h2>지금 중요한 이유는 AI보다 적용할 업무가 명확하다는 점이다</h2>
-        <div class="grid-3">
-          <div class="card metric blue">
-            <strong>27.2%</strong>
-            <span>디지털·스마트 기술 활용 소상공인 비중. 아직 확산 여지가 크다.<a class="source" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806">S1</a></span>
-          </div>
-          <div class="card metric teal">
-            <strong>10~15h</strong>
-            <span>HubSpot 조사에서 AI가 주당 10~14시간 이상을 절약한다는 응답이 큰 비중을 차지했다.<a class="source" href="https://blog.hubspot.com/marketing/content-trends-global-preferences">S8</a></span>
-          </div>
-          <div class="card metric coral">
-            <strong>5~15%</strong>
-            <span>McKinsey는 생성형 AI가 마케팅 기능 생산성을 마케팅 지출의 5~15% 가치만큼 높일 수 있다고 분석했다.<a class="source" href="https://www.mckinsey.com/capabilities/mckinsey-digital/our-insights/The-economic-potential-of-generative-AI-The-next-productivity-frontier">S10</a></span>
-          </div>
-        </div>
-        <div class="quote-block">
-          Brewgram은 작은 가게 사장님이 오늘 인스타그램에 올릴 홍보물을 만드는 일에 집중한다. 좁고 반복적인 업무이기 때문에 AI를 실제 업무 단축으로 연결하기 쉽다.
-          <a class="source-link" href="https://blog.hubspot.com/marketing/content-trends-global-preferences" target="_blank" rel="noreferrer">HubSpot AI 시간절감</a>
-          <a class="source-link" href="https://www.mckinsey.com/capabilities/mckinsey-digital/our-insights/The-economic-potential-of-generative-AI-The-next-productivity-frontier" target="_blank" rel="noreferrer">McKinsey 마케팅 생산성</a>
-        </div>
-      </div>
-    </section>
-
-    <section class="slide">
-      <div class="slide-inner">
-        <div class="topline">
-          <div class="brand"><span class="mark">B</span>서비스 포지셔닝</div>
-          <div class="page-num">12</div>
-        </div>
-        <h2>후반 비교는 서비스명을 단정하지 않고 포지셔닝 축으로 잡는다</h2>
+        <h2>Brewgram은 생성 도구와 예약 도구 사이의 빈틈을 잡는다</h2>
         <div class="grid-3">
           <div class="card">
             <h3>범용 AI 도구</h3>
@@ -2148,8 +2240,8 @@
           </div>
         </div>
         <div class="insight-strip">
-          <span class="strip-label">발표 문장</span>
-          “초반 비교는 수동 운영과의 차이를 보여주고, 후반 비교는 Brewgram이 어떤 업무 축에 집중했는지 보여줍니다.”
+          <span class="strip-label">포지셔닝</span>
+          Brewgram은 이미지 하나를 만드는 도구가 아니라, 작은 가게의 인스타 홍보물을 끝까지 만드는 운영 흐름이다.
         </div>
       </div>
     </section>
@@ -2158,7 +2250,7 @@
       <div class="slide-inner">
         <div class="topline">
           <div class="brand"><span class="mark">B</span>마무리</div>
-          <div class="page-num">13</div>
+          <div class="page-num">12</div>
         </div>
         <h2>결론: 작은 가게의 반복 인스타 홍보 업무를 줄이는 서비스</h2>
         <div class="grid-2">
@@ -2187,35 +2279,11 @@
       </div>
     </section>
 
-    <section class="slide">
-      <div class="slide-inner">
-        <div class="topline">
-          <div class="brand"><span class="mark">B</span>자료조사 메모</div>
-          <div class="page-num">14</div>
-        </div>
-        <h2>수치 근거 출처</h2>
-        <p class="lead">국내 시장·모바일·소상공인 수치는 공식 통계 중심으로, 콘텐츠 제작 시간은 단일 사진 게시 흐름과 해외 사업자·마케터 조사 자료를 보조 근거로 사용했다. 20분/5분 가정은 생성·저장·업로드 요청 로그로 보정해야 한다.</p>
-        <div class="source-grid">
-          <div class="source-item"><strong>S1</strong><a href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806">중소벤처기업부, 2024년 기준 소상공인실태조사 결과 발표</a></div>
-          <div class="source-item"><strong>S2</strong><a href="https://kostat.go.kr/board.es?act=view&bid=241&list_no=434934&mid=a10301120100&ref_bid=&tag=">통계청, 2024년 12월 온라인쇼핑동향</a></div>
-          <div class="source-item"><strong>S3</strong><a href="https://datareportal.com/reports/digital-2026-south-korea">DataReportal, Digital 2026: South Korea</a></div>
-          <div class="source-item"><strong>S4</strong><a href="https://datareportal.com/reports/digital-2026-two-in-three-people-use-social-media">DataReportal, Digital 2026 social media and brand research</a></div>
-          <div class="source-item"><strong>S5</strong><a href="https://www.adobe.com/express/learn/blog/how-often-should-you-post-content">Adobe Express, business owner posting cadence survey</a></div>
-          <div class="source-item"><strong>S6</strong><a href="https://www.marketingcharts.com/digital/social-media-232496">MarketingCharts, Sprout Social social marketer time-use survey summary</a></div>
-          <div class="source-item"><strong>S7</strong><a href="https://www.marketingprofs.com/charts/2017/33002/how-long-does-it-take-to-create-a-piece-of-content">MarketingProfs, CoSchedule content creation time survey summary</a></div>
-          <div class="source-item"><strong>S8</strong><a href="https://blog.hubspot.com/marketing/content-trends-global-preferences">HubSpot, 2026 State of Marketing survey summary</a></div>
-          <div class="source-item"><strong>S9</strong><a href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156701619">고용노동부, 2026년 적용 최저임금 시간급 10,320원</a></div>
-          <div class="source-item"><strong>S10</strong><a href="https://www.mckinsey.com/capabilities/mckinsey-digital/our-insights/The-economic-potential-of-generative-AI-The-next-productivity-frontier">McKinsey, The economic potential of generative AI</a></div>
-          <div class="source-item"><strong>S11</strong><a href="https://help.later.com/hc/en-us/articles/360044473954-Schedule-Publish-Instagram-Single-Photo-Posts">Later, Instagram single photo post workflow</a></div>
-          <div class="source-item"><strong>S12</strong><a href="https://thesilverliningsgroup.com/2023/03/14/how-much-time-does-it-take-to-create-a-social-media-post/">Silver Linings Group, social media post creation time guide</a></div>
-        </div>
-      </div>
-    </section>
   </main>
 
   <nav class="nav" aria-label="슬라이드 이동">
     <button type="button" id="prev" aria-label="이전 슬라이드">‹</button>
-    <span id="counter">1 / 14</span>
+    <span id="counter">1 / 12</span>
     <button type="button" id="next" aria-label="다음 슬라이드">›</button>
   </nav>
 
