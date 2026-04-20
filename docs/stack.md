@@ -1,5 +1,8 @@
 # 기술 스택 (Technology Stack)
 
+> Legacy note: 이 문서는 초기 Streamlit MVP 기술 스택이다.
+> 현재 운영 기준은 `mobile_app.py + Stitch PWA`, FastAPI, Caddy, SQLite `/srv/brewgram/data`, 선택적 `worker_api.py`, 선택적 Mac 캡처 워커를 포함한다.
+
 > **프로젝트:** 생성형 AI 기반 광고 콘텐츠 제작 서비스 (MVP)  
 > **최종 수정일:** 2026-04-02
 

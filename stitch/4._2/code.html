@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="#ff6b57" name="theme-color"/>
+<meta content="yes" name="apple-mobile-web-app-capable"/>
+<meta content="default" name="apple-mobile-web-app-status-bar-style"/>
+<title>Brewgram - 메인 생성 화면</title>
+<link href="/stitch/manifest.webmanifest" rel="manifest"/>
+<link href="/stitch/icons/icon.svg" rel="icon" type="image/svg+xml"/>
+<link href="/stitch/icons/apple-touch-icon.png" rel="apple-touch-icon"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Be+Vietnam+Pro:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="../shared.css" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-tertiary-fixed": "#371800",
+                    "primary-fixed": "#ffae8a",
+                    "on-secondary-fixed-variant": "#476400",
+                    "on-tertiary-fixed-variant": "#663100",
+                    "on-background": "#373222",
+                    "surface-container-lowest": "#ffffff",
+                    "inverse-surface": "#110e06",
+                    "surface-container-low": "#fbf3e1",
+                    "surface-container": "#f6edda",
+                    "primary-dim": "#863e1b",
+                    "on-surface": "#373222",
+                    "secondary-dim": "#405b00",
+                    "surface": "#fff8ef",
+                    "secondary-container": "#c8f17a",
+                    "on-primary-fixed-variant": "#75310e",
+                    "on-primary-fixed": "#4a1800",
+                    "surface-dim": "#e4d9bf",
+                    "surface-container-high": "#f1e7d2",
+                    "secondary-fixed-dim": "#bae26e",
+                    "tertiary-fixed": "#ffa35d",
+                    "outline": "#827a66",
+                    "on-primary": "#fff7f5",
+                    "secondary-fixed": "#c8f17a",
+                    "on-primary-container": "#692906",
+                    "outline-variant": "#bab19b",
+                    "inverse-on-surface": "#a29c8f",
+                    "surface-container-highest": "#ece2ca",
+                    "tertiary-fixed-dim": "#fc8f34",
+                    "primary-fixed-dim": "#fb9b70",
+                    "secondary": "#4a6800",
+                    "on-surface-variant": "#655f4c",
+                    "on-error-container": "#65000b",
+                    "on-secondary-container": "#3f5a00",
+                    "tertiary-container": "#ffa35d",
+                    "primary": "#954a25",
+                    "on-tertiary": "#fff7f4",
+                    "tertiary-dim": "#834100",
+                    "surface-tint": "#954a25",
+                    "surface-bright": "#fff8ef",
+                    "error-dim": "#70030f",
+                    "on-error": "#fff7f6",
+                    "surface-variant": "#ece2ca",
+                    "inverse-primary": "#f8986d",
+                    "background": "#fff8ef",
+                    "error": "#ac3434",
+                    "tertiary": "#954b00",
+                    "on-secondary": "#f0ffce",
+                    "on-tertiary-container": "#592a00",
+                    "primary-container": "#ffae8a",
+                    "on-secondary-fixed": "#304600",
+                    "error-container": "#f56965"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Plus Jakarta Sans"],
+                    "body": ["Be Vietnam Pro"],
+                    "label": ["Be Vietnam Pro"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Be Vietnam Pro', sans-serif; }
+        h1, h2, h3 { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen pb-32" data-stitch-page="create">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#fff8ef]/80 backdrop-blur-xl flex justify-between items-center px-6 py-4">
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-[#954a25] hover:bg-[#f1e7d2]/50 p-2 rounded-full transition-colors active:scale-95" data-icon="arrow_back" id="create-back" type="button">arrow_back</button>
+<div class="brand-lockup">
+<img alt="Brewgram 로고" class="brand-mark" src="../brand-badge.png"/>
+<span class="brand-wordmark">Brewgram</span>
+</div>
+</div>
+<div class="w-10"></div> <!-- Spacer for center alignment feel if needed -->
+</header>
+<main class="pt-24 px-6 max-w-2xl mx-auto">
+<!-- Brand Summary Card (Bento Style) -->
+<section class="mb-10">
+<div class="bg-surface-container-low rounded-xl p-8 flex flex-col md:flex-row items-center gap-6 shadow-[0_12px_32px_rgba(55,50,34,0.06)] overflow-hidden relative paper-card">
+<div class="absolute -top-4 -right-4 w-24 h-24 bg-primary/10 rounded-full blur-3xl"></div>
+<div class="relative w-20 h-20 bg-[linear-gradient(135deg,rgba(255,116,72,0.16),rgba(255,179,71,0.18))] rounded-lg shadow-sm flex items-center justify-center border border-outline-variant/15 overflow-hidden">
+<img alt="브랜드 로고" class="hidden w-full h-full object-contain" id="brand-summary-logo-img"/>
+<span class="text-3xl font-black tracking-[-0.06em] text-[#b25d37]" id="brand-summary-logo-initial">브</span>
+</div>
+<div class="flex-1 text-center md:text-left">
+<p class="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/75">온보딩에서 저장한 브랜드</p>
+<div class="flex flex-wrap justify-center md:justify-start gap-2 mb-2" id="brand-summary-tags">
+<span class="px-3 py-1 bg-[rgba(255,116,72,0.15)] text-[#d95c39] text-[10px] font-bold rounded-full tracking-wider">#브랜드 로딩 중</span>
+</div>
+<h2 class="text-2xl font-extrabold text-on-surface mb-1" id="brand-summary-name">브랜드 정보를 불러오는 중</h2>
+<div class="flex flex-wrap items-center justify-center md:justify-start gap-x-4 gap-y-2 text-sm text-on-surface-variant">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-[#ff7448] shadow-[0_0_0_4px_rgba(255,116,72,0.12)]" id="brand-summary-color-dot"></span>
+<span id="brand-summary-color-label">대표 컬러 정보를 불러오는 중</span>
+</div>
+<span class="text-on-surface-variant/70" id="brand-summary-logo-status">로고 상태 확인 중</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Headline -->
+<header class="mb-10 space-y-2">
+<h1 class="text-3xl font-bold text-on-surface leading-tight film-headline">
+                반가워요 사장님!<br/>광고를 만들어볼까요?
+            </h1>
+<p class="text-on-surface-variant warm-copy">상품 정보만 입력하면 Brewgram AI가 인스타 감성의 광고를 완성해드려요.</p>
+</header>
+<!-- Form Content -->
+<div class="space-y-8">
+<div class="space-y-6">
+<!-- New Product Toggle -->
+<div class="flex items-center justify-between px-1 py-2">
+<div>
+<p class="text-sm font-bold text-on-surface-variant">신상품으로 등록</p>
+<p class="text-xs text-outline mt-0.5">처음 소개하는 상품이면 켜주세요</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" id="create-new-product-toggle" role="switch" type="checkbox"/>
+<div class="w-12 h-6 bg-[#d1d5db] rounded-full peer peer-focus:outline-none peer-checked:bg-[#ff7448] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:shadow-sm after:transition-all peer-checked:after:translate-x-6"></div>
+</label>
+</div>
+<!-- Product Name Input -->
+<div class="space-y-3">
+<label class="text-sm font-bold text-on-surface-variant px-1">상품명</label>
+<input class="w-full h-16 px-6 bg-surface-container-highest border-none rounded-xl text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/30 transition-all outline-none" id="create-product-name" placeholder="예: 시그니처 천연 발효종 식빵" style="background-image:linear-gradient(135deg,rgba(255,179,71,0.10),rgba(255,106,136,0.06));" type="text"/>
+</div>
+<!-- Product Description Input -->
+<div class="space-y-3">
+<label class="text-sm font-bold text-on-surface-variant px-1">상품 설명</label>
+<textarea class="w-full p-6 bg-surface-container-highest border-none rounded-xl text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/30 transition-all outline-none resize-none" id="create-product-description" placeholder="상품의 특징이나 정성이 들어간 포인트를 적어주세요. (예: 48시간 저온 숙성으로 깊은 풍미를 담았습니다)" rows="4" style="background-image:linear-gradient(135deg,rgba(255,179,71,0.10),rgba(143,102,255,0.05));"></textarea>
+</div>
+<!-- Existing Product Select (toggle OFF) -->
+<div class="space-y-3 hidden" id="create-existing-product-panel">
+<label class="text-sm font-bold text-on-surface-variant px-1">기존 상품 선택</label>
+<select class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary/30 text-on-surface font-medium" id="create-existing-product-select">
+<option value="">-- 상품을 선택해주세요 --</option>
+</select>
+<div class="hidden" id="create-existing-product-thumb-wrap">
+<img alt="상품 미리보기" class="rounded-xl w-full max-h-40 object-cover" id="create-existing-product-thumb"/>
+</div>
+</div>
+<!-- New Product Image Upload (toggle ON) -->
+<div class="space-y-3 hidden" id="create-product-image-panel">
+<div class="flex items-center justify-between px-1">
+<label class="text-sm font-bold text-on-surface-variant">신상품 사진 업로드</label>
+<span class="text-xs text-primary font-semibold">필수</span>
+</div>
+<div class="rounded-xl border-2 border-dashed border-primary/20 bg-surface-container-lowest/70 px-5 py-8 text-center soft-dash cursor-pointer" id="create-product-image-trigger">
+<span class="material-symbols-outlined text-3xl text-primary">add_photo_alternate</span>
+<p class="mt-3 text-sm font-semibold text-on-surface">상품 원본 사진을 업로드해주세요</p>
+<p class="mt-1 text-xs text-on-surface-variant">이 사진은 상품의 생김새를 맞추는 데만 사용됩니다.</p>
+<button class="mt-4 px-6 py-2 bg-secondary-container text-on-secondary-container font-bold text-sm rounded-full hover:bg-secondary-fixed-dim transition-colors active:scale-95" type="button">파일 찾기</button>
+</div>
+<input accept="image/*" class="hidden" id="create-product-image-input" type="file"/>
+<div class="hidden" id="create-product-image-thumb-wrap">
+<img alt="신상품 사진 미리보기" class="rounded-xl w-full max-h-40 object-cover" id="create-product-image-thumb"/>
+<button class="mt-3 w-full px-4 py-2 bg-surface-container-high text-on-surface-variant font-semibold text-sm rounded-full hover:bg-surface-container-highest transition-colors active:scale-95" id="create-product-image-reupload" type="button">다시 업로드</button>
+</div>
+<p class="text-xs text-primary font-medium" id="create-product-image-status"></p>
+</div>
+</div>
+<!-- Detailed Options Toggle -->
+<button aria-controls="detail-options" aria-expanded="false" class="w-full py-4 flex items-center justify-center gap-2 text-on-surface-variant hover:text-primary transition-colors group" id="detail-toggle" type="button">
+<span class="text-sm font-semibold" id="detail-toggle-label">상세 옵션 더보기</span>
+<span class="material-symbols-outlined text-[20px] group-hover:translate-y-1 transition-transform" data-icon="expand_more" id="detail-toggle-icon">expand_more</span>
+</button>
+<!-- Expanded Detail Options -->
+<section class="bg-surface-container-low rounded-xl p-6 space-y-6 paper-card hidden" id="detail-options">
+<div class="space-y-3">
+<label class="text-sm font-bold text-on-surface-variant px-1">홍보 목적</label>
+<div class="flex flex-wrap gap-2">
+<button class="px-4 py-2 rounded-full bg-surface-container-highest text-on-surface-variant font-medium text-sm opacity-30 cursor-not-allowed" data-goal-choice="신제품 출시" type="button">신제품 출시</button>
+<button class="px-4 py-2 rounded-full bg-tertiary-container text-on-tertiary-container font-semibold text-sm" data-goal-choice="브랜드 인지도" type="button">브랜드 인지도</button>
+<button class="px-4 py-2 rounded-full bg-surface-container-highest text-on-surface-variant font-medium text-sm" data-goal-choice="이벤트 홍보" type="button">이벤트 홍보</button>
+<button class="px-4 py-2 rounded-full bg-surface-container-highest text-on-surface-variant font-medium text-sm" data-goal-choice="매장 방문 유도" type="button">매장 방문 유도</button>
+</div>
+<input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary/30 text-on-surface text-sm placeholder:text-outline-variant" id="create-goal-custom" placeholder="직접 입력" type="text"/>
+</div>
+<div class="space-y-3">
+<label class="text-sm font-bold text-on-surface-variant px-1">생성 타입</label>
+<div class="grid grid-cols-3 gap-3">
+<button class="rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-3 py-4 text-sm font-medium text-on-surface-variant" data-generation-type="text" type="button">글만</button>
+<button class="rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-3 py-4 text-sm font-medium text-on-surface-variant" data-generation-type="image" type="button">이미지만</button>
+<button class="rounded-xl border-2 border-primary/30 bg-primary-container/15 px-3 py-4 text-sm font-bold text-primary" data-generation-type="both" type="button">글 + 이미지</button>
+</div>
+</div>
+<div class="grid grid-cols-1 gap-4">
+<div class="space-y-3">
+<label class="text-sm font-bold text-on-surface-variant px-1">말투</label>
+<div class="relative">
+<select class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 appearance-none focus:ring-2 focus:ring-primary/30 text-on-surface font-medium" id="create-tone-select">
+<option value="기본">기본 (가장 깔끔하게)</option>
+<option value="감성">감성 (따뜻하고 부드럽게)</option>
+<option value="고급">고급 (격식있고 우아하게)</option>
+<option value="유머">유머 (재밌고 센스있게)</option>
+<option value="심플">심플 (핵심만 간단하게)</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+</div>
+<div class="space-y-3">
+<label class="text-sm font-bold text-on-surface-variant px-1">이미지 스타일</label>
+<div class="relative">
+<select class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 appearance-none focus:ring-2 focus:ring-primary/30 text-on-surface font-medium" id="create-style-select">
+<option value="기본">기본 (가장 깔끔하게)</option>
+<option value="감성">감성 (따뜻하고 부드럽게)</option>
+<option value="고급">고급 (격식있고 우아하게)</option>
+<option value="유머">유머 (재밌고 센스있게)</option>
+<option value="심플">심플 (핵심만 간단하게)</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+</div>
+</div>
+<div class="space-y-3">
+<div class="flex items-center justify-between px-1">
+<label class="text-sm font-bold text-on-surface-variant">촬영 구도 참고 이미지</label>
+<span class="text-xs text-on-surface-variant">선택 입력</span>
+</div>
+<div class="rounded-xl border-2 border-dashed border-outline-variant/35 bg-surface-container-lowest/50 px-5 py-8 text-center soft-dash cursor-pointer" id="create-reference-trigger">
+<span class="material-symbols-outlined text-3xl text-outline-variant">cloud_upload</span>
+<p class="mt-3 text-sm font-semibold text-on-surface">눌러서 업로드</p>
+<p class="mt-1 text-xs text-on-surface-variant">원하는 촬영 구도를 참고할 이미지 한 장을 올려주세요.</p>
+<button class="mt-4 px-6 py-2 bg-secondary-container text-on-secondary-container font-bold text-sm rounded-full hover:bg-secondary-fixed-dim transition-colors active:scale-95" type="button">파일 찾기</button>
+</div>
+<input accept="image/*" class="hidden" id="create-reference-input" type="file"/>
+<div class="hidden" id="create-reference-thumb-wrap">
+<img alt="참고 이미지 미리보기" class="rounded-xl w-full max-h-40 object-cover" id="create-reference-thumb"/>
+<button class="mt-3 w-full px-4 py-2 bg-surface-container-high text-on-surface-variant font-semibold text-sm rounded-full hover:bg-surface-container-highest transition-colors active:scale-95" id="create-reference-reupload" type="button">다시 업로드</button>
+</div>
+<p class="text-xs text-primary font-medium" id="create-reference-status"></p>
+<p class="text-xs text-on-surface-variant" id="reference-pool-hint"></p>
+</div>
+</section>
+<!-- CTA Button -->
+<button class="w-full h-16 bg-gradient-to-br from-primary to-primary-dim text-on-primary rounded-full shadow-lg flex items-center justify-center gap-3 active:scale-95 transition-all duration-300 relative overflow-hidden group warm-button" id="create-submit" type="button">
+<div class="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<span class="material-symbols-outlined" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<span class="text-lg font-bold tracking-tight">광고 만들기</span>
+</button>
+<div class="hidden mt-4" id="create-status"></div>
+</div>
+<section class="mt-10 hidden result-section" id="create-results">
+<div class="panel">
+<div class="hidden mb-4" id="result-summary-block"></div><div class="result-grid">
+<div class="hidden" id="result-image-block"></div>
+</div>
+<div class="hidden mt-4" id="result-text-block"></div>
+<div class="hidden mt-4 action-grid" id="result-actions">
+<button class="action-button action-button--soft" id="create-regenerate-button" type="button">다시 만들기</button>
+<a class="action-button action-button--dark hidden" id="create-save-image-link" href="#" download="brewgram-ad.png">이미지 저장</a>
+<button class="action-button action-button--primary" id="create-caption-button" style="grid-column: 1 / -1;" type="button">피드 캡션 만들기</button>
+</div>
+<div class="hidden mt-2" id="create-caption-status"></div>
+<div class="hidden mt-4" id="result-preview-block"></div>
+<div class="hidden mt-4" id="result-story-block"></div>
+<div class="hidden mt-6" id="result-upload-note"></div>
+<button class="action-button action-button--primary hidden mt-3" id="create-upload-feed-button" style="width: 100%;" type="button">피드 업로드</button>
+<div class="hidden mt-3" id="create-upload-status"></div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="app-nav" aria-label="앱 탐색">
+<a class="app-nav__item" href="/stitch/index.html">
+<span class="material-symbols-outlined">home</span>
+<span class="app-nav__label">홈</span>
+</a>
+<a class="app-nav__item app-nav__item--fab" href="/stitch/4._2/code.html">
+<span class="material-symbols-outlined">add</span>
+<span class="app-nav__label">만들기</span>
+</a>
+<a class="app-nav__item" href="/stitch/archive.html">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="app-nav__label">보관함</span>
+</a>
+</nav>
+<script>
+  const detailToggle = document.getElementById("detail-toggle");
+  const detailOptions = document.getElementById("detail-options");
+  const detailToggleLabel = document.getElementById("detail-toggle-label");
+  const detailToggleIcon = document.getElementById("detail-toggle-icon");
+
+  detailToggle?.addEventListener("click", () => {
+    const isExpanded = !detailOptions.classList.contains("hidden");
+    detailOptions.classList.toggle("hidden");
+    detailToggle.setAttribute("aria-expanded", String(!isExpanded));
+    detailToggleLabel.textContent = isExpanded ? "상세 옵션 더보기" : "상세 옵션 접기";
+    detailToggleIcon.textContent = isExpanded ? "expand_more" : "expand_less";
+    detailToggle.classList.toggle("text-primary", !isExpanded);
+    detailToggle.classList.toggle("text-on-surface-variant", isExpanded);
+  });
+</script>
+<script src="../shared.js"></script>
+</body></html>

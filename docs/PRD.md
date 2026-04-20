@@ -1,5 +1,8 @@
 # prd.md
 
+> Legacy note: 이 문서는 초기 Streamlit MVP PRD다.
+> 현재 구현/운영 기준은 [../README.md](../README.md), [mobile_worker_workflow.md](mobile_worker_workflow.md), [schema.md](schema.md)를 우선한다.
+
 # 📄 생성형 AI 기반 광고 콘텐츠 제작 서비스
 
 ## 최종 개발 기획서 (Execution PRD)

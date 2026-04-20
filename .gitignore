@@ -148,6 +148,9 @@ cython_debug/
 Thumbs.db
 
 # Project specific
+/image_crawled/
+crawled_images.json
+brand_analysis.json
 ad_history.db
 data/
 image_outputs/
@@ -157,4 +160,27 @@ mock_instagram_upload.json
 *.png
 *.jpg
 *.jpeg
+
+# PWA assets — 추적 필수
+!stitch/brand-badge.png
+!stitch/icons/*.png
 *.db
+
+# Local model cache (HuggingFace weights, large binary files)
+models/cache/
+
+# uv
+.python-version
+
+# Claude
+.claude/
+
+# Excalidraw
+*.excalidraw
+.claude/skills/gstack/
+.env.bak
+.env copy
+
+# 실험: 로고 생성 샘플 결과물 (대용량, 재현 가능)
+logo_gen_exp/samples/
+ui.md

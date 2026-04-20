@@ -1,0 +1,191 @@
+"""사이드바 인스타그램 계정 연결 UI 컴포넌트.
+
+기존 app.py의 UI 흐름을 건드리지 않고,
+사이드바에 독립적으로 렌더링되는 '플러그인' 형태입니다.
+"""
+
+import logging
+from uuid import uuid4
+
+import streamlit as st
+
+from utils.async_runner import run_async
+
+logger = logging.getLogger(__name__)
+
+
+def render_instagram_connection(settings, brand):
+    """사이드바에 인스타그램 연결 상태를 표시하고 연결/해제 기능을 제공.
+
+    Args:
+        settings: 앱 전역 설정 객체
+        brand: 온보딩된 브랜드 설정 (None이면 렌더링 안 함)
+
+    Returns:
+        InstagramConnection 인스턴스 또는 None
+    """
+    if not brand:
+        return None
+
+    from services.instagram_auth_service import (
+        InstagramAuthService,
+        InstagramPageConnectionRequiredError,
+    )
+
+    if not settings.is_instagram_oauth_configured_for("streamlit"):
+        with st.sidebar:
+            st.markdown("---")
+            st.markdown("#### 📷 인스타그램 계정")
+            st.info(
+                "현재는 Streamlit용 Meta redirect URI가 설정되지 않아 "
+                "여기서 계정 연결을 시작할 수 없습니다."
+            )
+            st.caption(
+                "필요한 값: META_APP_ID, META_APP_SECRET, TOKEN_ENCRYPTION_KEY, "
+                "META_REDIRECT_URI_STREAMLIT 또는 META_REDIRECT_URI"
+            )
+        return None
+
+    auth_svc = InstagramAuthService(settings)
+
+    # ── OAuth 콜백 처리 (Meta에서 돌아왔을 때) ──
+    query_params = st.query_params
+
+    if "code" in query_params:
+        if st.session_state.get("ig_connecting"):
+            return None
+
+        received_state = query_params.get("state", "")
+        expected_state = st.session_state.get("oauth_state", "")
+
+        if not expected_state or received_state == expected_state:
+            try:
+                st.session_state.ig_connecting = True
+                with st.spinner("🔗 계정 정보를 확인하고 있습니다..."):
+                    code = query_params["code"]
+
+                    # code → short token
+                    short_token = run_async(
+                        auth_svc.exchange_code_for_token(
+                            code,
+                            surface="streamlit",
+                        )
+                    )
+                    # short → long-lived token (60일)
+                    long_token, expires_in = run_async(auth_svc.exchange_for_long_lived_token(short_token))
+                    
+                    try:
+                        # 1) IG 비즈니스 계정 정보 자동 조회 시도
+                        ig_info = run_async(auth_svc.fetch_instagram_account(long_token))
+                        # 2) DB에 암호화 저장
+                        run_async(auth_svc.save_connection(brand.id, long_token, expires_in, ig_info))
+                        st.session_state.pop("ig_page_connection_required", None)
+                        st.success(f"✅ @{ig_info['instagram_username']} 계정이 연결되었습니다!")
+                        st.query_params.clear()
+                        st.session_state.ig_connecting = False
+                        st.rerun()
+                    except InstagramPageConnectionRequiredError as ve:
+                        st.warning(f"⚠️ {str(ve)}")
+                        st.session_state.ig_page_connection_required = str(ve)
+                        st.session_state.pending_ig_token = (long_token, expires_in)
+                        st.session_state.ig_connecting = False
+                        st.query_params.clear()
+                    except ValueError as ve:
+                        # 자동 조회 실패 시 수동 입력 모드 준비
+                        st.warning(f"⚠️ 자동 찾기 실패: {str(ve)}")
+                        st.session_state.pop("ig_page_connection_required", None)
+                        st.session_state.pending_ig_token = (long_token, expires_in)
+                        st.session_state.ig_connecting = False
+                        st.query_params.clear()
+
+            except Exception as e:
+                logger.error("OAuth 연결 실패: %s", e, exc_info=True)
+                st.error(f"❌ 연결 중 오류가 발생했습니다: {e}")
+                st.session_state.ig_connecting = False
+                st.query_params.clear()
+        else:
+            st.warning("⚠️ 보안 검증에 실패했습니다. 다시 시도해주세요.")
+            st.query_params.clear()
+
+    elif "error" in query_params:
+        st.warning("연결이 취소되었습니다.")
+        st.query_params.clear()
+
+    # ── 현재 연결 상태 조회 ──
+    connection = run_async(auth_svc.get_connection(brand.id))
+
+    # ── 사이드바 UI 렌더링 ──
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("#### 📷 인스타그램 계정")
+
+        if connection and connection.is_active:
+            # 연결된 상태 — username 은 Brand 에 저장됨
+            username = brand.instagram_username or "연결됨"
+            st.success(f"✅ @{username} 연결됨")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔄 재연결", key="ig_reconnect", use_container_width=True):
+                    state = str(uuid4())
+                    st.session_state["oauth_state"] = state
+                    oauth_url = auth_svc.generate_oauth_url(
+                        state,
+                        surface="streamlit",
+                    )
+                    st.markdown(f'<meta http-equiv="refresh" content="0;url={oauth_url}">', unsafe_allow_html=True)
+            with col2:
+                if st.button("❌ 해제", key="ig_disconnect", use_container_width=True):
+                    run_async(auth_svc.revoke_connection(brand.id))
+                    st.rerun()
+        else:
+            # 미연결 상태
+            st.info("📷 인스타그램 계정이 아직 연결되지 않았어요")
+            
+            if st.button("🔗 자동 연결하기", key="ig_connect", use_container_width=True):
+                state = str(uuid4())
+                st.session_state["oauth_state"] = state
+                oauth_url = auth_svc.generate_oauth_url(
+                    state,
+                    surface="streamlit",
+                )
+                st.markdown(f'<meta http-equiv="refresh" content="0;url={oauth_url}">', unsafe_allow_html=True)
+
+            page_help_message = st.session_state.get("ig_page_connection_required")
+            if page_help_message:
+                with st.expander("📘 Facebook Page 연결 안내", expanded=True):
+                    st.caption(page_help_message)
+                    st.markdown(
+                        "1. Instagram 앱에서 **프로필 편집 > 페이지**로 이동합니다.\n"
+                        "2. 연결할 Facebook Page를 선택하거나 새로 만듭니다.\n"
+                        "3. 연결이 끝나면 여기로 돌아와 **자동 연결하기**를 다시 누릅니다."
+                    )
+
+            # ── 수동 입력 섹션 (자동 찾기 실패했을 때만 나타남) ──
+            if "pending_ig_token" in st.session_state:
+                with st.expander("🛠️ Instagram @username으로 연결", expanded=True):
+                    st.caption(
+                        "입력한 @username이 현재 Meta 로그인 계정에서 접근 가능한 Page와 연결되어 있으면 연결됩니다."
+                    )
+                    manual_username = st.text_input(
+                        "Instagram @username",
+                        placeholder="@brewgram",
+                    )
+                    
+                    if st.button("지금 수동 연결 완료", use_container_width=True, type="primary"):
+                        try:
+                            token, exp = st.session_state.pending_ig_token
+                            with st.spinner("정보 확인 중..."):
+                                ig_info = run_async(
+                                    auth_svc.resolve_instagram_username(token, manual_username)
+                                )
+                                run_async(auth_svc.save_connection(brand.id, token, exp, ig_info))
+
+                            st.session_state.pop("ig_page_connection_required", None)
+                            del st.session_state.pending_ig_token
+                            st.success(f"✅ @{ig_info['instagram_username']} 연결 완료!")
+                            st.rerun()
+                        except Exception as ex:
+                            st.error(f"연결 실패: {ex}")
+
+    return connection
