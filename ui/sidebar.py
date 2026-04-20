@@ -1,18 +1,23 @@
-"""사이드바 UI — 로컬 모델 실험 설정.
+"""사이드바 UI — 개발자 전용 백엔드 토글 (Stage 2).
 
-app.py에서 `from ui.sidebar import render_sidebar_settings`로 import 후
-`render_sidebar_settings(settings)` 한 줄로 호출합니다.
+app.py 에서 `from ui.sidebar import render_sidebar_settings` 후
+`render_sidebar_settings(settings)` 한 줄로 호출.
+
+Stage 2 변경:
+- IMAGE_BACKEND_KIND enum 4종을 dropdown 으로 즉시 전환
+- HF_LOCAL 선택 시에만 LOCAL_BACKEND (ip_adapter / img2img / hybrid) + 파라미터 노출
+- 사이드바는 **개발자 전용** 임을 캡션으로 명시. 모바일/배포 환경에서는 보이지 않거나
+  관리자 인증 뒤에 둘 예정.
 """
 
 import streamlit as st
 
-# 백엔드별 추천 기본값
+from config.settings import ImageBackendKind
+
+# 백엔드별 추천 기본값 (HF_LOCAL 모드의 LOCAL_BACKEND 세부 옵션)
 # IP-Adapter: CLIP 임베딩으로 스타일 주입. scale 높여야 참조 반영 강해짐.
-#             guidance 낮추면 텍스트 구속이 줄어 이미지 표현이 자유로워짐.
 # img2img:    참조 이미지 직접 노이즈화 후 재생성. strength 낮을수록 원본 충실.
-#             guidance 높이면 프롬프트 방향으로 더 많이 바뀜.
 # hybrid:     img2img 베이스 위에 IP-Adapter 스타일 추가.
-#             strength 낮게 + ip_scale 중간으로 시작 권장.
 _BACKEND_DEFAULTS = {
     "ip_adapter": {"steps": 18, "guidance": 5.0, "ip_scale": 0.9, "strength": None},
     "img2img":    {"steps": 20, "guidance": 8.0, "ip_scale": None, "strength": 0.4},
@@ -30,47 +35,60 @@ _WEIGHT_OPTIONS = {
     "ip-adapter-plus_sd15.bin (디테일↑)": "ip-adapter-plus_sd15.bin",
 }
 
-_HF_MODEL_OPTIONS = {
-    "FLUX.1-schnell (고품질)": "black-forest-labs/FLUX.1-schnell",
-    "SDXL Base 1.0 (안정적)": "stabilityai/stable-diffusion-xl-base-1.0",
+# 사용자에게 보여줄 라벨
+_KIND_LABELS: dict[ImageBackendKind, str] = {
+    ImageBackendKind.OPENAI_IMAGE: "🎨 OpenAI Image — gpt-image-1-mini (상품+로고 multi-input, CP15 기본)",
+    ImageBackendKind.MOCK: "🧪 Mock — Pillow 그라데이션 (외부 호출 0)",
+    ImageBackendKind.HF_LOCAL: "🖥️ HF Local — 같은 머신의 diffusers (Mac 느림)",
+    ImageBackendKind.HF_REMOTE_API: "☁️ HF Remote API — Hugging Face Serverless",
+    ImageBackendKind.REMOTE_WORKER: "📡 Remote Worker — 자체 VM 호출",
 }
 
 
 def render_sidebar_settings(settings) -> None:
-    """사이드바에 로컬 모델 설정 UI를 렌더링하고 settings 객체를 직접 수정."""
+    """사이드바에 백엔드 모드 + 로컬 모델 파라미터 UI 를 렌더링하고
+    settings 객체를 직접 mutate 한다 (메모리상, .env 는 건드리지 않음)."""
     with st.sidebar:
-        st.markdown("## ⚙️ 이미지 생성 설정")
-        st.caption("로컬 모델(SD 1.5) 실험용 설정입니다.")
+        st.markdown("## ⚙️ 백엔드 설정")
+        st.caption("👨‍💻 **개발자 전용**. 메모리 변경만 — streamlit 재시작 시 .env 값으로 돌아감.")
 
-        use_local = st.toggle(
-            "로컬 모델 사용",
-            value=settings.USE_LOCAL_MODEL,
-            help="ON: 로컬 diffusers 모델 / OFF: Hugging Face API",
+        # 1. 이미지 백엔드 모드 선택 (enum dropdown)
+        st.markdown("#### 이미지 백엔드")
+        kind_options = list(_KIND_LABELS.keys())
+        kind_label_list = [_KIND_LABELS[k] for k in kind_options]
+        current_kind: ImageBackendKind = settings.IMAGE_BACKEND_KIND
+        try:
+            current_index = kind_options.index(current_kind)
+        except ValueError:
+            current_index = 0
+
+        selected_label = st.selectbox(
+            "백엔드 모드",
+            kind_label_list,
+            index=current_index,
+            label_visibility="collapsed",
+            key="sidebar_image_backend_kind",
         )
-        settings.USE_LOCAL_MODEL = use_local
+        selected_kind = kind_options[kind_label_list.index(selected_label)]
+        settings.IMAGE_BACKEND_KIND = selected_kind
 
-        if use_local:
-            st.markdown("#### 베이스 모델")
-            settings.LOCAL_SD15_MODEL_ID = st.text_input(
-                "로컬 Stable Diffusion 모델 ID",
-                value=settings.LOCAL_SD15_MODEL_ID,
-                help="고급 옵션입니다. 기본값은 runwayml/stable-diffusion-v1-5 입니다.",
-            )
-
-            st.markdown("#### 백엔드 선택")
+        # 2. HF_LOCAL 모드일 때만 세부 옵션 표시
+        if selected_kind == ImageBackendKind.HF_LOCAL:
+            st.markdown("#### 로컬 백엔드 종류")
             backend_labels = {
                 "IP-Adapter (스타일 주입)": "ip_adapter",
                 "img2img (구조 보존)":      "img2img",
                 "Hybrid (구조 + 스타일)":   "hybrid",
             }
             current_backend = getattr(settings, "LOCAL_BACKEND", "ip_adapter")
-            selected_label = st.radio(
-                "백엔드",
+            selected_local_label = st.radio(
+                "로컬 백엔드",
                 list(backend_labels.keys()),
-                index=list(backend_labels.values()).index(current_backend),
+                index=list(backend_labels.values()).index(current_backend)
+                    if current_backend in backend_labels.values() else 0,
                 label_visibility="collapsed",
             )
-            backend = backend_labels[selected_label]
+            backend = backend_labels[selected_local_label]
             settings.LOCAL_BACKEND = backend
             d = _BACKEND_DEFAULTS[backend]
 
@@ -111,27 +129,6 @@ def render_sidebar_settings(settings) -> None:
                     index=weight_index,
                 )
                 settings.LOCAL_IP_ADAPTER_WEIGHT_NAME = _WEIGHT_OPTIONS[selected_weight]
-        else:
-            st.markdown("#### 모델 선택")
-            current_image_model = getattr(
-                settings,
-                "IMAGE_MODEL",
-                "stabilityai/stable-diffusion-xl-base-1.0",
-            )
-            model_options = dict(_HF_MODEL_OPTIONS)
-            if current_image_model not in model_options.values():
-                model_options = {
-                    f"사용자 지정 ({current_image_model})": current_image_model,
-                    **model_options,
-                }
-
-            selected_model_label = st.selectbox(
-                "Hugging Face 모델",
-                list(model_options.keys()),
-                index=list(model_options.values()).index(current_image_model),
-                help="원격 워커 모드에서는 이 선택값이 요청마다 전달됩니다.",
-            )
-            settings.IMAGE_MODEL = model_options[selected_model_label]
 
         st.divider()
-        st.caption(f"모드: {'🟢 로컬' if use_local else '☁️ API'}")
+        st.caption(f"현재 모드: `{selected_kind.value}`")

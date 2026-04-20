@@ -1,0 +1,54 @@
+{
+  "id": "/stitch/index.html",
+  "name": "Brewgram",
+  "short_name": "Brewgram",
+  "description": "사장님을 위한 AI 홍보 도우미",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "/stitch/index.html",
+  "scope": "/stitch/",
+  "display": "standalone",
+  "background_color": "#fff6ef",
+  "theme_color": "#ff6b57",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/stitch/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/stitch/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/stitch/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/stitch/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/stitch/4._2/screen.png",
+      "sizes": "1530x1620",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/stitch/1./screen.png",
+      "sizes": "1530x1620",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ]
+}

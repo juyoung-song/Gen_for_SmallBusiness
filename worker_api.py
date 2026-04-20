@@ -6,8 +6,8 @@ import secrets
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from config.settings import get_settings, setup_logging
-from schemas.image_schema import ImageGenerationRequest, ImageInferenceOptions
+from config.settings import ImageBackendKind, get_settings, setup_logging
+from schemas.image_schema import ImageGenerationRequest
 from services.image_service import ImageService, ImageServiceError
 
 
@@ -17,15 +17,9 @@ class WorkerImageRequest(BaseModel):
     prompt: str = Field(default="")
     product_name: str = Field(default="")
     description: str = Field(default="")
-    brand_philosophy: str = Field(default="")
     goal: str = Field(default="일반 홍보")
     style: str = Field(default="기본")
-    is_new_product: bool = Field(default=False)
-    is_renewal_product: bool = Field(default=False)
-    attachment_count: int = Field(default=0)
-    reference_analysis: str = Field(default="")
     image_data_b64: str | None = Field(default=None)
-    inference_options: ImageInferenceOptions | None = Field(default=None)
 
 
 class WorkerImageResponse(BaseModel):
@@ -38,10 +32,11 @@ class WorkerImageResponse(BaseModel):
 settings = get_settings()
 setup_logging(settings)
 
-if settings.IMAGE_BACKEND.lower() == "remote":
+if settings.IMAGE_BACKEND_KIND == ImageBackendKind.REMOTE_WORKER:
     raise RuntimeError(
-        "worker_api.py는 IMAGE_BACKEND=remote 상태로 실행할 수 없습니다. "
-        "VM 워커에서는 USE_LOCAL_MODEL=true 또는 기본 HF 모드를 사용하세요."
+        "worker_api.py는 IMAGE_BACKEND_KIND=remote_worker 상태로 실행할 수 없습니다. "
+        "워커는 자기 자신을 호출할 수 없습니다 (무한 루프). "
+        "VM 워커에서는 IMAGE_BACKEND_KIND=hf_local 을 사용하세요."
     )
 
 if not settings.IMAGE_WORKER_TOKEN:
@@ -62,11 +57,16 @@ def _check_auth(authorization: str | None) -> None:
 @app.get("/health")
 def health() -> dict:
     """워커 기동 상태 확인."""
+    kind = settings.IMAGE_BACKEND_KIND
     return {
         "ok": True,
-        "use_local_model": settings.USE_LOCAL_MODEL,
+        "image_backend_kind": kind.value,
         "image_model": settings.IMAGE_MODEL,
-        "backend": settings.LOCAL_BACKEND if settings.USE_LOCAL_MODEL else "hf",
+        "local_backend": (
+            settings.LOCAL_BACKEND
+            if kind == ImageBackendKind.HF_LOCAL
+            else None
+        ),
     }
 
 
@@ -87,15 +87,9 @@ def generate_image(
         prompt=payload.prompt,
         product_name=payload.product_name,
         description=payload.description,
-        brand_philosophy=payload.brand_philosophy,
         goal=payload.goal,
         style=payload.style,
-        is_new_product=payload.is_new_product,
-        is_renewal_product=payload.is_renewal_product,
-        attachment_count=payload.attachment_count,
-        reference_analysis=payload.reference_analysis,
         image_data=image_data,
-        inference_options=payload.inference_options,
     )
 
     try:

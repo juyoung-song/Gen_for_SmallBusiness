@@ -160,14 +160,12 @@ mock_instagram_upload.json
 *.png
 *.jpg
 *.jpeg
+
+# PWA assets — 추적 필수
+!stitch/brand-badge.png
+!stitch/icons/*.png
 *.db
 
-# crawl_and_analyze 분석 결과·이미지는 추적 허용
-!crawl_and_analyze/image_crawled/**/*.png
-!crawl_and_analyze/image_crawled/**/*.jpg
-!crawl_and_analyze/image_crawled/**/*.jpeg
-!crawl_and_analyze/image_crawled/**/brand_analysis.json
-!crawl_and_analyze/image_crawled/**/brand_analysis.md
 # Local model cache (HuggingFace weights, large binary files)
 models/cache/
 
@@ -179,3 +177,10 @@ models/cache/
 
 # Excalidraw
 *.excalidraw
+.claude/skills/gstack/
+.env.bak
+.env copy
+
+# 실험: 로고 생성 샘플 결과물 (대용량, 재현 가능)
+logo_gen_exp/samples/
+ui.md

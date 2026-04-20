@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>프롬프트 흐름 — Gen_for_SmallBusiness</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2f3d;
+    --text: #e4e6eb;
+    --muted: #8b8f99;
+    --accent: #5562EA;
+    --success: #4ade80;
+    --warn: #fbbf24;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+    margin: 0;
+    padding: 32px 48px;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  h1 { margin-top: 0; border-bottom: 2px solid var(--accent); padding-bottom: 12px; font-size: 1.8rem; }
+  h2 { margin-top: 48px; border-bottom: 1px solid var(--border); padding-bottom: 8px; color: #d1d5db; }
+  h3 { color: #9ca3af; margin-top: 32px; }
+  .diagram {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin: 16px 0 32px 0;
+    overflow-x: auto;
+  }
+  .note {
+    background: #2a2013;
+    border-left: 4px solid var(--warn);
+    padding: 12px 16px;
+    margin: 16px 0;
+    border-radius: 4px;
+    color: #fcd34d;
+  }
+  code {
+    background: #0f1117;
+    color: #c5cce3;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    border: 1px solid var(--border);
+  }
+  table {
+    border-collapse: collapse;
+    margin: 16px 0;
+    width: 100%;
+    background: var(--card);
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #0f1117; color: var(--muted); }
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin: 16px 0;
+    font-size: 0.85em;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .chip {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,0.2);
+  }
+</style>
+</head>
+<body>
+
+<h1>🔀 프롬프트 흐름 — Gen_for_SmallBusiness</h1>
+<p>LLM 에 들어가는 모든 프롬프트의 <b>재료 → 조립 → 모델 → 산출물</b> 경로를 한눈에. 브랜치 <code>refactor/flow</code> 기준.</p>
+
+<div class="legend">
+  <div class="legend-item"><span class="chip" style="background:#e1f5ff;"></span> 사용자 입력 / 외부 이미지</div>
+  <div class="legend-item"><span class="chip" style="background:#fff4e1;"></span> DB 저장 (brands·reference_images·generations 등)</div>
+  <div class="legend-item"><span class="chip" style="background:#f3e5f5;"></span> 프롬프트 빌더 함수</div>
+  <div class="legend-item"><span class="chip" style="background:#e8f5e9;"></span> LLM 호출 (Langfuse observation)</div>
+  <div class="legend-item"><span class="chip" style="background:#ffebee;"></span> 산출물 / 외부 API</div>
+</div>
+
+<h2>1. 5개 프롬프트의 입출력 한눈에</h2>
+<div class="diagram">
+<pre class="mermaid">
+flowchart TB
+    %% === 사용자 입력 ===
+    U1[/"👤 사용자 입력<br/>이름·컬러·분위기·설명·인스타 URL"/]:::user
+    U2[/"📸 사용자 상품 사진"/]:::user
+    U3[/"🎯 톤·목적·자유 텍스트"/]:::user
+    U4[/"📌 참조 이미지 선택<br/>(기존 게시물만)"/]:::user
+    U5[/"🕸️ browser-use 스크린샷<br/>ref_1.png / ref_2.png"/]:::user
+
+    %% === 프롬프트 빌더 ===
+    B1["build_vision_analysis_prompt<br/>onboarding_service.py:33"]:::builder
+    B2["build_composition_analysis_prompt<br/>reference_service.py:32<br/>🚫 색/무드/스타일 금지"]:::builder
+    B3["build_text_prompt<br/>prompt_builder.py:51<br/>system + user 분리"]:::builder
+    B4["build_image_prompt<br/>prompt_builder.py:150<br/>한국어 조립 → 번역 대기"]:::builder
+    B5["caption_service.generate_caption<br/>caption_service.py:63<br/>사실 기반 + 일상 예시 1문장"]:::builder
+
+    %% === LLM 호출 ===
+    L1[("🧠 onboarding.vision_brand_style<br/>GPT Vision · 1회/브랜드")]:::llm
+    L2[("🧠 reference.vision_composition<br/>GPT Vision · 참조당 1회 upsert")]:::llm
+    L3[("🧠 text.generate_ad_copy<br/>GPT · 생성당 1회")]:::llm
+    L4[("🧠 image.translate_ko_to_en<br/>GPT · 이미지 생성당 1회")]:::llm
+    L4b[("🎨 이미지 모델<br/>HF/SDXL/Mock")]:::llm
+    L5[("🧠 caption.generate<br/>GPT · 피드당 1회")]:::llm
+
+    %% === DB / 산출물 ===
+    D1[("📁 brands.style_prompt<br/>불변")]:::db
+    D2[("📁 reference_images.composition_prompt<br/>source_output_id UNIQUE")]:::db
+    D3[("📁 generation_outputs<br/>kind=ad_copy×3/promo×2/story×3")]:::db
+    D4[("📁 generation_outputs<br/>kind=image")]:::db
+    D5[["📝 caption + hashtags<br/>session_state.caption_result"]]:::out
+
+    %% === 흐름 ===
+    U1 --> B1
+    U5 --> B1
+    B1 --> L1 --> D1
+
+    U4 --> B2
+    B2 --> L2 --> D2
+
+    D1 --> B3
+    U3 --> B3
+    B3 --> L3 --> D3
+
+    D1 --> B4
+    D2 -.참조 선택시.-> B4
+    U2 --> B4
+    U3 --> B4
+    D3 -.ad_copy[0] 힌트.-> B4
+    B4 --> L4 --> L4b --> D4
+
+    D1 --> B5
+    D3 --> B5
+    U3 --> B5
+    B5 --> L5 --> D5
+
+    classDef user fill:#e1f5ff,stroke:#1e5a7a,color:#0a1930
+    classDef builder fill:#f3e5f5,stroke:#6a3a75,color:#1a0a1d
+    classDef llm fill:#e8f5e9,stroke:#2d7a3b,color:#0a1a0d
+    classDef db fill:#fff4e1,stroke:#a0751a,color:#3a2a0a
+    classDef out fill:#ffebee,stroke:#a13030,color:#3a0a0d
+</pre>
+</div>
+
+<h2>2. 프롬프트별 상세 — 무엇이 들어가고 어디로 가는가</h2>
+
+<h3>① 온보딩: <code>onboarding.vision_brand_style</code></h3>
+<div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    subgraph INPUTS ["재료"]
+        direction TB
+        I1["이름<br/>컬러(#RRGGBB)<br/>분위기<br/>설명"]
+        I2["인스타 URL"]
+        I3["browser-use<br/>캡처 2장"]
+    end
+
+    subgraph BUILD ["프롬프트 조립"]
+        direction TB
+        M["_merge_structured_inputs_into_freetext<br/>이름·컬러·분위기를 설명 앞에 프리픽스"]
+        P["build_vision_analysis_prompt<br/>(1) 업종 고정 (카페/베이커리/디저트)<br/>(2) 시각 자산 연출 강제 (컵·접시에 로고 각인)<br/>(3) 작업 단계<br/>(4) 출력 형식 (문단형)"]
+    end
+
+    subgraph CALL ["OpenAI Vision"]
+        C["chat.completions.create<br/>name='onboarding.vision_brand_style'<br/>messages=[text, image×N]<br/>timeout=90s"]
+    end
+
+    subgraph OUT ["결과"]
+        O1["BrandDraft.style_prompt<br/>(검수 후 수정 가능)"]
+        O2["brands.style_prompt<br/>⚠️ 불변 — 이후 모든 생성에 주입"]
+    end
+
+    I1 --> M
+    I2 --> I3
+    I3 --> C
+    M --> P
+    P --> C
+    C --> O1
+    O1 --> O2
+
+    classDef i fill:#e1f5ff,stroke:#1e5a7a,color:#0a1930
+    classDef b fill:#f3e5f5,stroke:#6a3a75,color:#1a0a1d
+    classDef c fill:#e8f5e9,stroke:#2d7a3b,color:#0a1a0d
+    classDef o fill:#fff4e1,stroke:#a0751a,color:#3a2a0a
+    class I1,I2,I3 i
+    class M,P b
+    class C c
+    class O1,O2 o
+</pre>
+</div>
+
+<h3>② 참조 구도 분석: <code>reference.vision_composition</code></h3>
+<div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    subgraph INPUTS ["재료"]
+        I1["사용자가 선택한<br/>이전 게시물 이미지<br/>(GenerationOutput.content_path)"]
+    end
+
+    subgraph CACHE ["재사용 체크"]
+        K{"reference_images<br/>where source_output_id = ?"}
+        KC["캐시 히트 → 재분석 스킵"]
+    end
+
+    subgraph BUILD ["프롬프트 조립"]
+        P["build_composition_analysis_prompt<br/>✅ camera angle / framing / placement / depth<br/>🚫 색 / 무드 / 스타일 / 재질 단어 금지<br/>🚫 상품 이름 금지 (central subject 로만)"]
+    end
+
+    subgraph CALL ["OpenAI Vision"]
+        C["chat.completions.create<br/>name='reference.vision_composition'<br/>40단어 이하 영문"]
+    end
+
+    subgraph OUT ["결과"]
+        O1["reference_images<br/>(brand_id, source_output_id, path, composition_prompt)"]
+        O2["ImageGenerationRequest<br/>.reference_analysis<br/>→ build_image_prompt 로 전달"]
+    end
+
+    I1 --> K
+    K -->|있음| KC --> O2
+    K -->|없음| P
+    P --> C --> O1 --> O2
+
+    classDef i fill:#e1f5ff,stroke:#1e5a7a,color:#0a1930
+    classDef b fill:#f3e5f5,stroke:#6a3a75,color:#1a0a1d
+    classDef c fill:#e8f5e9,stroke:#2d7a3b,color:#0a1a0d
+    classDef o fill:#fff4e1,stroke:#a0751a,color:#3a2a0a
+    classDef k fill:#fef3c7,stroke:#a0751a,color:#3a2a0a
+    class I1 i
+    class P b
+    class C c
+    class O1,O2 o
+    class K,KC k
+</pre>
+</div>
+
+<h3>③ 텍스트 생성: <code>text.generate_ad_copy</code></h3>
+<div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    subgraph INPUTS ["재료"]
+        I1["brands.style_prompt<br/>(온보딩 결과)"]
+        I2["이름·컬러 프리픽스<br/>(_compose_brand_prompt)"]
+        I3["상품명·설명"]
+        I4["goal (신메뉴 출시 등 6종)"]
+        I5["tone (감성/고급/...)"]
+        I6["is_new_product"]
+    end
+
+    subgraph BUILD ["build_text_prompt"]
+        direction TB
+        PS["system 프롬프트<br/>역할: 카피라이터<br/>[[브랜드 가이드라인]]<br/>[[상품 상태 지침]]<br/>[[글 톤 지침]]<br/>생성 규칙 5가지"]
+        PU["user 프롬프트<br/>상품 정보 + 응답 형식<br/>[광고 문구] / [홍보 문장] / [스토리 카피]"]
+    end
+
+    subgraph CALL ["OpenAI"]
+        C["chat.completions.create<br/>name='text.generate_ad_copy'<br/>messages=[system, user]"]
+    end
+
+    subgraph OUT ["결과 (9개)"]
+        O1["ad_copies × 3"]
+        O2["promo_sentences × 2"]
+        O3["story_copies × 3"]
+    end
+
+    I1 --> I2 --> PS
+    I6 --> PS
+    I5 --> PS
+    I3 --> PU
+    I4 --> PU
+    I6 --> PU
+    PS --> C
+    PU --> C
+    C --> O1
+    C --> O2
+    C --> O3
+
+    classDef i fill:#e1f5ff,stroke:#1e5a7a,color:#0a1930
+    classDef b fill:#f3e5f5,stroke:#6a3a75,color:#1a0a1d
+    classDef c fill:#e8f5e9,stroke:#2d7a3b,color:#0a1a0d
+    classDef o fill:#fff4e1,stroke:#a0751a,color:#3a2a0a
+    class I1,I2,I3,I4,I5,I6 i
+    class PS,PU b
+    class C c
+    class O1,O2,O3 o
+</pre>
+</div>
+
+<h3>④ 이미지 프롬프트: 한국어 조립 → <code>image.translate_ko_to_en</code> → 이미지 모델</h3>
+<div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    subgraph INPUTS ["재료"]
+        I1["brands.style_prompt"]
+        I2["composition_prompt<br/>(있으면)"]
+        I3["상품명·설명·goal·style"]
+        I4["ad_copies[0]<br/>(결합 생성 시 hint)"]
+        I5["reference_image_paths[0]<br/>(백엔드에 바이트로 전달)"]
+    end
+
+    subgraph BUILD ["build_image_prompt (한국어 조립)"]
+        direction TB
+        B1["1. Brand guidelines (MUST follow): {style_prompt}"]
+        B2["2. A professional commercial advertisement visual concept for {product_name}"]
+        B3["3. (참조 있으면) Respect the composition and color scheme..."]
+        B4["4. (composition_prompt 있으면) Selected reference analysis: {...}"]
+        B5["5. 상품 상태 가이드 (신상품 vs 기존)"]
+        B6["6. Promotional Context: {goal}"]
+        B7["7. Visual Strategy: {goal_visual_map[goal]}"]
+        B8["8. Style: {_IMAGE_STYLE_MAP[style]}"]
+        B9["9. Inspiration: {ad_copy} {description}"]
+        B10["10. Clean composition, high-end...no text on image"]
+    end
+
+    subgraph TRANSLATE ["번역 (한→영)"]
+        T["chat.completions.create<br/>name='image.translate_ko_to_en'<br/>system: 'under 60 words, comma-separated'"]
+    end
+
+    subgraph GEN ["이미지 생성"]
+        G["select_image_backend<br/>mock / HF_REMOTE_API / HF_LOCAL(IP-Adapter/Img2Img)"]
+    end
+
+    subgraph OUT ["결과"]
+        O1["PNG bytes<br/>→ staging 저장"]
+        O2["generation_outputs<br/>kind='image'<br/>content_path=staging_path"]
+    end
+
+    I1 --> B1
+    I3 --> B2
+    I5 --> B3
+    I2 --> B4
+    I3 --> B5
+    I3 --> B6
+    I3 --> B7
+    I3 --> B8
+    I4 --> B9
+    B1 --> B2 --> B3 --> B4 --> B5 --> B6 --> B7 --> B8 --> B9 --> B10
+    B10 --> T --> G
+    I5 -.image_data bytes.-> G
+    G --> O1 --> O2
+
+    classDef i fill:#e1f5ff,stroke:#1e5a7a,color:#0a1930
+    classDef b fill:#f3e5f5,stroke:#6a3a75,color:#1a0a1d
+    classDef c fill:#e8f5e9,stroke:#2d7a3b,color:#0a1a0d
+    classDef o fill:#fff4e1,stroke:#a0751a,color:#3a2a0a
+    class I1,I2,I3,I4,I5 i
+    class B1,B2,B3,B4,B5,B6,B7,B8,B9,B10 b
+    class T,G c
+    class O1,O2 o
+</pre>
+</div>
+
+<h3>⑤ 캡션 생성: <code>caption.generate</code></h3>
+<div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    subgraph INPUTS ["재료"]
+        I1["brands.style_prompt"]
+        I2["ad_copies × 3<br/>(톤 참고용)"]
+        I3["상품명·설명"]
+        I4["style (tone)"]
+        I5["is_new_product"]
+        I6["reference_analysis<br/>⚠️ 빈 문자열 (정책)"]
+    end
+
+    subgraph BUILD ["caption_service.generate_caption"]
+        direction TB
+        PS["system 프롬프트<br/>역할: SNS 마케터<br/>⚠️ 사실 기반 — 없는 배경/소품 금지<br/>✅ 고객 일상 예시 1문장 필수<br/>✅ 2~4 문단<br/>✅ 이모지 1~3개<br/>🚫 '신상품' 직접 언급 금지"]
+        PU["user 프롬프트<br/>상품 정보 + 참고 ad_copies"]
+    end
+
+    subgraph CALL ["OpenAI"]
+        C["chat.completions.create<br/>name='caption.generate'"]
+    end
+
+    subgraph PARSE ["응답 파싱"]
+        PP["split('[해시태그]')<br/>[본문] vs [해시태그]"]
+    end
+
+    subgraph OUT ["결과"]
+        O1["CaptionGenerationResponse<br/>caption / hashtags"]
+        O2["⚠️ DB 저장 안 함<br/>session_state.caption_result 에만"]
+    end
+
+    I1 --> PS
+    I4 --> PS
+    I5 --> PS
+    I6 --> PS
+    I3 --> PU
+    I2 --> PU
+    PS --> C
+    PU --> C
+    C --> PP --> O1 --> O2
+
+    classDef i fill:#e1f5ff,stroke:#1e5a7a,color:#0a1930
+    classDef b fill:#f3e5f5,stroke:#6a3a75,color:#1a0a1d
+    classDef c fill:#e8f5e9,stroke:#2d7a3b,color:#0a1a0d
+    classDef o fill:#fff4e1,stroke:#a0751a,color:#3a2a0a
+    class I1,I2,I3,I4,I5,I6 i
+    class PS,PU,PP b
+    class C c
+    class O1,O2 o
+</pre>
+</div>
+
+<h2>3. 결합 생성 1회 = LLM 호출 3번 (시퀀스)</h2>
+<div class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor U as 사용자
+    participant UI as Streamlit UI
+    participant LF as Langfuse span
+    participant RS as ReferenceService
+    participant TS as TextService
+    participant IS as ImageService
+    participant GS as GenerationService
+    participant DB as SQLite
+
+    U->>UI: "🚀 만들기" 클릭 (결합)
+    UI->>RS: _prepare_reference(source_output_id)
+    alt 참조 없음
+        RS-->>UI: (None, "")
+    else 참조 있음 + 신규
+        RS->>RS: build_composition_analysis_prompt
+        RS->>LF: OpenAI "reference.vision_composition"
+        RS->>DB: reference_images INSERT
+        RS-->>UI: (ref_id, composition_prompt)
+    else 참조 있음 + 캐시
+        RS->>DB: get_by_source_output
+        RS-->>UI: (ref_id, composition_prompt) ← 재사용
+    end
+
+    UI->>LF: start_as_current_span("generation.combined")
+    UI->>TS: generate_ad_copy(req_t)
+    TS->>TS: build_text_prompt (system+user)
+    TS->>LF: OpenAI "text.generate_ad_copy"
+    TS-->>UI: ad_copies×3 + promo×2 + story×3
+
+    UI->>IS: generate_ad_image(req_i, reference_analysis=composition_prompt)
+    IS->>IS: build_image_prompt (한국어)
+    IS->>LF: OpenAI "image.translate_ko_to_en"
+    IS->>IS: 이미지 백엔드 호출 (HF/SD/mock)
+    IS-->>UI: image bytes
+
+    UI->>LF: get_current_trace_id()
+    UI->>GS: create_with_outputs(outputs=[image+ad×3+promo×2+story×3],<br/>reference_image_id, langfuse_trace_id)
+    GS->>DB: generations + generation_outputs INSERT
+    GS-->>UI: gen (with outputs)
+</pre>
+</div>
+
+<div class="note">
+이 3번의 OpenAI 호출(<code>reference.vision_composition</code> 은 별도 trace, 나머지 2는 <code>generation.combined</code> 루트 span 아래 자식 observation)이
+모두 Langfuse Cloud 에 기록되고, <code>generations.langfuse_trace_id</code> 에 루트 trace_id 가 저장됨.
+</div>
+
+<h2>4. 프롬프트 → 산출물 역추적 (Langfuse 대시보드 기준)</h2>
+<table>
+<thead>
+<tr><th>루트 span (Generation 기준)</th><th>자식 observation</th><th>소스 파일:라인</th><th>산출물</th></tr>
+</thead>
+<tbody>
+<tr><td><code>generation.text_only</code></td><td><code>text.generate_ad_copy</code></td><td>backends/openai_gpt.py:77</td><td>ad_copy×3 + promo×2 + story×3</td></tr>
+<tr><td><code>generation.image_only</code></td><td><code>image.translate_ko_to_en</code></td><td>services/image_service.py:146</td><td>image (bytes)</td></tr>
+<tr><td><code>generation.combined</code></td><td>위 2개 합침</td><td>—</td><td>image + 텍스트 9종</td></tr>
+<tr><td>(루트 없음, 개별 trace)</td><td><code>onboarding.vision_brand_style</code></td><td>services/onboarding_service.py:160</td><td>brands.style_prompt</td></tr>
+<tr><td>(루트 없음, 개별 trace)</td><td><code>reference.vision_composition</code></td><td>services/reference_service.py:77</td><td>reference_images.composition_prompt</td></tr>
+<tr><td>(루트 없음, 개별 trace)</td><td><code>caption.generate</code></td><td>services/caption_service.py:111</td><td>caption + hashtags</td></tr>
+</tbody>
+</table>
+
+<h2>5. "컵에 로고 새기기" 지시의 전파 경로</h2>
+<div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    A["온보딩 system prompt<br/>(build_vision_analysis_prompt)<br/>🔒 '브랜드 시각 자산 연출 방침' 강제"]:::pp
+    B["GPT Vision 출력<br/>본문에 '머그컵·접시·포장에 로고 각인' 문장 포함"]:::out
+    C["brands.style_prompt (DB, 불변)"]:::db
+    D["build_image_prompt<br/>Brand guidelines (MUST follow): {style_prompt}"]:::bb
+    E["한→영 번역<br/>핵심 키워드 보존"]:::bb
+    F["이미지 백엔드<br/>컵/접시 소품에 브랜드 레터링 렌더링"]:::llm
+
+    A --> B --> C --> D --> E --> F
+
+    classDef pp fill:#f3e5f5,stroke:#6a3a75,color:#1a0a1d
+    classDef out fill:#fff4e1,stroke:#a0751a,color:#3a2a0a
+    classDef db fill:#fef3c7,stroke:#a0751a,color:#3a2a0a
+    classDef bb fill:#e1f5ff,stroke:#1e5a7a,color:#0a1930
+    classDef llm fill:#e8f5e9,stroke:#2d7a3b,color:#0a1a0d
+</pre>
+</div>
+
+<div class="note">
+온보딩 단 한 번의 Vision 프롬프트에 "소품에 로고 각인" 지시를 강하게 박아두면, <code>brands.style_prompt</code> 본문에 해당 서술이 포함되고
+그게 이후 모든 이미지 생성 시 <code>Brand guidelines (MUST follow)</code> 로 전파됨. 한 번 새겨 놓고 계속 재활용하는 구조.
+</div>
+
+<h2>6. 설계 원칙 ↔ 프롬프트 방어선</h2>
+<table>
+<thead><tr><th>원칙</th><th>어디서 방어되는가</th></tr></thead>
+<tbody>
+<tr><td>스타일 ≠ 구도</td><td><code>brands.style_prompt</code> vs <code>reference_images.composition_prompt</code> 물리 분리 + 각자의 system prompt 가 서로 반대 제약</td></tr>
+<tr><td>참조는 톤 바꾸는 용도 아님</td><td><code>build_composition_analysis_prompt</code>의 STRICT RULES — 색/무드 단어 절대 금지</td></tr>
+<tr><td>캡션에 구도 섞지 않음</td><td><code>reference_analysis=""</code> 하드코딩 (caption 호출부)</td></tr>
+<tr><td>텍스트에 구도 섞지 않음</td><td>결합 생성에서 <code>req_t.reference_analysis=""</code> (req_i 만 주입)</td></tr>
+<tr><td>브랜드 불변</td><td><code>brands</code> 에 <code>updated_at</code> 없음, 수정 API 미노출</td></tr>
+<tr><td>1계정 1브랜드</td><td><code>UNIQUE(brands.instagram_account_id)</code></td></tr>
+<tr><td>프롬프트→결과 추적</td><td>Langfuse trace_id + <code>generations.langfuse_trace_id</code></td></tr>
+</tbody>
+</table>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      background: '#0f1117',
+      primaryColor: '#1a1d27',
+      primaryBorderColor: '#5562EA',
+      primaryTextColor: '#e4e6eb',
+      lineColor: '#5562EA',
+      textColor: '#e4e6eb',
+      fontSize: '14px'
+    },
+    securityLevel: 'loose',
+    flowchart: { curve: 'basis', nodeSpacing: 50, rankSpacing: 60 }
+  });
+</script>
+
+</body>
+</html>

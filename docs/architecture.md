@@ -1,5 +1,8 @@
 # 프로젝트 아키텍처 (Architecture)
 
+> Legacy note: 이 문서는 초기 Streamlit MVP 아키텍처다.
+> 현재 운영 기준은 `mobile_app.py + Stitch PWA`이며 [../README.md](../README.md)와 [mobile_worker_workflow.md](mobile_worker_workflow.md)를 우선한다.
+
 > **프로젝트:** 생성형 AI 기반 광고 콘텐츠 제작 서비스 (MVP)  
 > **최종 수정일:** 2026-04-02
 

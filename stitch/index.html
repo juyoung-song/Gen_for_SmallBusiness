@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ff6b57" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>Brewgram - 홈</title>
+    <link rel="manifest" href="/stitch/manifest.webmanifest" />
+    <link rel="icon" href="/stitch/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/stitch/icons/apple-touch-icon.png" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Be+Vietnam+Pro:wght@400;500;600&display=swap"
+    />
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-stitch-page="home">
+    <header class="app-topbar">
+      <div class="brand-lockup">
+        <img class="brand-mark" src="./brand-badge.png" alt="Brewgram 로고" />
+        <div>
+          <div class="app-topbar__title">사장님 AI 도우미</div>
+          <div class="app-topbar__meta">오늘의 홍보 흐름을 한 번에</div>
+        </div>
+      </div>
+      <a class="icon-circle" href="/stitch/settings.html" aria-label="설정">
+        <span class="material-symbols-outlined">settings</span>
+      </a>
+    </header>
+
+    <main class="app-shell">
+      <section class="app-section hero-panel">
+        <div class="hero-eyebrow" id="home-hero-eyebrow">Today with Brewgram</div>
+        <div class="tag-list" id="home-status-list"></div>
+        <h1 class="hero-title" id="home-hero-title">오늘은 어떤 메뉴를 자랑해볼까요?</h1>
+        <p class="hero-copy" id="home-hero-copy">
+          상품 한 개만 적어도, 문구와 이미지까지 바로 이어서 만들 수 있어요.
+        </p>
+        <div class="hero-metrics">
+          <div class="hero-metric">
+            <span class="hero-metric__label">최근 생성</span>
+            <span class="hero-metric__value" id="home-metric-history">0건</span>
+          </div>
+          <div class="hero-metric">
+            <span class="hero-metric__label">상품 데이터</span>
+            <span class="hero-metric__value" id="home-metric-products">0개</span>
+          </div>
+          <div class="hero-metric">
+            <span class="hero-metric__label">참고 게시물</span>
+            <span class="hero-metric__value" id="home-metric-references">0건</span>
+          </div>
+        </div>
+        <div class="hero-actions">
+          <a class="soft-button" id="home-primary-cta" href="/stitch/4._2/code.html">
+            <span class="material-symbols-outlined">auto_awesome</span>
+            새 홍보 만들기
+          </a>
+          <a class="hero-button" id="home-secondary-cta" href="/stitch/1./code.html">
+            <span class="material-symbols-outlined">edit_square</span>
+            브랜드 세팅 보기
+          </a>
+        </div>
+      </section>
+
+      <section class="app-section panel">
+        <div class="panel-head">
+          <h2 class="panel-title">빠른 실행</h2>
+        </div>
+        <div class="quick-grid">
+          <a class="quick-card quick-card--accent" href="/stitch/4._2/code.html">
+            <span class="quick-icon material-symbols-outlined">add_circle</span>
+            <strong class="quick-label">새 홍보 만들기</strong>
+            <span class="quick-sub">상품 정보만 넣고 바로 결과까지 확인합니다.</span>
+          </a>
+          <a class="quick-card" href="/stitch/archive.html">
+            <span class="quick-icon material-symbols-outlined">inventory_2</span>
+            <strong class="quick-label">보관함 보기</strong>
+            <span class="quick-sub">이번 세션에서 만든 결과를 다시 모아봅니다.</span>
+          </a>
+          <a class="quick-card" href="/stitch/1./code.html">
+            <span class="quick-icon material-symbols-outlined">storefront</span>
+            <strong class="quick-label">브랜드 정보 수정</strong>
+            <span class="quick-sub">로고, 색상, 분위기를 다시 손볼 수 있습니다.</span>
+          </a>
+          <a class="quick-card" href="/stitch/settings.html">
+            <span class="quick-icon material-symbols-outlined">tune</span>
+            <strong class="quick-label">기본 설정</strong>
+            <span class="quick-sub">기본 톤, 스타일, 알림 여부를 맞춰둡니다.</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="app-section panel">
+        <div class="panel-head">
+          <h2 class="panel-title">최근 홍보물</h2>
+          <a class="panel-link" href="/stitch/archive.html">모두 보기</a>
+        </div>
+        <div class="history-stack" id="home-recent-list"></div>
+      </section>
+
+      <div class="hidden" id="home-status"></div>
+    </main>
+
+    <nav class="app-nav" aria-label="앱 탐색">
+      <a class="app-nav__item app-nav__item--active" href="/stitch/index.html">
+        <span class="material-symbols-outlined">home</span>
+        <span class="app-nav__label">홈</span>
+      </a>
+      <a class="app-nav__item app-nav__item--fab" href="/stitch/4._2/code.html">
+        <span class="material-symbols-outlined">add</span>
+        <span class="app-nav__label">만들기</span>
+      </a>
+      <a class="app-nav__item" href="/stitch/archive.html">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <span class="app-nav__label">보관함</span>
+      </a>
+    </nav>
+
+    <script src="./shared.js"></script>
+  </body>
+</html>

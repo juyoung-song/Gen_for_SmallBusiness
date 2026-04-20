@@ -1,0 +1,2047 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Brewgram 서비스 중심 발표자료 v1</title>
+  <style>
+    @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+    @import url("https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap");
+
+    :root {
+      --ink: #111827;
+      --muted: #5b6473;
+      --line: #d9dee7;
+      --paper: #f7f8fb;
+      --white: #ffffff;
+      --coral: #ff6b57;
+      --coral-soft: #ffe2dc;
+      --teal: #0f766e;
+      --teal-soft: #d8f3ee;
+      --blue: #2563eb;
+      --blue-soft: #dbeafe;
+      --yellow: #f5b23b;
+      --yellow-soft: #fff3d6;
+      --green: #16a34a;
+      --green-soft: #dcfce7;
+      --shadow: 0 18px 42px rgba(17, 24, 39, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #e8ebf1;
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", "Apple SD Gothic Neo", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .deck {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+    }
+
+    .slide {
+      width: min(1180px, calc(100vw - 44px));
+      height: min(664px, calc(100vh - 44px));
+      min-height: 620px;
+      display: none;
+      position: relative;
+      overflow: hidden;
+      background: var(--paper);
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .slide.active {
+      display: block;
+    }
+
+    .slide-inner {
+      height: 100%;
+      padding: 54px 62px 58px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      min-height: 32px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--coral);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    .page-num {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 66px;
+      line-height: 1.02;
+      font-weight: 900;
+      max-width: 820px;
+    }
+
+    h2 {
+      font-size: 42px;
+      line-height: 1.12;
+      font-weight: 900;
+      max-width: 880px;
+    }
+
+    h3 {
+      font-size: 22px;
+      line-height: 1.25;
+      font-weight: 850;
+    }
+
+    .subtitle {
+      font-size: 24px;
+      line-height: 1.5;
+      color: #2d3542;
+      max-width: 860px;
+      font-weight: 650;
+    }
+
+    .lead {
+      font-size: 21px;
+      line-height: 1.55;
+      color: #2e3745;
+      max-width: 920px;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .title-layout {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      align-items: center;
+      gap: 46px;
+      flex: 1;
+    }
+
+    .title-tag {
+      display: inline-flex;
+      width: fit-content;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 26px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .phone {
+      width: 308px;
+      min-height: 545px;
+      justify-self: center;
+      border-radius: 34px;
+      background: #151922;
+      padding: 13px;
+      box-shadow: 0 18px 50px rgba(17, 24, 39, 0.28);
+    }
+
+    .phone-screen {
+      min-height: 519px;
+      border-radius: 24px;
+      background: #fff;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .phone-head {
+      padding: 18px 18px 12px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .phone-body {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .mock-photo {
+      height: 150px;
+      border-radius: 8px;
+      border: 1px solid #f0c6bb;
+      background:
+        linear-gradient(145deg, rgba(255, 107, 87, 0.35), transparent 52%),
+        linear-gradient(30deg, rgba(15, 118, 110, 0.2), transparent 54%),
+        #fff7f3;
+      display: grid;
+      place-items: center;
+      color: #7c2d12;
+      font-weight: 900;
+      font-size: 20px;
+    }
+
+    .mock-line {
+      height: 12px;
+      border-radius: 999px;
+      background: #e6e9ef;
+    }
+
+    .mock-line.short {
+      width: 64%;
+    }
+
+    .mock-pill {
+      display: inline-flex;
+      width: fit-content;
+      border-radius: 999px;
+      background: var(--teal-soft);
+      color: var(--teal);
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .mock-button {
+      margin-top: auto;
+      height: 44px;
+      border-radius: 8px;
+      background: var(--coral);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+    }
+
+    .metric {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 138px;
+    }
+
+    .metric strong {
+      font-size: 36px;
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.45;
+      font-weight: 650;
+    }
+
+    .metric.coral {
+      background: var(--coral-soft);
+      border-color: #ffc0b4;
+    }
+
+    .metric.teal {
+      background: var(--teal-soft);
+      border-color: #aee3d8;
+    }
+
+    .metric.blue {
+      background: var(--blue-soft);
+      border-color: #b7d2ff;
+    }
+
+    .metric.yellow {
+      background: var(--yellow-soft);
+      border-color: #f6d28b;
+    }
+
+    .source {
+      font-size: 11px;
+      font-weight: 850;
+      color: var(--blue);
+      vertical-align: super;
+      margin-left: 3px;
+    }
+
+    .source-link {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      margin-left: 8px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: rgba(122, 90, 248, 0.09);
+      color: #6044d8;
+      font-size: 12px;
+      line-height: 1;
+      font-weight: 900;
+      vertical-align: middle;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .source-link:hover {
+      text-decoration: underline;
+    }
+
+    .source-link--dark {
+      margin-left: 10px;
+      background: rgba(255, 250, 246, 0.96);
+      color: #5c3325;
+    }
+
+    .bullets {
+      display: grid;
+      gap: 13px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .bullets li {
+      position: relative;
+      padding-left: 22px;
+      font-size: 20px;
+      line-height: 1.48;
+      color: #273241;
+      font-weight: 650;
+    }
+
+    .bullets li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 12px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--coral);
+    }
+
+    .insight-strip {
+      margin-top: auto;
+      background: #111827;
+      color: #fff;
+      border-radius: 8px;
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 19px;
+      line-height: 1.45;
+      font-weight: 750;
+    }
+
+    .strip-label {
+      flex: 0 0 auto;
+      color: #111827;
+      background: #fff;
+      padding: 5px 9px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 950;
+    }
+
+    .bar-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 190px 1fr 62px;
+      gap: 12px;
+      align-items: center;
+      font-size: 15px;
+      color: #2f3948;
+      font-weight: 750;
+    }
+
+    .bar-track {
+      height: 18px;
+      background: #e5e9f0;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: var(--teal);
+      border-radius: 999px;
+    }
+
+    .journey {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .step {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px 14px;
+      min-height: 165px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+    }
+
+    .step-num {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      background: var(--blue);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 950;
+      font-size: 14px;
+    }
+
+    .step h3 {
+      font-size: 17px;
+    }
+
+    .step p {
+      font-size: 14px;
+      line-height: 1.45;
+      color: var(--muted);
+      font-weight: 650;
+    }
+
+    .flow-line {
+      display: grid;
+      grid-template-columns: 1fr 52px 1fr 52px 1fr;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .flow-node {
+      min-height: 170px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .flow-node strong {
+      font-size: 25px;
+      font-weight: 950;
+    }
+
+    .flow-node span {
+      font-size: 16px;
+      line-height: 1.5;
+      color: var(--muted);
+      font-weight: 650;
+    }
+
+    .arrow {
+      text-align: center;
+      font-weight: 950;
+      font-size: 26px;
+      color: var(--muted);
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid var(--line);
+      font-size: 17px;
+    }
+
+    .table th,
+    .table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    .table th {
+      color: #334155;
+      background: #edf1f7;
+      font-weight: 900;
+    }
+
+    .table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .table .right {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-weight: 850;
+    }
+
+    .table .burden {
+      text-align: left;
+      font-weight: 850;
+      color: #334155;
+    }
+
+    .impact-number {
+      color: var(--teal);
+      font-weight: 950;
+    }
+
+    .quote-block {
+      background: #fff;
+      border-left: 7px solid var(--coral);
+      border-radius: 8px;
+      padding: 24px 28px;
+      font-size: 25px;
+      line-height: 1.45;
+      font-weight: 850;
+      color: #1f2937;
+    }
+
+    .caption {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-weight: 650;
+    }
+
+    .demo-layout {
+      display: grid;
+      grid-template-columns: 370px 1fr;
+      gap: 36px;
+      align-items: center;
+      flex: 1;
+    }
+
+    .demo-layout .phone {
+      width: 258px;
+      min-height: 450px;
+    }
+
+    .demo-layout .phone-screen {
+      min-height: 424px;
+    }
+
+    .demo-layout .mock-photo {
+      height: 108px;
+    }
+
+    .demo-card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 24px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .demo-title {
+      font-size: 26px;
+      font-weight: 950;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tag {
+      display: inline-flex;
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: #eef2f7;
+      color: #334155;
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .arc-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .arc-step {
+      min-height: 235px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .arc-label {
+      display: inline-flex;
+      width: fit-content;
+      border-radius: 8px;
+      padding: 6px 9px;
+      background: var(--coral-soft);
+      color: var(--rose);
+      font-size: 13px;
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .arc-step p {
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.5;
+      font-weight: 700;
+    }
+
+    .source-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .source-item {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .source-item strong {
+      color: var(--blue);
+      margin-right: 4px;
+    }
+
+    .footer-note {
+      position: absolute;
+      left: 62px;
+      right: 62px;
+      bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+      font-weight: 650;
+    }
+
+    .nav {
+      position: fixed;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px;
+      border: 1px solid rgba(17, 24, 39, 0.14);
+      background: rgba(255, 255, 255, 0.92);
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(17, 24, 39, 0.12);
+    }
+
+    .nav button {
+      border: 0;
+      border-radius: 7px;
+      background: #111827;
+      color: #fff;
+      width: 38px;
+      height: 32px;
+      font-size: 16px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .nav span {
+      width: 72px;
+      text-align: center;
+      color: #475569;
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    @media (max-width: 980px) {
+      .deck {
+        place-items: start center;
+        padding: 10px;
+      }
+
+      .slide {
+        width: calc(100vw - 20px);
+        height: auto;
+        min-height: calc(100vh - 20px);
+        overflow: visible;
+      }
+
+      .slide-inner {
+        padding: 32px 24px 70px;
+      }
+
+      h1 {
+        font-size: 42px;
+      }
+
+      h2 {
+        font-size: 32px;
+      }
+
+      .subtitle,
+      .lead {
+        font-size: 18px;
+      }
+
+      .title-layout,
+      .demo-layout,
+      .grid-2,
+      .grid-3,
+      .grid-4,
+      .source-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .journey {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .flow-line {
+        grid-template-columns: 1fr;
+      }
+
+      .arrow {
+        transform: rotate(90deg);
+      }
+
+      .phone {
+        width: 290px;
+      }
+
+      .bar-row {
+        grid-template-columns: 1fr;
+      }
+
+      .footer-note {
+        left: 24px;
+        right: 24px;
+        flex-direction: column;
+      }
+    }
+
+    :root {
+      --ink: #373222;
+      --muted: #746b5a;
+      --line: rgba(255, 116, 72, 0.16);
+      --paper: #fffaf6;
+      --white: rgba(255, 255, 255, 0.96);
+      --coral: #ff7448;
+      --coral-soft: #fff0e9;
+      --teal: #2f8b72;
+      --teal-soft: #e8f6ef;
+      --blue: #7a5af8;
+      --blue-soft: #f0ecff;
+      --yellow: #f5b23b;
+      --yellow-soft: #fff5dc;
+      --green: #5c9f46;
+      --green-soft: #edf7e8;
+      --rose: #f35d5b;
+      --shadow: 0 24px 64px rgba(72, 48, 32, 0.14);
+    }
+
+    html {
+      background: #f7eee8;
+    }
+
+    body {
+      min-height: 100vh;
+      background:
+        linear-gradient(180deg, #fff8f4 0%, #f8f0eb 56%, #f4ebe7 100%);
+      color: var(--ink);
+      font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.06;
+      background-image:
+        radial-gradient(rgba(91, 64, 41, 0.34) 0.65px, transparent 0.65px),
+        radial-gradient(rgba(255, 255, 255, 0.9) 0.45px, transparent 0.45px);
+      background-position: 0 0, 13px 13px;
+      background-size: 18px 18px, 22px 22px;
+      mix-blend-mode: multiply;
+    }
+
+    .deck {
+      min-height: 100vh;
+      padding: clamp(18px, 4vh, 54px) clamp(28px, 5vw, 92px);
+      background:
+        linear-gradient(135deg, rgba(255, 116, 72, 0.08), transparent 30%),
+        linear-gradient(315deg, rgba(243, 93, 91, 0.08), transparent 34%);
+    }
+
+    .slide {
+      width: min(1680px, calc(100vw - clamp(56px, 9vw, 184px)));
+      height: min(945px, calc(100vh - clamp(44px, 8vh, 104px)));
+      min-height: 640px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 250, 246, 0.98)),
+        var(--paper);
+      border-color: rgba(255, 116, 72, 0.12);
+      box-shadow: var(--shadow);
+    }
+
+    .slide::after {
+      content: "";
+      position: absolute;
+      inset: auto 0 0 0;
+      height: 10px;
+      background: linear-gradient(90deg, #ff7448, #f35d5b, #f5b23b);
+      opacity: 0.92;
+    }
+
+    .slide-inner {
+      padding: clamp(42px, 5vh, 72px) clamp(54px, 4.6vw, 88px) clamp(44px, 5vh, 72px);
+      gap: 26px;
+    }
+
+    .topline {
+      min-height: 38px;
+    }
+
+    .brand {
+      color: var(--muted);
+      font-size: 16px;
+      font-weight: 850;
+    }
+
+    .mark {
+      background: linear-gradient(135deg, #ff7a45, #ff5f6d);
+      box-shadow: 0 10px 24px rgba(255, 95, 109, 0.18);
+    }
+
+    .page-num {
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    h1 {
+      font-size: 62px;
+      color: #302719;
+      line-height: 1.05;
+    }
+
+    h2 {
+      font-size: 43px;
+      color: #302719;
+      line-height: 1.14;
+    }
+
+    h3 {
+      color: #3b3024;
+      font-weight: 900;
+    }
+
+    .subtitle,
+    .lead {
+      color: #514839;
+    }
+
+    .subtitle {
+      font-size: 24px;
+      font-weight: 720;
+    }
+
+    .lead {
+      font-size: 21px;
+      font-weight: 650;
+    }
+
+    .title-layout {
+      grid-template-columns: minmax(0, 1fr) 365px;
+      gap: 58px;
+    }
+
+    .title-tag {
+      border-color: rgba(255, 116, 72, 0.18);
+      background: rgba(255, 255, 255, 0.84);
+      color: var(--rose);
+      box-shadow: 0 12px 28px rgba(72, 48, 32, 0.06);
+    }
+
+    .card,
+    .demo-card,
+    .step,
+    .flow-node,
+    .source-item {
+      background: rgba(255, 255, 255, 0.94);
+      border-color: rgba(255, 116, 72, 0.14);
+      box-shadow: 0 16px 34px rgba(72, 48, 32, 0.06);
+    }
+
+    .metric.coral,
+    .metric.teal,
+    .metric.blue,
+    .metric.yellow {
+      border-color: rgba(255, 116, 72, 0.16);
+    }
+
+    .metric strong {
+      color: #302719;
+    }
+
+    .metric span,
+    .step p,
+    .flow-node span,
+    .caption,
+    .small {
+      color: var(--muted);
+    }
+
+    .source,
+    .source-item strong {
+      color: #7a5af8;
+    }
+
+    .bullets li {
+      color: #4a4032;
+    }
+
+    .bullets li::before {
+      background: linear-gradient(135deg, #ff7448, #f35d5b);
+    }
+
+    .insight-strip {
+      background: linear-gradient(135deg, #3b281e, #5c3325);
+      color: #fffaf6;
+      box-shadow: 0 18px 42px rgba(72, 48, 32, 0.18);
+    }
+
+    .strip-label {
+      color: #f35d5b;
+      background: #fffaf6;
+    }
+
+    .bar-track {
+      background: rgba(116, 107, 90, 0.16);
+    }
+
+    .bar-fill {
+      background: linear-gradient(90deg, #ff7448, #f35d5b);
+    }
+
+    .step-num {
+      background: linear-gradient(135deg, #ff7448, #f35d5b);
+      box-shadow: 0 10px 22px rgba(255, 95, 109, 0.18);
+    }
+
+    .arrow {
+      color: #c07f67;
+    }
+
+    .table {
+      background: rgba(255, 255, 255, 0.96);
+      border-color: rgba(255, 116, 72, 0.16);
+      box-shadow: 0 16px 34px rgba(72, 48, 32, 0.06);
+    }
+
+    .table th,
+    .table td {
+      border-color: rgba(255, 116, 72, 0.14);
+    }
+
+    .table th {
+      color: #514839;
+      background: #fff0e9;
+    }
+
+    .impact-number {
+      color: #2f8b72;
+    }
+
+    .quote-block {
+      background: rgba(255, 255, 255, 0.94);
+      border-color: #ff7448;
+      color: #3b3024;
+      box-shadow: 0 16px 34px rgba(72, 48, 32, 0.06);
+    }
+
+    .tag {
+      background: #fff0e9;
+      color: #a04431;
+    }
+
+    .device-shot {
+      width: 315px;
+      justify-self: center;
+      position: relative;
+      margin: 0;
+      padding: 11px;
+      border-radius: 36px;
+      background: #2e261f;
+      box-shadow: 0 24px 58px rgba(55, 50, 34, 0.24);
+    }
+
+    .device-shot::before {
+      content: "";
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      width: 94px;
+      height: 18px;
+      transform: translateX(-50%);
+      border-radius: 0 0 14px 14px;
+      background: #2e261f;
+      z-index: 2;
+    }
+
+    .device-shot img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 390 / 844;
+      object-fit: cover;
+      object-position: top center;
+      border-radius: 26px;
+      background: #fffdfb;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    .device-shot figcaption,
+    .screen-card span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .device-shot figcaption {
+      margin-top: 12px;
+      text-align: center;
+      color: #fff3ee;
+    }
+
+    .device-shot--hero {
+      width: 345px;
+      transform: rotate(1deg);
+    }
+
+    .device-shot--demo {
+      width: 282px;
+    }
+
+    .screen-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: auto;
+    }
+
+    .screen-card {
+      display: grid;
+      grid-template-columns: 82px 1fr;
+      gap: 14px;
+      align-items: center;
+      min-height: 132px;
+      padding: 14px;
+      border: 1px solid rgba(255, 116, 72, 0.14);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 16px 34px rgba(72, 48, 32, 0.06);
+    }
+
+    .screen-card img {
+      width: 82px;
+      aspect-ratio: 390 / 844;
+      object-fit: cover;
+      object-position: top center;
+      border-radius: 14px;
+      border: 5px solid #2e261f;
+      background: #fffdfb;
+    }
+
+    .screen-card strong {
+      display: block;
+      margin-bottom: 5px;
+      color: #302719;
+      font-size: 18px;
+      line-height: 1.2;
+      font-weight: 950;
+    }
+
+    .ops-flow {
+      display: grid;
+      grid-template-columns: 1fr 34px 1fr 34px 1fr 34px 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-top: auto;
+    }
+
+    .ops-node {
+      min-height: 128px;
+      padding: 18px;
+      border: 1px solid rgba(255, 116, 72, 0.14);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 16px 34px rgba(72, 48, 32, 0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .ops-node strong {
+      color: #302719;
+      font-size: 18px;
+      line-height: 1.25;
+      font-weight: 950;
+    }
+
+    .ops-node span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.42;
+      font-weight: 700;
+    }
+
+    .ops-arrow {
+      text-align: center;
+      color: #c07f67;
+      font-size: 22px;
+      font-weight: 950;
+    }
+
+    .ops-footnote {
+      margin-top: -10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 750;
+    }
+
+    .journey-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(240px, 0.45fr);
+      gap: 18px;
+      align-items: stretch;
+      align-content: center;
+      flex: 1;
+    }
+
+    .journey-layout .journey {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      align-items: start;
+      align-content: start;
+    }
+
+    .journey-screens {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      align-content: start;
+    }
+
+    .mini-device {
+      border-radius: 22px;
+      padding: 7px;
+      background: #2e261f;
+      box-shadow: 0 16px 34px rgba(72, 48, 32, 0.14);
+    }
+
+    .mini-device img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 390 / 844;
+      object-fit: cover;
+      object-position: top center;
+      border-radius: 16px;
+    }
+
+    .demo-layout {
+      grid-template-columns: 330px minmax(0, 1fr);
+    }
+
+    .nav {
+      border-color: rgba(255, 116, 72, 0.16);
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 14px 36px rgba(72, 48, 32, 0.14);
+    }
+
+    .nav button {
+      background: #302719;
+    }
+
+    .nav span {
+      color: var(--muted);
+    }
+
+    @media (max-height: 820px) and (min-width: 981px) {
+      .slide {
+        min-height: 620px;
+      }
+
+      .slide-inner {
+        padding: 38px 58px 46px;
+        gap: 18px;
+      }
+
+      h1 {
+        font-size: 52px;
+      }
+
+      h2 {
+        font-size: 35px;
+      }
+
+      h3 {
+        font-size: 19px;
+      }
+
+      .subtitle,
+      .lead {
+        font-size: 18px;
+      }
+
+      .card {
+        padding: 18px;
+      }
+
+      .metric {
+        min-height: 118px;
+      }
+
+      .metric strong {
+        font-size: 30px;
+      }
+
+      .bullets li {
+        font-size: 17px;
+      }
+
+      .quote-block {
+        padding: 18px 22px;
+        font-size: 20px;
+      }
+
+      .flow-node {
+        min-height: 142px;
+        padding: 18px;
+      }
+
+      .flow-node strong {
+        font-size: 21px;
+      }
+
+      .flow-node span {
+        font-size: 14px;
+      }
+
+      .step {
+        min-height: 142px;
+        padding: 14px 12px;
+      }
+
+      .step h3 {
+        font-size: 15px;
+      }
+
+      .step p {
+        font-size: 13px;
+      }
+
+      .device-shot--hero {
+        width: 250px;
+      }
+
+      .device-shot--demo {
+        width: 236px;
+      }
+
+      .device-shot figcaption {
+        display: none;
+      }
+
+      .title-layout {
+        grid-template-columns: minmax(0, 1fr) 270px;
+        gap: 34px;
+      }
+
+      .screen-card {
+        grid-template-columns: 64px 1fr;
+        min-height: 106px;
+        padding: 11px;
+      }
+
+      .screen-card img {
+        width: 64px;
+      }
+
+      .screen-card strong {
+        font-size: 15px;
+      }
+
+      .screen-card span {
+        font-size: 12px;
+      }
+
+      .table {
+        font-size: 15px;
+      }
+
+      .table th,
+      .table td {
+        padding: 11px 13px;
+      }
+
+      .ops-node {
+        min-height: 108px;
+        padding: 14px;
+      }
+
+      .ops-node strong {
+        font-size: 15px;
+      }
+
+      .ops-node span {
+        font-size: 12px;
+      }
+
+      .source-link {
+        font-size: 11px;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .deck {
+        padding: 10px;
+      }
+
+      .slide {
+        width: calc(100vw - 20px);
+        height: auto;
+        min-height: calc(100vh - 20px);
+      }
+
+      .title-layout,
+      .demo-layout,
+      .journey-layout,
+      .screen-strip,
+      .ops-flow,
+      .arc-grid,
+      .journey-screens {
+        grid-template-columns: 1fr;
+      }
+
+      .journey-layout .journey {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .device-shot,
+      .device-shot--hero,
+      .device-shot--demo {
+        width: min(310px, 86vw);
+        transform: none;
+      }
+
+      .screen-card {
+        grid-template-columns: 72px 1fr;
+      }
+
+      .screen-card img {
+        width: 72px;
+      }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .deck {
+        display: block;
+        padding: 0;
+      }
+
+      .slide {
+        display: block !important;
+        width: 297mm;
+        height: 167mm;
+        min-height: 167mm;
+        box-shadow: none;
+        border-radius: 0;
+        border: 0;
+        page-break-after: always;
+      }
+
+      .nav {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" aria-live="polite">
+    <section class="slide active">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>Brewgram</div>
+          <div class="page-num">서비스 중심 발표자료 v1</div>
+        </div>
+        <div class="title-layout">
+          <div>
+            <div class="title-tag">2026.04.17 · 1차 초안</div>
+            <h1>사진 한 장으로 끝내는 소상공인 인스타 광고</h1>
+            <p class="subtitle" style="margin-top: 24px;">카페·베이커리·디저트 사장님이 상품 사진 한 장으로 홍보물 제작부터 업로드까지 이어가는 모바일 서비스</p>
+          </div>
+          <figure class="device-shot device-shot--hero" aria-label="Brewgram 홈 화면 실제 캡처">
+            <img src="assets/brewgram-pitch/app_home.png" alt="Brewgram 홈 화면 캡처" />
+            <figcaption>실제 모바일 실행 화면</figcaption>
+          </figure>
+        </div>
+        <div class="footer-note">
+          <span>발표 관점: 처음 듣는 청중에게 문제 상황 → 서비스 흐름 → 기대효과 순서로 설명</span>
+          <span>HTML + 실제 앱 캡처 이미지</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>Brewgram</div>
+          <div class="page-num">02</div>
+        </div>
+        <h2>문제 공감에서 서비스 효과까지, 기승전결로 설명한다</h2>
+        <div class="arc-grid">
+          <div class="card arc-step">
+            <span class="arc-label">기</span>
+            <h3>문제 상황</h3>
+            <p>작은 가게 사장님이 신메뉴를 알리고 싶지만 사진, 문구, 이미지, 업로드가 계속 밀리는 상황에서 시작한다.</p>
+          </div>
+          <div class="card arc-step">
+            <span class="arc-label">승</span>
+            <h3>시장과 접점</h3>
+            <p>소상공인은 많고 팀은 작다. 고객 접점은 이미 모바일과 인스타그램으로 이동했다.</p>
+          </div>
+          <div class="card arc-step">
+            <span class="arc-label">전</span>
+            <h3>서비스 흐름</h3>
+            <p>Brewgram이 브랜드를 기억하고, 상품 광고를 만들고, 업로드까지 이어주는 과정을 실제 화면으로 보여준다.</p>
+          </div>
+          <div class="card arc-step">
+            <span class="arc-label">결</span>
+            <h3>효과와 검증</h3>
+            <p>기대효과는 시간 절감으로 수치화하고, 실제 사용자 테스트에서 완료 시간과 업로드율로 검증한다.</p>
+          </div>
+        </div>
+        <div class="insight-strip">
+          <span class="strip-label">핵심 관점</span>
+          Brewgram은 “AI 기능을 넣은 앱”이 아니라, 소상공인의 반복적인 인스타 홍보 업무를 줄이는 서비스다.
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>문제의 크기</div>
+          <div class="page-num">03</div>
+        </div>
+        <h2>소상공인은 많고, 팀은 작다</h2>
+        <p class="lead">2024년 기준 국내 소상공인 기업체는 613.4만 개, 기업체당 평균 종사자는 1.57명이다. 마케팅을 별도 직무로 분리하기 어려운 구조다.<a class="source" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806">S1</a><a class="source-link" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806" target="_blank" rel="noreferrer">근거: 중기부 실태조사</a></p>
+        <div class="grid-4">
+          <div class="card metric coral">
+            <strong>613.4만</strong>
+            <span>소상공인 기업체 수</span>
+          </div>
+          <div class="card metric blue">
+            <strong>961.0만</strong>
+            <span>소상공인 종사자 수</span>
+          </div>
+          <div class="card metric teal">
+            <strong>1.57명</strong>
+            <span>기업체당 평균 종사자</span>
+          </div>
+          <div class="card metric yellow">
+            <strong>79.6만</strong>
+            <span>숙박·음식점업 기업체</span>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <h3>디지털 전환은 진행 중</h3>
+            <p class="lead" style="font-size: 20px; margin-top: 12px;">디지털·스마트 기술 활용 소상공인 비중은 27.2%, 전년 대비 9.2%p 증가했다.<a class="source" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806">S1</a><a class="source-link" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806" target="_blank" rel="noreferrer">원문 보기</a></p>
+          </div>
+          <div class="card">
+            <h3>경영 압박은 여전</h3>
+            <p class="lead" style="font-size: 20px; margin-top: 12px;">경영 애로는 경쟁 심화 61.0%, 원재료비 49.6%, 상권 쇠퇴 33.5% 순이다.<a class="source" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806">S1</a></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>시장 접점</div>
+          <div class="page-num">04</div>
+        </div>
+        <h2>고객 접점은 이미 모바일과 인스타그램에 있다</h2>
+        <div class="grid-4">
+          <div class="card metric teal">
+            <strong>97.9%</strong>
+            <span>한국 인터넷 보급률, 2025년 말 기준<a class="source" href="https://datareportal.com/reports/digital-2026-south-korea">S3</a></span>
+          </div>
+          <div class="card metric blue">
+            <strong>49.3M</strong>
+            <span>한국 소셜미디어 사용자 정체성<a class="source" href="https://datareportal.com/reports/digital-2026-south-korea">S3</a></span>
+          </div>
+          <div class="card metric coral">
+            <strong>25.6M</strong>
+            <span>한국 Instagram 광고 도달 가능 사용자<a class="source" href="https://datareportal.com/reports/digital-2026-south-korea">S3</a></span>
+          </div>
+          <div class="card metric yellow">
+            <strong>76.4%</strong>
+            <span>2024년 12월 온라인쇼핑 중 모바일 비중<a class="source" href="https://kostat.go.kr/board.es?act=view&bid=241&list_no=434934&mid=a10301120100&ref_bid=&tag=">S2</a></span>
+          </div>
+        </div>
+        <div class="quote-block">
+          Instagram은 글로벌 기준 브랜드·제품 리서치에 가장 많이 쓰이는 소셜 플랫폼이다. 활성 이용자의 62.8%가 Instagram에서 브랜드를 팔로우하거나 조사한다고 응답했다.<a class="source" href="https://datareportal.com/reports/digital-2026-two-in-three-people-use-social-media">S4</a>
+        </div>
+        <p class="caption">해석: Brewgram의 모바일 PWA와 피드·스토리 업로드 중심 흐름은 “사장님이 쓰는 기기”와 “고객이 보는 채널”을 직접 연결한다.<a class="source-link" href="https://datareportal.com/reports/digital-2026-south-korea" target="_blank" rel="noreferrer">DataReportal 한국 리포트</a><a class="source-link" href="https://kostat.go.kr/board.es?act=view&bid=241&list_no=434934&mid=a10301120100&ref_bid=&tag=" target="_blank" rel="noreferrer">통계청 모바일쇼핑</a></p>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>콘텐츠 병목</div>
+          <div class="page-num">05</div>
+        </div>
+        <h2>문제는 게시물을 만드는 시간이 아니라, 계속 만들어야 한다는 압박이다</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>사업자들은 더 자주 올려야 한다고 느낀다</h3>
+            <div class="bar-list" style="margin-top: 18px;">
+              <div class="bar-row">
+                <span>주 1회 게시</span>
+                <div class="bar-track"><div class="bar-fill" style="width: 44%;"></div></div>
+                <strong>44%</strong>
+              </div>
+              <div class="bar-row">
+                <span>매일 게시</span>
+                <div class="bar-track"><div class="bar-fill" style="width: 18%;"></div></div>
+                <strong>18%</strong>
+              </div>
+              <div class="bar-row">
+                <span>게시량 증가 압박</span>
+                <div class="bar-track"><div class="bar-fill" style="width: 44%;"></div></div>
+                <strong>44%</strong>
+              </div>
+              <div class="bar-row">
+                <span>콘텐츠 번아웃</span>
+                <div class="bar-track"><div class="bar-fill" style="width: 70%;"></div></div>
+                <strong>70%</strong>
+              </div>
+            </div>
+            <p class="caption" style="margin-top: 14px;">Adobe Express가 2025년 6월 사업자 433명을 대상으로 조사한 결과.<a class="source" href="https://www.adobe.com/express/learn/blog/how-often-should-you-post-content">S5</a><a class="source-link" href="https://www.adobe.com/express/learn/blog/how-often-should-you-post-content" target="_blank" rel="noreferrer">사업자 게시 빈도 조사</a></p>
+          </div>
+          <div class="card">
+            <h3>콘텐츠 제작은 전문 마케터에게도 병목이다</h3>
+            <ul class="bullets" style="margin-top: 16px;">
+              <li>소셜 마케터는 콘텐츠 제작·승인에 주당 평균 5시간을 쓴다.<a class="source" href="https://www.marketingcharts.com/digital/social-media-232496">S6</a></li>
+              <li>소셜 마케터의 48%는 업무를 끝낼 시간이 충분하지 않다고 느낀다.<a class="source" href="https://www.marketingcharts.com/digital/social-media-232496">S6</a></li>
+              <li>콘텐츠 한 건 제작에 1~3시간이 걸린다는 응답 28%, 4~6시간은 24%였다.<a class="source" href="https://www.marketingprofs.com/charts/2017/33002/how-long-does-it-take-to-create-a-piece-of-content">S7</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="insight-strip">
+          <span class="strip-label">문제 정의</span>
+          Brewgram이 줄여야 하는 것은 “프롬프트 입력 시간”이 아니라, 사장님이 오늘 올릴 홍보물을 끝까지 완성하는 데 걸리는 시간이다.
+          <a class="source-link source-link--dark" href="https://www.marketingcharts.com/digital/social-media-232496" target="_blank" rel="noreferrer">마케터 시간 조사</a>
+          <a class="source-link source-link--dark" href="https://www.marketingprofs.com/charts/2017/33002/how-long-does-it-take-to-create-a-piece-of-content" target="_blank" rel="noreferrer">콘텐츠 제작 시간</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>서비스 정의</div>
+          <div class="page-num">06</div>
+        </div>
+        <h2>Brewgram은 브랜드를 기억하고 홍보물 제작부터 업로드까지 잇는다</h2>
+        <div class="flow-line">
+          <div class="flow-node" style="border-top: 7px solid var(--teal);">
+            <strong>브랜드 기억</strong>
+            <span>처음에 가게 이름, 색상, 분위기, 로고, 참고 인스타그램을 입력해 이후 생성의 기준으로 유지한다.</span>
+          </div>
+          <div class="arrow">→</div>
+          <div class="flow-node" style="border-top: 7px solid var(--coral);">
+            <strong>광고 세트 생성</strong>
+            <span>상품 사진과 홍보 목적을 바탕으로 피드 문구, 상세 설명, 스토리 훅, 광고 이미지를 함께 만든다.</span>
+          </div>
+          <div class="arrow">→</div>
+          <div class="flow-node" style="border-top: 7px solid var(--blue);">
+            <strong>바로 업로드</strong>
+            <span>결과물을 확인한 뒤 피드와 스토리에 게시하고, 생성 이력은 다음 홍보의 자산으로 남긴다.</span>
+          </div>
+        </div>
+        <div class="ops-flow" aria-label="Brewgram 서비스 운영 구조">
+          <div class="ops-node">
+            <strong>Mobile PWA</strong>
+            <span>사장님이 브랜드 온보딩, 상품 입력, 결과 검수를 모바일 화면에서 진행한다.</span>
+          </div>
+          <div class="ops-arrow">→</div>
+          <div class="ops-node">
+            <strong>Mobile API</strong>
+            <span>브랜드·상품·생성 이력을 관리하고, 생성 요청과 업로드 요청을 중계한다.</span>
+          </div>
+          <div class="ops-arrow">→</div>
+          <div class="ops-node">
+            <strong>AI / Worker</strong>
+            <span>운영 모드에 따라 직접 이미지 생성 API를 호출하거나 별도 이미지 워커로 분리한다.</span>
+          </div>
+          <div class="ops-arrow">→</div>
+          <div class="ops-node">
+            <strong>Instagram / Storage</strong>
+            <span>피드·스토리 업로드를 처리하고 결과물과 게시 기록을 다음 홍보 자산으로 남긴다.</span>
+          </div>
+        </div>
+        <p class="ops-footnote">운영 구조 근거: <a class="source-link" href="../README.md" target="_blank" rel="noreferrer">README 현재 구조</a><a class="source-link" href="mobile_worker_workflow.md" target="_blank" rel="noreferrer">모바일 생성·업로드 흐름 문서</a></p>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>사용자 여정</div>
+          <div class="page-num">07</div>
+        </div>
+        <h2>사장님이 실제로 쓰는 순서</h2>
+        <div class="journey-layout">
+          <div class="journey">
+            <div class="step">
+              <span class="step-num">1</span>
+              <h3>브랜드 온보딩</h3>
+              <p>가게 이름, 색상, 분위기, 로고, 참고 인스타를 입력한다.</p>
+            </div>
+            <div class="step">
+              <span class="step-num">2</span>
+              <h3>인스타 연결</h3>
+              <p>전문 계정을 연결해 피드와 스토리 업로드 준비를 끝낸다.</p>
+            </div>
+            <div class="step">
+              <span class="step-num">3</span>
+              <h3>상품 선택</h3>
+              <p>신상품은 사진을 올리고, 기존 상품은 저장된 이미지를 재사용한다.</p>
+            </div>
+            <div class="step">
+              <span class="step-num">4</span>
+              <h3>목적 선택</h3>
+              <p>신메뉴, 시즌 한정, 이벤트, 영업 안내 등 게시 목적을 고른다.</p>
+            </div>
+            <div class="step">
+              <span class="step-num">5</span>
+              <h3>광고 검수</h3>
+              <p>문구와 이미지를 확인하고 필요한 경우 다시 생성한다.</p>
+            </div>
+            <div class="step">
+              <span class="step-num">6</span>
+              <h3>업로드와 축적</h3>
+              <p>피드·스토리에 올리고 결과물은 다음 생성의 히스토리로 남긴다.</p>
+            </div>
+          </div>
+          <div class="journey-screens" aria-label="Brewgram 사용자 여정 실제 화면">
+            <div class="mini-device">
+              <img src="assets/brewgram-pitch/app_style.png" alt="Brewgram 브랜드 스타일 입력 화면 캡처" />
+            </div>
+            <div class="mini-device">
+              <img src="assets/brewgram-pitch/app_archive.png" alt="Brewgram 생성 이력 화면 캡처" />
+            </div>
+          </div>
+        </div>
+        <div class="insight-strip">
+          <span class="strip-label">차별점</span>
+          기존 상품은 매번 다시 찍거나 설명하지 않아도 된다. 브랜드와 상품 자산이 쌓일수록 사용 부담이 줄어든다.
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>데모 시나리오</div>
+          <div class="page-num">08</div>
+        </div>
+        <h2>처음 보는 사람도 이해하기 쉬운 데모 상황으로 보여준다</h2>
+        <div class="demo-layout">
+          <figure class="device-shot device-shot--demo" aria-label="딸기 티라미수 광고 만들기 실제 캡처">
+            <img src="assets/brewgram-pitch/app_create.png" alt="Brewgram 딸기 티라미수 광고 만들기 화면 캡처" />
+            <figcaption>상품 입력 화면</figcaption>
+          </figure>
+          <div class="demo-card">
+            <div class="demo-title">딸기 티라미수 신메뉴 홍보</div>
+            <ul class="bullets">
+              <li>사장님은 오늘 신메뉴를 인스타그램에 바로 올려야 한다.</li>
+              <li>상품 사진, 상품명, 목적처럼 이미 알고 있는 정보만 넣는다.</li>
+              <li>온보딩에서 저장한 가게 분위기와 톤이 자동 반영된다.</li>
+              <li>피드 문구, 상세 설명, 스토리 훅, 광고 이미지가 함께 나온다.</li>
+              <li>결과를 검수한 뒤 인스타그램 업로드까지 이어진다.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>기대효과</div>
+          <div class="page-num">09</div>
+        </div>
+        <h2>기대효과는 “시작 부담 감소”와 업로드 시간으로 본다</h2>
+        <p class="lead">1차 가정: 기존 단일 이미지 게시물 20분/건, Brewgram 입력·검수·업로드 5분/건. 사진 선택, 2~3문단 게시글 작성, 해시태그, 업로드까지 사장님이 직접 처리하는 현실적인 운영 기준이다.<a class="source" href="https://help.later.com/hc/en-us/articles/360044473954-Schedule-Publish-Instagram-Single-Photo-Posts">S11</a><a class="source-link" href="https://help.later.com/hc/en-us/articles/360044473954-Schedule-Publish-Instagram-Single-Photo-Posts" target="_blank" rel="noreferrer">근거: 단일 사진 게시 흐름</a><a class="source-link" href="https://thesilverliningsgroup.com/2023/03/14/how-much-time-does-it-take-to-create-a-social-media-post/" target="_blank" rel="noreferrer">보조: 게시물 제작 시간 범위</a></p>
+        <table class="table" aria-label="Brewgram 시간 절감 시나리오">
+          <thead>
+            <tr>
+              <th>게시 빈도 시나리오</th>
+              <th class="right">기존 제작<br>20분/건</th>
+              <th class="right">Brewgram<br>5분/건</th>
+              <th class="right">월 절감 시간</th>
+              <th class="burden">줄어드는 부담</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>월 4건, 주 1회 수준</td>
+              <td class="right">1시간 20분</td>
+              <td class="right">20분</td>
+              <td class="right impact-number">1시간</td>
+              <td class="burden">글쓰기 시작 4회 완화</td>
+            </tr>
+            <tr>
+              <td>월 12건, 주 3회 운영</td>
+              <td class="right">4시간</td>
+              <td class="right">1시간</td>
+              <td class="right impact-number">3시간</td>
+              <td class="burden">빈 화면 부담 12회 완화</td>
+            </tr>
+            <tr>
+              <td>월 28건, 매일 운영</td>
+              <td class="right">9시간 20분</td>
+              <td class="right">2시간 20분</td>
+              <td class="right impact-number">7시간</td>
+              <td class="burden">매일 업로드 루틴화</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="caption">절감 시간의 최저임금 환산값은 월 4건 약 1만원, 월 12건 약 3.1만원, 월 28건 약 7.2만원이다. 핵심은 금액보다 “직접 글을 써야 해서 시작이 미뤄지는 부담”을 낮추는 것이다.<a class="source" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156701619">S9</a><a class="source-link" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156701619" target="_blank" rel="noreferrer">근거: 2026 최저임금</a></p>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>측정 지표</div>
+          <div class="page-num">10</div>
+        </div>
+        <h2>시간 외 기대효과는 서비스 지표로 검증한다</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>서비스 내부에서 측정 가능한 지표</h3>
+            <ul class="bullets" style="margin-top: 16px;">
+              <li>광고 생성 시작부터 업로드 완료까지 걸린 시간</li>
+              <li>생성 대비 실제 업로드 전환율</li>
+              <li>기존 상품 재사용 비율</li>
+              <li>주간 게시물 수 증가율</li>
+              <li>브랜드 온보딩 후 반복 생성 횟수</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>사용자에게 설명할 효과</h3>
+            <ul class="bullets" style="margin-top: 16px;">
+              <li>카피 작성, 이미지 제작, 업로드 도구 전환을 한 흐름으로 축소</li>
+              <li>브랜드 가이드가 매 생성마다 자동 반영되어 톤 일관성 유지</li>
+              <li>신상품은 빠르게 등록하고 기존 상품은 다시 설명하지 않음</li>
+              <li>피드와 스토리를 모두 고려해 모바일 홍보 채널 확장</li>
+            </ul>
+          </div>
+        </div>
+        <div class="insight-strip">
+          <span class="strip-label">검증 계획</span>
+          다음 단계는 실제 소상공인 3~5명을 대상으로 “기존 제작 시간 vs Brewgram 완료 시간”을 직접 계측하는 것이다.
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>왜 지금인가</div>
+          <div class="page-num">11</div>
+        </div>
+        <h2>지금 중요한 이유는 AI보다 적용할 업무가 명확하다는 점이다</h2>
+        <div class="grid-3">
+          <div class="card metric blue">
+            <strong>27.2%</strong>
+            <span>디지털·스마트 기술 활용 소상공인 비중. 아직 확산 여지가 크다.<a class="source" href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806">S1</a></span>
+          </div>
+          <div class="card metric teal">
+            <strong>10~15h</strong>
+            <span>HubSpot 조사에서 AI가 주당 10~14시간 이상을 절약한다는 응답이 큰 비중을 차지했다.<a class="source" href="https://blog.hubspot.com/marketing/content-trends-global-preferences">S8</a></span>
+          </div>
+          <div class="card metric coral">
+            <strong>5~15%</strong>
+            <span>McKinsey는 생성형 AI가 마케팅 기능 생산성을 마케팅 지출의 5~15% 가치만큼 높일 수 있다고 분석했다.<a class="source" href="https://www.mckinsey.com/capabilities/mckinsey-digital/our-insights/The-economic-potential-of-generative-AI-The-next-productivity-frontier">S10</a></span>
+          </div>
+        </div>
+        <div class="quote-block">
+          Brewgram은 작은 가게 사장님이 오늘 인스타그램에 올릴 홍보물을 만드는 일에 집중한다. 좁고 반복적인 업무이기 때문에 AI를 실제 업무 단축으로 연결하기 쉽다.
+          <a class="source-link" href="https://blog.hubspot.com/marketing/content-trends-global-preferences" target="_blank" rel="noreferrer">HubSpot AI 시간절감</a>
+          <a class="source-link" href="https://www.mckinsey.com/capabilities/mckinsey-digital/our-insights/The-economic-potential-of-generative-AI-The-next-productivity-frontier" target="_blank" rel="noreferrer">McKinsey 마케팅 생산성</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>서비스 포지셔닝</div>
+          <div class="page-num">12</div>
+        </div>
+        <h2>차별점은 모델 성능이 아니라 소상공인 업무 완결성이다</h2>
+        <div class="grid-3">
+          <div class="card">
+            <h3>일반 이미지 생성기</h3>
+            <ul class="bullets" style="margin-top: 16px;">
+              <li>프롬프트를 매번 새로 써야 한다.</li>
+              <li>브랜드 톤이 이어지기 어렵다.</li>
+              <li>업로드는 사용자가 따로 해야 한다.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>일반 SNS 예약 도구</h3>
+            <ul class="bullets" style="margin-top: 16px;">
+              <li>게시 일정 관리는 돕지만 콘텐츠 제작은 별도다.</li>
+              <li>상품 사진과 목적 기반 생성이 약하다.</li>
+              <li>소상공인 업종 특화가 부족하다.</li>
+            </ul>
+          </div>
+          <div class="card" style="border-top: 7px solid var(--coral);">
+            <h3>Brewgram</h3>
+            <ul class="bullets" style="margin-top: 16px;">
+              <li>브랜드를 기억하고 상품 광고를 만든다.</li>
+              <li>피드와 스토리 결과물을 함께 제공한다.</li>
+              <li>모바일에서 업로드까지 끝낸다.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="insight-strip">
+          <span class="strip-label">발표 문장</span>
+          “저희는 모델을 보여주는 것이 아니라, 사장님이 오늘 인스타에 올릴 광고를 끝까지 만드는 서비스를 보여드립니다.”
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>마무리</div>
+          <div class="page-num">13</div>
+        </div>
+        <h2>결론: 작은 가게의 반복 인스타 홍보 업무를 줄이는 서비스</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>핵심 메시지</h3>
+            <ul class="bullets" style="margin-top: 16px;">
+              <li>시장에는 홍보가 필요한 소상공인이 많다.</li>
+              <li>고객 접점은 모바일과 인스타그램으로 이동했다.</li>
+              <li>콘텐츠 제작은 꾸준히 하기 어렵고 시간이 든다.</li>
+              <li>Brewgram은 브랜드 기억, 광고 생성, 업로드를 하나로 묶는다.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>다음 검증 과제</h3>
+            <ul class="bullets" style="margin-top: 16px;">
+              <li>실제 사용자 기준 제작 시간 계측</li>
+              <li>주간 게시 빈도 변화 확인</li>
+              <li>업로드 완료율과 재생성률 추적</li>
+              <li>사장님이 느끼는 브랜드 톤 만족도 조사</li>
+            </ul>
+          </div>
+        </div>
+        <div class="quote-block">
+          한 줄 피치: Brewgram은 카페·베이커리·디저트 사장님이 상품 사진 한 장으로 인스타 홍보물 제작부터 게시까지 끝내는 모바일 AI 마케팅 서비스다.
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="topline">
+          <div class="brand"><span class="mark">B</span>자료조사 메모</div>
+          <div class="page-num">14</div>
+        </div>
+        <h2>수치 근거 출처</h2>
+        <p class="lead">국내 시장·모바일·소상공인 수치는 공식 통계 중심으로, 콘텐츠 제작 시간은 단일 사진 게시 흐름과 해외 사업자·마케터 조사 자료를 보조 근거로 사용했다. 20분/5분 가정은 사용자 테스트 후 보정해야 한다.</p>
+        <div class="source-grid">
+          <div class="source-item"><strong>S1</strong><a href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156748806">중소벤처기업부, 2024년 기준 소상공인실태조사 결과 발표</a></div>
+          <div class="source-item"><strong>S2</strong><a href="https://kostat.go.kr/board.es?act=view&bid=241&list_no=434934&mid=a10301120100&ref_bid=&tag=">통계청, 2024년 12월 온라인쇼핑동향</a></div>
+          <div class="source-item"><strong>S3</strong><a href="https://datareportal.com/reports/digital-2026-south-korea">DataReportal, Digital 2026: South Korea</a></div>
+          <div class="source-item"><strong>S4</strong><a href="https://datareportal.com/reports/digital-2026-two-in-three-people-use-social-media">DataReportal, Digital 2026 social media and brand research</a></div>
+          <div class="source-item"><strong>S5</strong><a href="https://www.adobe.com/express/learn/blog/how-often-should-you-post-content">Adobe Express, business owner posting cadence survey</a></div>
+          <div class="source-item"><strong>S6</strong><a href="https://www.marketingcharts.com/digital/social-media-232496">MarketingCharts, Sprout Social social marketer time-use survey summary</a></div>
+          <div class="source-item"><strong>S7</strong><a href="https://www.marketingprofs.com/charts/2017/33002/how-long-does-it-take-to-create-a-piece-of-content">MarketingProfs, CoSchedule content creation time survey summary</a></div>
+          <div class="source-item"><strong>S8</strong><a href="https://blog.hubspot.com/marketing/content-trends-global-preferences">HubSpot, 2026 State of Marketing survey summary</a></div>
+          <div class="source-item"><strong>S9</strong><a href="https://m.korea.kr/briefing/pressReleaseView.do?newsId=156701619">고용노동부, 2026년 적용 최저임금 시간급 10,320원</a></div>
+          <div class="source-item"><strong>S10</strong><a href="https://www.mckinsey.com/capabilities/mckinsey-digital/our-insights/The-economic-potential-of-generative-AI-The-next-productivity-frontier">McKinsey, The economic potential of generative AI</a></div>
+          <div class="source-item"><strong>S11</strong><a href="https://help.later.com/hc/en-us/articles/360044473954-Schedule-Publish-Instagram-Single-Photo-Posts">Later, Instagram single photo post workflow</a></div>
+          <div class="source-item"><strong>S12</strong><a href="https://thesilverliningsgroup.com/2023/03/14/how-much-time-does-it-take-to-create-a-social-media-post/">Silver Linings Group, social media post creation time guide</a></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="nav" aria-label="슬라이드 이동">
+    <button type="button" id="prev" aria-label="이전 슬라이드">‹</button>
+    <span id="counter">1 / 14</span>
+    <button type="button" id="next" aria-label="다음 슬라이드">›</button>
+  </nav>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const counter = document.getElementById("counter");
+    const prev = document.getElementById("prev");
+    const next = document.getElementById("next");
+    let index = 0;
+
+    function showSlide(nextIndex) {
+      index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+      slides.forEach((slide, i) => {
+        slide.classList.toggle("active", i === index);
+      });
+      counter.textContent = `${index + 1} / ${slides.length}`;
+      const hash = `slide-${index + 1}`;
+      if (location.hash !== `#${hash}`) {
+        history.replaceState(null, "", `#${hash}`);
+      }
+    }
+
+    prev.addEventListener("click", () => showSlide(index - 1));
+    next.addEventListener("click", () => showSlide(index + 1));
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
+        event.preventDefault();
+        showSlide(index + 1);
+      }
+      if (event.key === "ArrowLeft" || event.key === "PageUp") {
+        event.preventDefault();
+        showSlide(index - 1);
+      }
+      if (event.key.toLowerCase() === "p") {
+        window.print();
+      }
+      const asNumber = Number(event.key);
+      if (Number.isInteger(asNumber) && asNumber > 0 && asNumber <= slides.length) {
+        showSlide(asNumber - 1);
+      }
+    });
+
+    const match = location.hash.match(/slide-(\d+)/);
+    if (match) {
+      showSlide(Number(match[1]) - 1);
+    } else {
+      showSlide(0);
+    }
+  </script>
+</body>
+</html>

@@ -18,12 +18,32 @@ _STYLE_GUIDE: dict[str, str] = {
     "심플": "짧고 핵심만 간단하게 전달하는 문구를 작성하세요.",
 }
 
-_IMAGE_STYLE_MAP: dict[str, str] = {
-    "기본": "깔끔한 구성",
-    "감성": "따뜻한 색감",
-    "고급": "세련된 분위기",
-    "유머": "밝고 재밌는 느낌",
-    "심플": "최소한의 요소",
+# gpt-image-1 전용 전문 사진작가 촬영 디렉션
+_IMAGE_STYLE_DIRECTIVE: dict[str, str] = {
+    "기본": (
+        "Commercial Standard: Clean, balanced setup with eye-level perspective. "
+        "High-quality diffused lighting, neutral textures, and professional focus on product details."
+    ),
+    "감성": (
+        "Sentimental Lifestyle: Warm, soft-focus photography. "
+        "Side natural window light, shallow depth of field with creamy bokeh, "
+        "and cozy, inviting morning mood."
+    ),
+    "고급": (
+        "Premium Noir: Moody, high-contrast photography. "
+        "Dramatic chiaroscuro lighting, deep-toned matte backgrounds, "
+        "and extreme focus on the premium material and surface detail."
+    ),
+    "유머": (
+        "Pop & Playful: High-energy pop photography. "
+        "Vibrant saturated colors, hard direct flash with sharp shadows, "
+        "and dynamic diagonal overhead arrangement."
+    ),
+    "심플": (
+        "Ultimate Minimalism: Austere product portrait. "
+        "Solid monochromatic background, shadowless soft lighting, "
+        "centered composition with ample negative space."
+    ),
 }
 
 
@@ -31,55 +51,59 @@ _IMAGE_STYLE_MAP: dict[str, str] = {
 # 레퍼런스 기반 정교화 레이어 (스타벅스/투썸/할리스)
 # ──────────────────────────────────────────────
 _BRAND_CUES = (
-    "- 브랜드 톤앤매너: 따뜻한 도입부 + 명확한 핵심 정보 (군더더기 배제)\n"
+    "- 브랜드 톤앤매너: 감성적인 도입부 + 명확한 핵심 정보 (군더더기 배제)\n"
     "- 분위기: 과한 광고(예: 파격 세일!) 보다는 일상의 소소한 행복, 취향, 경험을 자극할 것\n"
     "- 문장 스타일: 정돈된 브랜드 문장처럼 작성할 것\n"
     "- 이미지 가이드: 제품 중심의 여백 미, 자연스러운 빛 활용 강조\n"
 )
 
-
-def _product_status_label(is_new_product: bool, is_renewal_product: bool) -> str:
+def _product_status_prompt(is_new_product: bool) -> str:
+    """상품 상태에 따른 프롬프트 지침 (Loah 이식)."""
     if is_new_product:
-        return "신상품"
-    if is_renewal_product:
-        return "리뉴얼 상품"
-    return "기존 상품"
-
-
-def _product_status_prompt(is_new_product: bool, is_renewal_product: bool) -> str:
-    status_label = _product_status_label(is_new_product, is_renewal_product)
-    if status_label == "신상품":
         return "이번 대상은 신상품입니다. 첫 공개의 신선함, 기대감, 런칭 포인트를 분명히 드러내세요."
-    if status_label == "리뉴얼 상품":
-        return "이번 대상은 리뉴얼 상품입니다. 기존의 장점은 유지하면서 더 좋아진 점과 새로워진 인상을 강조하세요."
     return "이번 대상은 기존 상품입니다. 이미 검증된 매력과 완성도, 신뢰감을 중심으로 표현하세요."
+
+
+def _product_status_label(is_new_product: bool) -> str:
+    return "신상품" if is_new_product else "기존 상품"
+
 
 def build_text_prompt(
     product_name: str,
     description: str,
-    brand_philosophy: str,
     style: str,
     goal: str = "일반 홍보",
+    image_hint: str = None,
+    brand_prompt: str = "",
     is_new_product: bool = False,
-    is_renewal_product: bool = False,
     reference_analysis: str = "",
 ) -> tuple[str, str]:
-    """광고 문구 생성을 위한 프롬프트를 반환합니다. 홍보 목적과 이미지 특징을 반영합니다."""
-    style_instruction = _STYLE_GUIDE.get(style, _STYLE_GUIDE["기본"])
-    product_status_instruction = _product_status_prompt(is_new_product, is_renewal_product)
+    """광고 문구 생성을 위한 프롬프트를 반환합니다.
 
-    philosophy_context = ""
-    if brand_philosophy:
-        philosophy_context = (
-            f"브랜드 철학: {brand_philosophy}\n"
-            "브랜드 철학은 문구의 세계관, 단어 선택, 분위기에 자연스럽게 녹여내세요.\n"
+    Loah 프롬프트 이식 — 상품 상태 분기 + reference_analysis 반영 추가.
+    """
+    style_instruction = _STYLE_GUIDE.get(style, _STYLE_GUIDE["기본"])
+    product_status_instruction = _product_status_prompt(is_new_product)
+
+    image_context = ""
+    if image_hint:
+        image_context = (
+            f"업로드 이미지 특징: {image_hint}\n"
+            "업로드 이미지의 색감, 분위기, 제품 인상을 문구에 자연스럽게 참고하세요.\n"
         )
 
+    # Step A: 사용자별 brand_image 가 있으면 그걸, 없으면 하드코딩 기본값
+    if brand_prompt.strip():
+        brand_section = brand_prompt.strip()
+    else:
+        brand_section = _BRAND_CUES
+
     reference_context = ""
-    if reference_analysis:
+    if reference_analysis.strip():
         reference_context = (
-            f"참고 이미지 분석 요약: {reference_analysis}\n"
-            "이 요약에서 드러난 분위기, 색감, 제품 프레이밍, 브랜드 단서를 문구의 장면감과 어휘에 자연스럽게 반영하세요.\n"
+            f"참고 이미지 분석 요약: {reference_analysis.strip()}\n"
+            "이 요약에서 드러난 분위기, 색감, 제품 프레이밍, 브랜드 단서를 "
+            "문구의 장면감과 어휘에 자연스럽게 반영하세요.\n"
         )
 
     system_prompt = (
@@ -87,14 +111,15 @@ def build_text_prompt(
         f"현재 프로젝트의 핵심 홍보 목적은 [{goal}] 입니다.\n"
         "모든 생성 결과물은 반드시 이 목적을 최우선으로 달성해야 합니다.\n"
         "반드시 한국어로 작성하세요.\n\n"
-        f"[[브랜드 가이드라인]]\n{_BRAND_CUES}\n"
+        f"[[브랜드 가이드라인]]\n{brand_section}\n\n"
         f"[[상품 상태 지침]]: {product_status_instruction}\n"
         f"[[글 톤 지침]]: {style_instruction}\n\n"
         "중요 규칙:\n"
         "1. 모든 문구는 사용자가 제시한 [홍보 목적]에 부합해야 합니다.\n"
-        "2. [홍보 문장] 섹션은 절대 짧게 쓰지 마세요. 각 항목은 반드시 2문장 이상이어야 합니다.\n"
-        "3. [스토리 카피]는 가장 짧고 강력한 Hook으로 작성하되, 전체 홍보 목적을 내포해야 합니다.\n"
-        "4. 각 섹션은 길이와 목적이 서로 달라야 합니다.\n"
+        "2. 모든 문구는 반드시 위 [[브랜드 가이드라인]]과 일치하는 톤으로 작성해야 합니다.\n"
+        "3. [홍보 문장] 섹션은 절대 짧게 쓰지 마세요. 각 항목은 반드시 2문장 이상이어야 합니다.\n"
+        "4. [스토리 카피]는 가장 짧고 강력한 Hook으로 작성하되, 전체 홍보 목적을 내포해야 합니다.\n"
+        "5. 각 섹션은 길이와 목적이 서로 달라야 합니다.\n"
         "- [광고 문구]는 짧고 임팩트 있게\n"
         "- [홍보 문장]은 충분히 길고 설명적으로\n"
         "- [스토리 카피]는 가장 짧고 훅 중심으로 작성하세요."
@@ -103,11 +128,10 @@ def build_text_prompt(
     user_prompt = (
         f"상품명: {product_name}\n"
         f"상품 설명: {description}\n"
-        f"상품 상태: {_product_status_label(is_new_product, is_renewal_product)}\n"
+        f"상품 상태: {_product_status_label(is_new_product)}\n"
         f"홍보 목적: {goal}\n"
-        f"{philosophy_context}"
         f"{reference_context}"
-        "\n"
+        f"{image_context}\n"
         "위 정보를 바탕으로 아래 세 가지 섹션을 작성하세요. "
         "홍보 목적 달성과 상세한 설명이 가장 중요합니다.\n\n"
 
@@ -146,68 +170,49 @@ def build_text_prompt(
 def build_image_prompt(
     product_name: str,
     description: str,
-    brand_philosophy: str,
-    reference_analysis: str,
     style: str,
     goal: str = "일반 홍보",
     ad_copy: str = "",
     has_reference: bool = False,
+    brand_prompt: str = "",
     is_new_product: bool = False,
-    is_renewal_product: bool = False,
+    reference_analysis: str = "",
 ) -> str:
-    """상품 정보와 홍보 목적을 포함한 시각적 광고 컨셉이미지 프롬프트를 생성합니다."""
-    style_desc = _IMAGE_STYLE_MAP.get(style, _IMAGE_STYLE_MAP["기본"])
-    product_status = _product_status_label(is_new_product, is_renewal_product)
-
-    # 목적(Goal)에 따른 시각적 연출 가이드
-    goal_visual_map = {
-        "신상품 홍보": "Hero shot, dramatic spotlighting on the new product, fresh and modern vibes.",
-        "할인 행사": "Vibrant and energetic mood, promotional theme lighting, attractive presentation.",
-        "매장 소개": "Wide angle or cozy interior view, inviting atmosphere, professional lighting.",
-        "시즌 홍보": "Seasonal color palette, thematic props matching the season, atmospheric lighting."
-    }
-    visual_strategy = goal_visual_map.get(goal, "Clean, commercial grade product photography.")
+    """gpt-image-1 최적화 비주얼 컨셉 지시서를 생성합니다.
     
-    reference_guide = ""
-    if has_reference:
-        reference_guide = "Respect the composition and color scheme of the provided reference image. Maintain product identity. "
+    SD/FLUX 방식의 키워드 번역을 폐기하고,
+    gpt-image-1이 이해하는 자연어 명령문 형태로 재구성합니다.
+    스타일 디렉션이 핵심 축이며, 브랜드 가이드라인이 보조합니다.
+    """
+    # 전문 사진작가 촬영 디렉션 (5대 스타일)
+    style_directive = _IMAGE_STYLE_DIRECTIVE.get(style, _IMAGE_STYLE_DIRECTIVE["기본"])
+    product_status = _product_status_label(is_new_product)
 
-    philosophy_guide = ""
-    if brand_philosophy:
-        philosophy_guide = (
-            f"Brand philosophy keywords: {brand_philosophy}. "
-            "Translate this philosophy into the mood, composition, material feeling, and lighting direction of the image. "
-        )
+    brand_section = ""
+    if brand_prompt.strip():
+        brand_section = f"[Brand Guidelines — MUST follow]: {brand_prompt.strip()}\n\n"
 
-    reference_analysis_guide = ""
-    if reference_analysis:
-        reference_analysis_guide = (
-            f"Selected reference analysis: {reference_analysis}. "
-            "Use this as the primary visual synthesis for the new image while avoiding direct duplication. "
+    composition_section = ""
+    if reference_analysis.strip():
+        composition_section = (
+            f"[Composition Guideline from Reference]: {reference_analysis.strip()}\n"
+            "Strictly apply only the camera angle, lens distance, and subject placement "
+            "described above. Ignore the color and subject matter of the reference.\n\n"
         )
 
     product_status_guide = (
-        f"Product status: {product_status}. "
-        + (
-            "Emphasize the novelty, anticipation, and launch energy of the product. "
-            if is_new_product
-            else "Emphasize refined improvements, renewed identity, and upgraded familiarity. "
-            if is_renewal_product
-            else "Emphasize trusted quality, signature appeal, and established brand confidence. "
-        )
+        "Emphasize the novelty, first-reveal anticipation, and launch energy. "
+        if is_new_product
+        else "Emphasize trusted quality, signature appeal, and established brand confidence. "
     )
 
     return (
-        f"A professional commercial advertisement visual concept for '{product_name}'. "
-        f"{reference_guide}"
-        f"{philosophy_guide}"
-        f"{reference_analysis_guide}"
+        f"{brand_section}"
+        f"{composition_section}"
+        f"[Product]: '{product_name}' — {product_status}. "
         f"{product_status_guide}"
-        f"Promotional Context: {goal}. "
-        f"Visual Strategy: {visual_strategy} "
-        f"Style: {style_desc}. "
-        f"Inspiration: {ad_copy} {description}. "
-        "The image should clearly reflect the marketing goal. "
-        "Clean composition, high-end product photography, commercial lighting. "
-        "High resolution, cinematic quality, no text on image."
+        f"[Photography Style Directive]: {style_directive} "
+        "[Output rules]: High-resolution commercial photography, no floating text or "
+        "decorative overlays on the background. No text on image. "
+        "Cinematic quality, ultra-sharp product focus."
     )

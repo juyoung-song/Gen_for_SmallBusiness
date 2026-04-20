@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ff6b57" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>Brewgram - 설정</title>
+    <link rel="manifest" href="/stitch/manifest.webmanifest" />
+    <link rel="icon" href="/stitch/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/stitch/icons/apple-touch-icon.png" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Be+Vietnam+Pro:wght@400;500;600&display=swap"
+    />
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-stitch-page="settings">
+    <header class="app-topbar">
+      <div class="brand-lockup">
+        <img class="brand-mark" src="./brand-badge.png" alt="Brewgram 로고" />
+        <div>
+          <div class="app-topbar__title">설정</div>
+          <div class="app-topbar__meta">생성 기본값과 연결 상태 확인</div>
+        </div>
+      </div>
+      <a class="icon-circle" href="/stitch/index.html" aria-label="홈으로">
+        <span class="material-symbols-outlined">home</span>
+      </a>
+    </header>
+
+    <main class="app-shell">
+      <section class="settings-group">
+        <h2 class="settings-group__title">브랜드</h2>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">현재 브랜드</p>
+              <p class="settings-sub" id="settings-brand-sub">브랜드 정보를 불러오는 중입니다.</p>
+            </div>
+            <span class="settings-value" id="settings-brand-name">로딩 중</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h2 class="settings-group__title">인스타그램 계정</h2>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">연결 상태</p>
+              <p class="settings-sub" id="settings-instagram-copy">
+                연결 상태와 계정 준비 여부를 확인하는 중입니다.
+              </p>
+            </div>
+            <span class="settings-value" id="settings-instagram-status">확인 중</span>
+          </div>
+          <div class="settings-row settings-row--stack">
+            <div class="settings-checklist">
+              <div class="settings-checklist__item">
+                <span class="settings-checklist__badge">1</span>
+                <div>
+                  <p class="settings-title">인스타를 프로페셔널 계정으로 전환</p>
+                  <p class="settings-sub">비즈니스 또는 크리에이터 계정이면 자동 업로드 연결이 가능합니다.</p>
+                </div>
+              </div>
+              <div class="settings-checklist__item">
+                <span class="settings-checklist__badge">2</span>
+                <div>
+                  <p class="settings-title">Meta 로그인 후 권한 승인</p>
+                  <p class="settings-sub">Facebook Page가 없으면 연결 과정에서 새로 만들 수 있습니다.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="settings-row settings-row--stack">
+            <div class="settings-actions" id="settings-instagram-actions">
+              <button
+                class="action-button action-button--primary settings-action"
+                id="settings-instagram-connect"
+                type="button"
+              >
+                Meta로 연결하기
+              </button>
+              <button
+                class="action-button action-button--soft settings-action hidden"
+                id="settings-instagram-reconnect"
+                type="button"
+              >
+                다시 연결하기
+              </button>
+              <button
+                class="action-button action-button--soft settings-action hidden"
+                id="settings-instagram-disconnect"
+                type="button"
+              >
+                연결 해제
+              </button>
+            </div>
+            <p class="settings-inline-note" id="settings-instagram-note">
+              설정에서 연결한 계정은 이후 업로드 기능과 연결됩니다.
+            </p>
+          </div>
+        </div>
+        <div class="settings-card hidden instagram-help-card" id="settings-page-guide">
+          <div class="panel-head">
+            <h3 class="panel-title">Facebook Page 연결이 먼저 필요해요</h3>
+          </div>
+          <p class="panel-copy" id="settings-page-guide-copy">
+            Meta 로그인은 됐지만, 업로드할 Instagram professional account와 연결된 Facebook Page를 찾지 못했습니다.
+          </p>
+          <div class="settings-checklist">
+            <div class="settings-checklist__item">
+              <span class="settings-checklist__badge">1</span>
+              <div>
+                <p class="settings-title">Instagram 앱에서 프로필 편집 열기</p>
+                <p class="settings-sub">프로필 편집 화면의 페이지 항목으로 이동합니다.</p>
+              </div>
+            </div>
+            <div class="settings-checklist__item">
+              <span class="settings-checklist__badge">2</span>
+              <div>
+                <p class="settings-title">Facebook Page 선택 또는 새로 만들기</p>
+                <p class="settings-sub">가게용 Page를 연결하면 자동 업로드 계정을 찾을 수 있습니다.</p>
+              </div>
+            </div>
+            <div class="settings-checklist__item">
+              <span class="settings-checklist__badge">3</span>
+              <div>
+                <p class="settings-title">이 화면으로 돌아와 다시 연결</p>
+                <p class="settings-sub">Page 연결 후 Meta 로그인 버튼을 다시 누르면 됩니다.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CP20: 다중 IG 계정 선택 패널 (ig=select_required 시 표시) -->
+        <div class="settings-card hidden" id="settings-ig-select-panel">
+          <div class="panel-head">
+            <h3 class="panel-title">Instagram 계정을 선택해주세요</h3>
+          </div>
+          <p class="panel-copy">
+            연결된 Facebook Page 중 Instagram 계정이 여러 개 발견되었습니다. 업로드에 사용할 계정을 선택하세요.
+          </p>
+          <div class="settings-row settings-row--stack">
+            <select class="settings-select" id="settings-ig-account-select" style="width:100%">
+              <option value="">로딩 중...</option>
+            </select>
+          </div>
+          <div class="settings-row settings-row--stack">
+            <div class="settings-actions">
+              <button
+                class="action-button action-button--primary settings-action"
+                id="settings-ig-select-confirm"
+                type="button"
+              >
+                이 계정으로 연결
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CP20: 수동 IG 계정 ID 입력 패널 (ig=manual_required 시 표시) -->
+        <div class="settings-card hidden" id="settings-ig-manual-panel">
+          <div class="panel-head">
+            <h3 class="panel-title">Instagram 계정 ID를 입력해주세요</h3>
+          </div>
+          <p class="panel-copy">
+            Facebook Page와 연결된 Instagram professional account를 자동으로 찾지 못했습니다.
+            Instagram Business 계정의 숫자 ID를 직접 입력하면 연결을 시도할 수 있습니다.
+          </p>
+          <div class="settings-row settings-row--stack">
+            <input
+              class="settings-input"
+              id="settings-ig-manual-input"
+              type="text"
+              placeholder="예: 17841433263101282"
+              style="width:100%; box-sizing:border-box;"
+            />
+          </div>
+          <div class="settings-row settings-row--stack">
+            <div class="settings-actions">
+              <button
+                class="action-button action-button--primary settings-action"
+                id="settings-ig-manual-confirm"
+                type="button"
+              >
+                연결하기
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h2 class="settings-group__title">생성 기본값</h2>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">기본 톤</p>
+              <p class="settings-sub">새 홍보물 만들기 화면에서 먼저 선택될 말투입니다.</p>
+            </div>
+            <select class="settings-select" id="settings-default-tone">
+              <option value="기본">기본 (가장 깔끔하게)</option>
+              <option value="감성">감성 (따뜻하고 부드럽게)</option>
+              <option value="고급">고급 (격식있고 우아하게)</option>
+              <option value="유머">유머 (재밌고 센스있게)</option>
+              <option value="심플">심플 (핵심만 간단하게)</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">기본 이미지 스타일</p>
+              <p class="settings-sub">생성 화면에 미리 들어갈 이미지 무드입니다.</p>
+            </div>
+            <select class="settings-select" id="settings-default-style">
+              <option value="기본">기본 (가장 깔끔하게)</option>
+              <option value="감성">감성 (따뜻하고 부드럽게)</option>
+              <option value="고급">고급 (격식있고 우아하게)</option>
+              <option value="유머">유머 (재밌고 센스있게)</option>
+              <option value="심플">심플 (핵심만 간단하게)</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">피드 업로드 버튼</p>
+              <p class="settings-sub">생성 결과 화면에서 피드 업로드 버튼을 표시할지 정합니다.</p>
+            </div>
+            <button class="settings-toggle" id="settings-upload-toggle" type="button" aria-pressed="false"></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h2 class="settings-group__title">앱 설치</h2>
+        <div class="settings-card settings-install-card">
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">홈 화면 앱으로 설치</p>
+              <p class="settings-sub" id="settings-install-copy">
+                지원 브라우저에서는 홈 화면에 추가해 주소창 없이 앱처럼 실행할 수 있습니다.
+              </p>
+            </div>
+            <span class="settings-value" id="settings-install-status">확인 중</span>
+          </div>
+          <div class="settings-row settings-row--stack">
+            <div class="settings-actions">
+              <button
+                class="action-button action-button--primary settings-action"
+                id="settings-install-button"
+                type="button"
+              >
+                홈 화면에 설치하기
+              </button>
+            </div>
+            <p class="settings-inline-note settings-install-hint" id="settings-install-hint">
+              iPhone에서는 Safari 공유 메뉴의 ‘홈 화면에 추가’를 사용합니다.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h2 class="settings-group__title">실행 상태</h2>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">텍스트/API 준비 상태</p>
+              <p class="settings-sub">OpenAI 등 외부 API 사용 가능 여부</p>
+            </div>
+            <span class="settings-value" id="settings-api-status">확인 중</span>
+          </div>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">이미지 백엔드</p>
+              <p class="settings-sub">현재 모바일 앱이 붙어 있는 생성 경로</p>
+            </div>
+            <span class="settings-value" id="settings-image-backend">확인 중</span>
+          </div>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <p class="settings-title">알림 표시</p>
+              <p class="settings-sub">세션 내부 UI 상태만 저장됩니다.</p>
+            </div>
+            <button class="settings-toggle" id="settings-notify-toggle" type="button" aria-pressed="false"></button>
+          </div>
+        </div>
+      </section>
+
+      <div class="hidden" id="settings-status"></div>
+    </main>
+
+    <nav class="app-nav" aria-label="앱 탐색">
+      <a class="app-nav__item" href="/stitch/index.html">
+        <span class="material-symbols-outlined">home</span>
+        <span class="app-nav__label">홈</span>
+      </a>
+      <a class="app-nav__item app-nav__item--fab" href="/stitch/4._2/code.html">
+        <span class="material-symbols-outlined">add</span>
+        <span class="app-nav__label">만들기</span>
+      </a>
+      <a class="app-nav__item" href="/stitch/archive.html">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <span class="app-nav__label">보관함</span>
+      </a>
+    </nav>
+
+    <script src="./shared.js"></script>
+  </body>
+</html>
