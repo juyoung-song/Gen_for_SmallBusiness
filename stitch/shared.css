@@ -1260,6 +1260,20 @@ nav {
   margin-right: 0.35rem;
 }
 
+.ig-caption__editable {
+  display: inline;
+  min-width: 1rem;
+  white-space: pre-wrap;
+  cursor: text;
+  outline: none;
+}
+
+.ig-caption__editable:focus {
+  border-radius: 0.35rem;
+  background: rgba(255, 179, 71, 0.16);
+  box-shadow: 0 0 0 3px rgba(255, 116, 72, 0.12);
+}
+
 .caption-editor {
   display: grid;
   gap: 0.85rem;

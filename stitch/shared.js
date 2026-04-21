@@ -563,6 +563,63 @@
     return captionResult.caption_edited ? "edited" : "generated";
   }
 
+  function markFeedCaptionSaved(captionText) {
+    const nextCaption = String(captionText || "").trim();
+    const generatedCaption = composeFeedCaptionText(lastCaptionResult);
+    lastCaptionResult = {
+      ...(lastCaptionResult || {}),
+      saved_caption: nextCaption,
+      caption_edited: Boolean(nextCaption && nextCaption !== generatedCaption),
+    };
+    feedCaptionDraftDirty = false;
+    updateLastHistory({ captionReady: Boolean(nextCaption), captionEdited: lastCaptionResult.caption_edited });
+    applyUploadButtonState();
+  }
+
+  function readEditableCaption(node) {
+    return (node?.innerText || node?.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  function syncCaptionTextarea(captionText) {
+    const editor = selectOne("#feed-caption-editor");
+    const countNode = selectOne("#feed-caption-count");
+    const saveButton = selectOne("#feed-caption-save");
+    const saveStateNode = selectOne("#feed-caption-save-state");
+    if (editor && editor.value !== captionText) {
+      editor.value = captionText;
+    }
+    if (countNode) countNode.textContent = `${captionText.length}자`;
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.classList.add("action-button--disabled");
+    }
+    if (saveStateNode) {
+      saveStateNode.textContent = "저장됨";
+      saveStateNode.classList.remove("caption-editor__badge--dirty");
+    }
+  }
+
+  function bindInlineFeedCaptionEditor(editableNode) {
+    if (!editableNode || editableNode.dataset.bound === "true") return;
+    editableNode.dataset.bound = "true";
+    editableNode.addEventListener("input", () => {
+      const nextCaption = readEditableCaption(editableNode);
+      markFeedCaptionSaved(nextCaption);
+      syncCaptionTextarea(nextCaption);
+    });
+    editableNode.addEventListener("blur", () => {
+      const nextCaption = readEditableCaption(editableNode);
+      if (!nextCaption) {
+        setStatus(selectOne("#create-caption-status"), "피드 게시글 텍스트를 입력해주세요.", "error");
+        return;
+      }
+      editableNode.textContent = nextCaption;
+      markFeedCaptionSaved(nextCaption);
+      syncCaptionTextarea(nextCaption);
+      setStatus(selectOne("#create-caption-status"), "피드 게시글 텍스트가 저장되었습니다.", "success");
+    });
+  }
+
   function updateFeedPreviewCaption(captionText) {
     const previewBlock = selectOne("#result-preview-block");
     const igCaptionNode = previewBlock?.querySelector(".ig-caption");
@@ -571,8 +628,23 @@
     const state = readState();
     const brandName = lastBootstrap?.brand?.brand_name || state.onboarding.brandName || "우리 가게";
     const handle = parseInstagramHandle(state.onboarding.instagramUrl, brandName);
-    const captionHtml = escapeHtml(captionText || "").replace(/\n/g, "<br>");
-    igCaptionNode.innerHTML = `<b>${escapeHtml(handle)}</b> ${captionHtml}`;
+    igCaptionNode.innerHTML = `
+      <b>${escapeHtml(handle)}</b>
+      <span
+        class="ig-caption__editable"
+        id="feed-caption-inline-editor"
+        contenteditable="true"
+        role="textbox"
+        aria-label="피드 게시글 텍스트"
+        aria-multiline="true"
+        spellcheck="false"
+      ></span>
+    `;
+    const inlineEditor = igCaptionNode.querySelector("#feed-caption-inline-editor");
+    if (inlineEditor) {
+      inlineEditor.textContent = captionText || "";
+      bindInlineFeedCaptionEditor(inlineEditor);
+    }
   }
 
   function ensureFeedCaptionBlock() {
@@ -640,17 +712,10 @@
         return;
       }
 
-      const generatedCaption = composeFeedCaptionText(lastCaptionResult);
-      lastCaptionResult = {
-        ...(lastCaptionResult || {}),
-        saved_caption: nextCaption,
-        caption_edited: nextCaption !== generatedCaption,
-      };
+      markFeedCaptionSaved(nextCaption);
       editor.value = nextCaption;
-      feedCaptionDraftDirty = false;
       updateFeedPreviewCaption(nextCaption);
       updateEditorState();
-      updateLastHistory({ captionReady: true, captionEdited: lastCaptionResult.caption_edited });
       setStatus(selectOne("#create-caption-status"), "수정한 게시글 텍스트를 저장했습니다.", "success");
     });
     updateEditorState();
