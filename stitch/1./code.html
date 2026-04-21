@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Be+Vietnam+Pro:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="../shared.css" rel="stylesheet"/>
+<link href="../shared.css?v=40" rel="stylesheet"/>
 <script id="tailwind-config">
       tailwind.config = {
         darkMode: "class",
@@ -152,6 +152,13 @@
 <div class="bg-surface-container-low p-8 rounded-xl paper-card">
 <label class="block text-on-surface font-bold text-lg mb-6">브랜드 대표 색상</label>
 <div class="grid grid-cols-3 gap-4">
+<label class="group brand-color-picker-trigger flex flex-col items-center gap-2" for="brand-color-custom-input" id="brand-color-custom-trigger">
+<div class="w-20 h-20 mx-auto rounded-full flex items-center justify-center hover:scale-105 transition-transform bg-[linear-gradient(135deg,#ff8a00,#ff5f6d,#b66dff)] shadow-[0_10px_18px_rgba(255,106,136,0.22)]">
+<span class="material-symbols-outlined text-white" data-icon="add">add</span>
+</div>
+<span class="text-xs font-medium text-on-surface-variant">직접 선택</span>
+<input aria-label="브랜드 대표 색상 직접 선택" class="brand-color-picker-control" id="brand-color-custom-input" type="color" value="#ff7448"/>
+</label>
 <button class="group flex flex-col items-center gap-2" data-brand-color="#ff7448" type="button">
 <div class="w-20 h-20 mx-auto rounded-full bg-[#ff7448] ring-offset-4 ring-2 ring-[#ff8a7a] ring-offset-white shadow-[0_10px_18px_rgba(255,116,72,0.25)]"></div>
 <span class="text-xs font-medium text-on-surface-variant">썬셋 코랄</span>
@@ -172,14 +179,7 @@
 <div class="w-20 h-20 mx-auto rounded-full bg-[#8f66ff] hover:scale-105 transition-transform shadow-[0_10px_18px_rgba(143,102,255,0.20)]"></div>
 <span class="text-xs font-medium text-on-surface-variant">베리 바이올렛</span>
 </button>
-<button class="group flex flex-col items-center gap-2" id="brand-color-custom-trigger" type="button">
-<div class="w-20 h-20 mx-auto rounded-full flex items-center justify-center hover:scale-105 transition-transform bg-[linear-gradient(135deg,#ff8a00,#ff5f6d,#b66dff)] shadow-[0_10px_18px_rgba(255,106,136,0.22)]">
-<span class="material-symbols-outlined text-white" data-icon="add">add</span>
 </div>
-<span class="text-xs font-medium text-on-surface-variant">직접 선택</span>
-</button>
-</div>
-<input class="sr-only" id="brand-color-custom-input" type="color" value="#ff7448"/>
 </div>
 <!-- Brand Vibe Tags -->
 <div class="bg-surface-container-low p-8 rounded-xl flex flex-col paper-card">
@@ -231,5 +231,5 @@
 </button>
 </div>
 </footer>
-<script src="../shared.js"></script>
+<script src="../shared.js?v=40"></script>
 </body></html>

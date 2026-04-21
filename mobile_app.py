@@ -86,7 +86,31 @@ class _PendingToken:
         self.source = source
 
 
+class _PendingProductImage:
+    """생성 요청 전 모바일에서 촬영/선택한 신상품 이미지."""
+    __slots__ = ("brand_id", "path", "name", "mime", "source", "created_at")
+
+    def __init__(
+        self,
+        *,
+        brand_id: UUID,
+        path: Path,
+        name: str,
+        mime: str,
+        source: Literal["camera", "library"],
+        created_at: datetime,
+    ) -> None:
+        self.brand_id = brand_id
+        self.path = path
+        self.name = name
+        self.mime = mime
+        self.source = source
+        self.created_at = created_at
+
+
 PENDING_IG_TOKENS: dict[UUID, _PendingToken] = {}
+PENDING_PRODUCT_IMAGES: dict[UUID, _PendingProductImage] = {}
+PENDING_PRODUCT_IMAGE_TTL = timedelta(hours=6)
 
 
 @asynccontextmanager
@@ -163,6 +187,7 @@ class MobileGenerateRequest(BaseModel):
     tone: str = "기본"
     style: str = "기본"
     product_image: DataUrlFile | None = None
+    product_image_upload_id: UUID | None = None
     reference_url: str = ""
     reference_image: DataUrlFile | None = None
     is_new_product: bool = False
@@ -242,6 +267,7 @@ class MobileFeedUploadRequest(BaseModel):
     description: str = ""
     goal: str = "일반 홍보"
     caption: str = ""
+    caption_source: Literal["generated", "edited", "fallback"] = "generated"
     image_data_url: str
     generation_output_id: UUID | None = None
 
@@ -273,7 +299,22 @@ class MobileProductsResponse(BaseModel):
     products: list[MobileProductGroup]
 
 
+class MobileProductImageUploadRequest(BaseModel):
+    image: DataUrlFile
+    source: Literal["camera", "library"] = "camera"
+
+
+class MobileProductImageUploadResponse(BaseModel):
+    upload_id: UUID
+    name: str
+    preview_url: str | None = None
+    mime_type: str
+    size_bytes: int
+    source: Literal["camera", "library"]
+
+
 _DATA_URL_RE = re.compile(r"^data:(?P<mime>[\w/+.-]+);base64,(?P<data>.+)$")
+_MAX_MOBILE_IMAGE_UPLOAD_BYTES = 12 * 1024 * 1024
 
 
 def _decode_data_url(data_url: str) -> tuple[bytes, str]:
@@ -285,6 +326,49 @@ def _decode_data_url(data_url: str) -> tuple[bytes, str]:
     except (ValueError, binascii.Error) as exc:
         raise HTTPException(status_code=400, detail="base64 파일 디코딩에 실패했습니다.") from exc
     return raw, match.group("mime")
+
+
+def _decode_image_data_url(upload: DataUrlFile, *, purpose: str) -> tuple[bytes, str]:
+    image_bytes, mime = _decode_data_url(upload.data_url)
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail=f"{purpose} 이미지가 비어 있습니다.")
+    if not mime.startswith("image/"):
+        raise HTTPException(status_code=400, detail=f"{purpose} 이미지만 업로드할 수 있습니다.")
+    if len(image_bytes) > _MAX_MOBILE_IMAGE_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"{purpose} 이미지는 12MB 이하로 업로드해주세요.",
+        )
+    return image_bytes, mime
+
+
+def _prune_pending_product_images() -> None:
+    cutoff = datetime.now(timezone.utc) - PENDING_PRODUCT_IMAGE_TTL
+    for upload_id, pending in list(PENDING_PRODUCT_IMAGES.items()):
+        if pending.created_at < cutoff:
+            PENDING_PRODUCT_IMAGES.pop(upload_id, None)
+
+
+def _load_pending_product_image(
+    upload_id: UUID,
+    brand_id: UUID,
+) -> tuple[bytes, str]:
+    _prune_pending_product_images()
+    pending = PENDING_PRODUCT_IMAGES.get(upload_id)
+    if pending is None:
+        raise HTTPException(
+            status_code=400,
+            detail="촬영한 신상품 사진을 찾을 수 없습니다. 다시 촬영하거나 앨범에서 선택해주세요.",
+        )
+    if pending.brand_id != brand_id:
+        raise HTTPException(status_code=403, detail="다른 브랜드의 신상품 사진은 사용할 수 없습니다.")
+    try:
+        return pending.path.read_bytes(), str(pending.path)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="저장된 신상품 사진을 읽지 못했습니다. 다시 촬영하거나 앨범에서 선택해주세요.",
+        ) from exc
 
 
 def _infer_extension(upload: DataUrlFile) -> str:
@@ -750,6 +834,7 @@ async def _save_generation_outputs(
     image_bytes: bytes | None,
     langfuse_trace_id: str | None = None,
     product_image_bytes: bytes | None = None,
+    saved_product_image_path: str | None = None,
     existing_product_image_path: str | None = None,
     is_new_product: bool = False,
 ) -> tuple[UUID | None, UUID | None]:
@@ -769,7 +854,9 @@ async def _save_generation_outputs(
         return None, None
 
     product_image_path: str | None = None
-    if product_image_bytes:
+    if saved_product_image_path:
+        product_image_path = saved_product_image_path
+    elif product_image_bytes:
         product_image_path = str(save_to_staging(product_image_bytes, extension=".png"))
     elif existing_product_image_path:
         # 기존 상품 재생성: 원본 경로 그대로 승계 (새로 staging 저장하지 않음)
@@ -972,6 +1059,54 @@ async def mobile_list_products() -> MobileProductsResponse:
             )
         )
     return MobileProductsResponse(products=result)
+
+
+@app.post(
+    "/api/mobile/product-image",
+    response_model=MobileProductImageUploadResponse,
+)
+async def mobile_product_image_upload(
+    payload: MobileProductImageUploadRequest,
+) -> MobileProductImageUploadResponse:
+    brand = await _load_brand()
+    if brand is None:
+        raise HTTPException(status_code=409, detail="온보딩이 아직 완료되지 않았습니다.")
+
+    image_bytes, mime = _decode_image_data_url(
+        payload.image,
+        purpose="신상품 사진",
+    )
+    extension = _mime_to_extension(mime)
+    saved_path = save_to_staging(image_bytes, extension=extension)
+    file_name = payload.image.name.strip() or f"new-product{extension}"
+    upload_id = uuid4()
+    _prune_pending_product_images()
+    PENDING_PRODUCT_IMAGES[upload_id] = _PendingProductImage(
+        brand_id=brand.id,
+        path=saved_path,
+        name=file_name,
+        mime=mime,
+        source=payload.source,
+        created_at=datetime.now(timezone.utc),
+    )
+
+    logger.info(
+        "모바일 신상품 사진 저장 완료 upload_id=%s source=%s mime=%s bytes=%d path=%s",
+        upload_id,
+        payload.source,
+        mime,
+        len(image_bytes),
+        saved_path,
+    )
+
+    return MobileProductImageUploadResponse(
+        upload_id=upload_id,
+        name=file_name,
+        preview_url=_relative_data_url(str(saved_path)),
+        mime_type=mime,
+        size_bytes=len(image_bytes),
+        source=payload.source,
+    )
 
 
 @app.get("/api/mobile/instagram/status", response_model=MobileInstagramSummary)
@@ -1434,9 +1569,18 @@ async def mobile_generate(
     brand_prompt = _build_brand_prompt(brand)
 
     product_image_bytes: bytes | None = None
+    saved_product_image_path: str | None = None
     existing_product_image_path: str | None = None
-    if payload.product_image is not None:
-        product_image_bytes, _ = _decode_data_url(payload.product_image.data_url)
+    if payload.is_new_product and payload.product_image_upload_id is not None:
+        product_image_bytes, saved_product_image_path = _load_pending_product_image(
+            payload.product_image_upload_id,
+            brand.id,
+        )
+    elif payload.is_new_product and payload.product_image is not None:
+        product_image_bytes, _ = _decode_image_data_url(
+            payload.product_image,
+            purpose="신상품 사진",
+        )
     elif not payload.is_new_product and payload.existing_product_name:
         loaded = _load_existing_product_bytes(
             brand.id, payload.existing_product_name
@@ -1498,6 +1642,15 @@ async def mobile_generate(
                         else "false"
                     ),
                     "has_product_image": "true" if product_image_bytes is not None else "false",
+                    "product_image_source": (
+                        "mobile_capture"
+                        if payload.is_new_product and payload.product_image_upload_id is not None
+                        else "inline"
+                        if payload.is_new_product and payload.product_image is not None
+                        else "existing"
+                        if existing_product_image_path
+                        else "none"
+                    ),
                     "has_existing_product_name": (
                         "true" if bool(payload.existing_product_name) else "false"
                     ),
@@ -1551,6 +1704,9 @@ async def mobile_generate(
             image_bytes=image_result.image_data if image_result is not None else None,
             langfuse_trace_id=langfuse_trace_id,
             product_image_bytes=product_image_bytes if payload.is_new_product else None,
+            saved_product_image_path=(
+                saved_product_image_path if payload.is_new_product else None
+            ),
             existing_product_image_path=existing_product_image_path,
             is_new_product=payload.is_new_product,
         )
@@ -1670,10 +1826,12 @@ async def mobile_upload_feed(
 ) -> MobileUploadResponse:
     if not payload.product_name.strip():
         raise HTTPException(status_code=400, detail="상품명을 먼저 입력해주세요.")
+    caption = payload.caption.strip()
+    if not caption:
+        raise HTTPException(status_code=400, detail="피드 게시글 텍스트를 입력해주세요.")
 
     brand, upload_settings = await _resolve_upload_context()
     image_bytes, _ = _decode_data_url(payload.image_data_url)
-    caption = payload.caption.strip()
     generation_output_id = _require_generation_output_id(payload.generation_output_id)
 
     instagram_service = InstagramService(upload_settings)
@@ -1682,7 +1840,11 @@ async def mobile_upload_feed(
             with _langfuse_trace_attributes(
                 request,
                 tags=["feature:upload", "upload:feed"],
-                metadata={"has_caption": "true" if bool(caption) else "false"},
+                metadata={
+                    "has_caption": "true",
+                    "caption_length": str(len(caption)),
+                    "caption_source": payload.caption_source,
+                },
             ):
                 post_id, posted_at = await run_in_threadpool(
                     _consume_upload_generator,

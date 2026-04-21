@@ -63,6 +63,7 @@
   let deferredInstallPrompt = null;
   let memoryClientId = null;
   let memorySessionId = null;
+  let feedCaptionDraftDirty = false;
 
   function cloneDefaults() {
     return JSON.parse(JSON.stringify(defaultState));
@@ -539,14 +540,185 @@
   }
 
   function buildFeedUploadCaption(result, captionResult, state) {
+    if (captionResult?.saved_caption) {
+      return captionResult.saved_caption.trim();
+    }
     if (captionResult?.caption) {
-      return `${captionResult.caption}\n\n${captionResult.hashtags || ""}`.trim();
+      return composeFeedCaptionText(captionResult);
     }
     const fallbackCopy =
       result?.text_result?.ad_copies?.[0] ||
       result?.text_result?.promo_sentences?.[0] ||
       `${state.create.productName} 홍보 문구`;
     return fallbackCopy.trim();
+  }
+
+  function composeFeedCaptionText(captionResult) {
+    if (!captionResult) return "";
+    return `${captionResult.caption || ""}\n\n${captionResult.hashtags || ""}`.trim();
+  }
+
+  function getFeedCaptionSource(captionResult) {
+    if (!captionResult) return "fallback";
+    return captionResult.caption_edited ? "edited" : "generated";
+  }
+
+  function markFeedCaptionSaved(captionText) {
+    const nextCaption = String(captionText || "").trim();
+    const generatedCaption = composeFeedCaptionText(lastCaptionResult);
+    lastCaptionResult = {
+      ...(lastCaptionResult || {}),
+      saved_caption: nextCaption,
+      caption_edited: Boolean(nextCaption && nextCaption !== generatedCaption),
+    };
+    feedCaptionDraftDirty = false;
+    updateLastHistory({ captionReady: Boolean(nextCaption), captionEdited: lastCaptionResult.caption_edited });
+    applyUploadButtonState();
+  }
+
+  function readEditableCaption(node) {
+    return (node?.innerText || node?.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  function syncCaptionTextarea(captionText) {
+    const editor = selectOne("#feed-caption-editor");
+    const countNode = selectOne("#feed-caption-count");
+    const saveButton = selectOne("#feed-caption-save");
+    const saveStateNode = selectOne("#feed-caption-save-state");
+    if (editor && editor.value !== captionText) {
+      editor.value = captionText;
+    }
+    if (countNode) countNode.textContent = `${captionText.length}자`;
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.classList.add("action-button--disabled");
+    }
+    if (saveStateNode) {
+      saveStateNode.textContent = "저장됨";
+      saveStateNode.classList.remove("caption-editor__badge--dirty");
+    }
+  }
+
+  function bindInlineFeedCaptionEditor(editableNode) {
+    if (!editableNode || editableNode.dataset.bound === "true") return;
+    editableNode.dataset.bound = "true";
+    editableNode.addEventListener("input", () => {
+      const nextCaption = readEditableCaption(editableNode);
+      markFeedCaptionSaved(nextCaption);
+      syncCaptionTextarea(nextCaption);
+    });
+    editableNode.addEventListener("blur", () => {
+      const nextCaption = readEditableCaption(editableNode);
+      if (!nextCaption) {
+        setStatus(selectOne("#create-caption-status"), "피드 게시글 텍스트를 입력해주세요.", "error");
+        return;
+      }
+      editableNode.textContent = nextCaption;
+      markFeedCaptionSaved(nextCaption);
+      syncCaptionTextarea(nextCaption);
+      setStatus(selectOne("#create-caption-status"), "피드 게시글 텍스트가 저장되었습니다.", "success");
+    });
+  }
+
+  function updateFeedPreviewCaption(captionText) {
+    const previewBlock = selectOne("#result-preview-block");
+    const igCaptionNode = previewBlock?.querySelector(".ig-caption");
+    if (!igCaptionNode) return;
+
+    const state = readState();
+    const brandName = lastBootstrap?.brand?.brand_name || state.onboarding.brandName || "우리 가게";
+    const handle = parseInstagramHandle(state.onboarding.instagramUrl, brandName);
+    igCaptionNode.innerHTML = `
+      <b>${escapeHtml(handle)}</b>
+      <span
+        class="ig-caption__editable"
+        id="feed-caption-inline-editor"
+        contenteditable="true"
+        role="textbox"
+        aria-label="피드 게시글 텍스트"
+        aria-multiline="true"
+        spellcheck="false"
+      ></span>
+    `;
+    const inlineEditor = igCaptionNode.querySelector("#feed-caption-inline-editor");
+    if (inlineEditor) {
+      inlineEditor.textContent = captionText || "";
+      bindInlineFeedCaptionEditor(inlineEditor);
+    }
+  }
+
+  function ensureFeedCaptionBlock() {
+    const existingBlock = selectOne("#result-caption-block");
+    if (existingBlock) return existingBlock;
+
+    const previewBlock = selectOne("#result-preview-block");
+    if (!previewBlock?.parentNode) return null;
+
+    const captionBlock = document.createElement("div");
+    captionBlock.id = "result-caption-block";
+    captionBlock.className = "hidden mt-4";
+    previewBlock.parentNode.insertBefore(captionBlock, previewBlock.nextSibling);
+    return captionBlock;
+  }
+
+  function renderFeedCaptionEditor(captionText) {
+    const captionBlock = ensureFeedCaptionBlock();
+    if (!captionBlock) return;
+
+    captionBlock.innerHTML = `
+      <div class="result-card caption-editor">
+        <div class="caption-editor__head">
+          <div>
+            <h3 class="result-card__title">피드 게시글 텍스트</h3>
+            <p class="caption-editor__copy">수정한 내용은 저장 후 미리보기와 업로드에 반영됩니다.</p>
+          </div>
+          <span class="caption-editor__badge" id="feed-caption-save-state">저장됨</span>
+        </div>
+        <textarea class="caption-editor__textarea" id="feed-caption-editor" rows="7">${escapeHtml(captionText)}</textarea>
+        <div class="caption-editor__actions">
+          <span class="caption-editor__count" id="feed-caption-count">0자</span>
+          <button class="action-button action-button--primary caption-editor__save" id="feed-caption-save" type="button">저장</button>
+        </div>
+      </div>
+    `;
+    captionBlock.classList.remove("hidden");
+
+    const editor = selectOne("#feed-caption-editor");
+    const saveButton = selectOne("#feed-caption-save");
+    const countNode = selectOne("#feed-caption-count");
+    const saveStateNode = selectOne("#feed-caption-save-state");
+
+    const savedCaption = () => (lastCaptionResult?.saved_caption || "").trim();
+    const updateEditorState = () => {
+      if (!editor) return;
+      const draft = editor.value;
+      feedCaptionDraftDirty = draft.trim() !== savedCaption();
+      if (countNode) countNode.textContent = `${draft.length}자`;
+      if (saveButton) saveButton.disabled = !feedCaptionDraftDirty;
+      saveButton?.classList.toggle("action-button--disabled", !feedCaptionDraftDirty);
+      if (saveStateNode) {
+        saveStateNode.textContent = feedCaptionDraftDirty ? "수정 중" : "저장됨";
+        saveStateNode.classList.toggle("caption-editor__badge--dirty", feedCaptionDraftDirty);
+      }
+      applyUploadButtonState();
+    };
+
+    editor?.addEventListener("input", updateEditorState);
+    saveButton?.addEventListener("click", () => {
+      if (!editor) return;
+      const nextCaption = editor.value.trim();
+      if (!nextCaption) {
+        setStatus(selectOne("#create-caption-status"), "피드 게시글 텍스트를 입력해주세요.", "error");
+        return;
+      }
+
+      markFeedCaptionSaved(nextCaption);
+      editor.value = nextCaption;
+      updateFeedPreviewCaption(nextCaption);
+      updateEditorState();
+      setStatus(selectOne("#create-caption-status"), "수정한 게시글 텍스트를 저장했습니다.", "success");
+    });
+    updateEditorState();
   }
 
   function applyUploadButtonState() {
@@ -556,8 +728,9 @@
     const hasStoryImage = Boolean(lastStoryResult?.image_data_url);
 
     if (uploadFeedButton) {
-      uploadFeedButton.disabled = !hasFeedImage;
-      uploadFeedButton.classList.toggle("action-button--disabled", !hasFeedImage);
+      const disableFeedUpload = !hasFeedImage || feedCaptionDraftDirty;
+      uploadFeedButton.disabled = disableFeedUpload;
+      uploadFeedButton.classList.toggle("action-button--disabled", disableFeedUpload);
     }
     if (uploadStoryButton) {
       uploadStoryButton.disabled = !hasStoryImage;
@@ -947,8 +1120,11 @@
       });
     });
 
-    customColorTrigger?.addEventListener("click", () => customColorInput?.click());
-    customColorInput?.addEventListener("input", (event) => {
+    customColorTrigger?.addEventListener("click", (event) => {
+      if (!customColorInput || event.target === customColorInput) return;
+      customColorInput.click();
+    });
+    const applyCustomColor = (event) => {
       const value = event.target.value;
       setActiveColor(value);
       patchState({
@@ -957,7 +1133,9 @@
           analysisContent: "",
         },
       });
-    });
+    };
+    customColorInput?.addEventListener("input", applyCustomColor);
+    customColorInput?.addEventListener("change", applyCustomColor);
 
     logoTrigger?.addEventListener("click", () => logoInput?.click());
     logoInput?.addEventListener("change", async (event) => {
@@ -1475,6 +1653,7 @@
     uploadNote?.classList.add("hidden");
     // 피드 미리보기/업로드 버튼/캡션 상태는 캡션 생성 후에만 노출
     uploadFeedButton?.classList.add("hidden");
+    feedCaptionDraftDirty = false;
     const captionStatusResetNode = selectOne("#create-caption-status");
     captionStatusResetNode?.classList.add("hidden");
     if (captionStatusResetNode) captionStatusResetNode.textContent = "";
@@ -2069,6 +2248,19 @@
     const productImageStatus = selectOne("#create-product-image-status");
     const productImageThumb = selectOne("#create-product-image-thumb");
     const productImageThumbWrap = selectOne("#create-product-image-thumb-wrap");
+    const productCameraButton = selectOne("#create-product-camera-button");
+    const productLibraryButton = selectOne("#create-product-library-button");
+    const productImageRetakeButton = selectOne("#create-product-image-retake");
+    const productCameraPanel = selectOne("#create-product-camera-panel");
+    const productCameraVideo = selectOne("#create-product-camera-video");
+    const productCameraCanvas = selectOne("#create-product-camera-canvas");
+    const productCameraClose = selectOne("#create-product-camera-close");
+    const productCameraCapture = selectOne("#create-product-camera-capture");
+    const productCameraRetake = selectOne("#create-product-camera-retake");
+    const productCameraUse = selectOne("#create-product-camera-use");
+    const productCameraStatus = selectOne("#create-product-camera-status");
+    let productCameraStream = null;
+    let capturedProductImageDataUrl = "";
 
     const showProductImagePreview = (dataUrl) => {
       if (!productImageThumb || !productImageThumbWrap) return;
@@ -2080,6 +2272,95 @@
         productImageThumb.removeAttribute("src");
         productImageThumbWrap.classList.add("hidden");
         productImageTrigger?.classList.remove("hidden");
+      }
+    };
+    const stopProductCamera = () => {
+      if (productCameraStream) {
+        productCameraStream.getTracks().forEach((track) => track.stop());
+      }
+      productCameraStream = null;
+      if (productCameraVideo) {
+        productCameraVideo.srcObject = null;
+      }
+    };
+    const resetProductCameraCapture = () => {
+      capturedProductImageDataUrl = "";
+      productCameraCanvas?.classList.add("hidden");
+      productCameraVideo?.classList.remove("hidden");
+      productCameraCapture?.classList.remove("hidden");
+      productCameraRetake?.classList.add("hidden");
+      productCameraUse?.classList.add("hidden");
+      if (productCameraStatus) productCameraStatus.textContent = "";
+    };
+    const closeProductCamera = () => {
+      stopProductCamera();
+      resetProductCameraCapture();
+      productCameraPanel?.classList.add("hidden");
+    };
+    const saveProductImagePayload = async (payload, source) => {
+      const response = await api("/product-image", {
+        method: "POST",
+        body: {
+          image: payload,
+          source,
+        },
+      });
+      return {
+        name: response.name || payload.name,
+        upload_id: response.upload_id || null,
+        preview_url: response.preview_url || "",
+        source: response.source || source,
+        mime_type: response.mime_type || "",
+        size_bytes: response.size_bytes || 0,
+      };
+    };
+    const applyProductImagePayload = (payload, source) => {
+      patchState({ create: { productImage: payload } });
+      if (productImageStatus) {
+        productImageStatus.textContent =
+          source === "camera"
+            ? "촬영본이 신상품 사진으로 연결되었습니다."
+            : `${payload.name} 파일이 상품 사진으로 업로드 준비되었습니다.`;
+      }
+      showProductImagePreview(payload.preview_url || payload.data_url);
+    };
+    const openProductCamera = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        if (productImageStatus) {
+          productImageStatus.textContent = "현재 브라우저에서는 카메라를 열 수 없어 앨범 선택을 사용해주세요.";
+        }
+        productImageInput?.click();
+        return;
+      }
+
+      try {
+        closeProductCamera();
+        resetProductCameraCapture();
+        productCameraPanel?.classList.remove("hidden");
+        if (productCameraStatus) {
+          productCameraStatus.textContent = "카메라 권한을 확인하는 중입니다.";
+        }
+        productCameraStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1600 },
+            height: { ideal: 1600 },
+          },
+          audio: false,
+        });
+        if (productCameraVideo) {
+          productCameraVideo.srcObject = productCameraStream;
+          await productCameraVideo.play();
+        }
+        if (productCameraStatus) {
+          productCameraStatus.textContent = "상품이 프레임에 들어오면 촬영해주세요.";
+        }
+      } catch (error) {
+        closeProductCamera();
+        if (productImageStatus) {
+          productImageStatus.textContent =
+            "카메라를 열지 못했습니다. 권한을 확인하거나 앨범에서 사진을 선택해주세요.";
+        }
       }
     };
     const referenceUrlInput = selectOne("#create-reference-url");
@@ -2141,8 +2422,10 @@
     if (state.create.productImage && productImageStatus) {
       productImageStatus.textContent = `${state.create.productImage.name} 파일이 상품 사진으로 연결되어 있어요.`;
     }
-    if (state.create.productImage?.data_url) {
-      showProductImagePreview(state.create.productImage.data_url);
+    if (state.create.productImage?.preview_url || state.create.productImage?.data_url) {
+      showProductImagePreview(
+        state.create.productImage.preview_url || state.create.productImage.data_url,
+      );
     }
 
     if (state.create.referenceImage && referenceStatus) {
@@ -2325,19 +2608,92 @@
       }
     });
 
-    productImageTrigger?.addEventListener("click", () => productImageInput?.click());
+    productImageTrigger?.addEventListener("click", () => openProductCamera());
+    productCameraButton?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openProductCamera();
+    });
+    productImageRetakeButton?.addEventListener("click", () => openProductCamera());
+    productLibraryButton?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      productImageInput?.click();
+    });
     selectOne("#create-product-image-reupload")?.addEventListener("click", () =>
       productImageInput?.click(),
     );
+    productCameraClose?.addEventListener("click", closeProductCamera);
+    productCameraCapture?.addEventListener("click", () => {
+      if (!productCameraVideo || !productCameraCanvas) return;
+      const width = productCameraVideo.videoWidth || 1200;
+      const height = productCameraVideo.videoHeight || 1200;
+      const maxSide = 1600;
+      const scale = Math.min(1, maxSide / Math.max(width, height));
+      productCameraCanvas.width = Math.round(width * scale);
+      productCameraCanvas.height = Math.round(height * scale);
+      const context = productCameraCanvas.getContext("2d");
+      if (!context) return;
+      context.drawImage(
+        productCameraVideo,
+        0,
+        0,
+        productCameraCanvas.width,
+        productCameraCanvas.height,
+      );
+      capturedProductImageDataUrl = productCameraCanvas.toDataURL("image/jpeg", 0.9);
+      productCameraVideo.classList.add("hidden");
+      productCameraCanvas.classList.remove("hidden");
+      productCameraCapture.classList.add("hidden");
+      productCameraRetake?.classList.remove("hidden");
+      productCameraUse?.classList.remove("hidden");
+      if (productCameraStatus) {
+        productCameraStatus.textContent = "촬영본을 확인한 뒤 사용해주세요.";
+      }
+    });
+    productCameraRetake?.addEventListener("click", resetProductCameraCapture);
+    productCameraUse?.addEventListener("click", async () => {
+      if (!capturedProductImageDataUrl) return;
+      productCameraUse.disabled = true;
+      if (productCameraStatus) {
+        productCameraStatus.textContent = "촬영본을 업로드 준비 중입니다.";
+      }
+      try {
+        const payload = {
+          name: `new-product-${Date.now()}.jpg`,
+          data_url: capturedProductImageDataUrl,
+        };
+        const savedPayload = await saveProductImagePayload(payload, "camera");
+        applyProductImagePayload(savedPayload, "camera");
+        closeProductCamera();
+      } catch (error) {
+        if (productCameraStatus) {
+          productCameraStatus.textContent = error.message;
+        }
+      } finally {
+        productCameraUse.disabled = false;
+      }
+    });
     productImageInput?.addEventListener("change", async (event) => {
       const [file] = event.target.files || [];
       if (!file) return;
-      const payload = await fileToPayload(file);
-      patchState({ create: { productImage: payload } });
-      if (productImageStatus) {
-        productImageStatus.textContent = `${payload.name} 파일이 상품 사진으로 업로드 준비되었습니다.`;
+      const previousProductImage = readState().create.productImage;
+      try {
+        const payload = await fileToPayload(file);
+        showProductImagePreview(payload.data_url);
+        if (productImageStatus) {
+          productImageStatus.textContent = `${payload.name} 파일을 미리보기에 반영하고 저장 중입니다.`;
+        }
+        const savedPayload = await saveProductImagePayload(payload, "library");
+        applyProductImagePayload(savedPayload, "library");
+      } catch (error) {
+        showProductImagePreview(
+          previousProductImage?.preview_url || previousProductImage?.data_url || "",
+        );
+        if (productImageStatus) {
+          productImageStatus.textContent = error.message;
+        }
+      } finally {
+        event.target.value = "";
       }
-      showProductImagePreview(payload.data_url);
     });
 
     referenceTrigger?.addEventListener("click", () => referenceInput?.click());
@@ -2371,9 +2727,15 @@
       }
 
       submitButton.disabled = true;
+      if (regenerateButton) {
+        regenerateButton.disabled = true;
+        regenerateButton.classList.add("action-button--disabled");
+        regenerateButton.textContent = "다시 만드는 중";
+      }
       setStatus(bootstrapStatus, "광고를 생성하는 중입니다. 잠시만 기다려주세요.", "loading");
 
       try {
+        const productImage = latestState.create.productImage;
         lastGenerateResult = await api("/generate", {
           method: "POST",
           body: {
@@ -2385,7 +2747,12 @@
             style: latestState.create.style,
             is_new_product: latestState.create.isNewProduct,
             product_image: latestState.create.isNewProduct
-              ? latestState.create.productImage
+              ? productImage?.data_url
+                ? productImage
+                : null
+              : null,
+            product_image_upload_id: latestState.create.isNewProduct
+              ? productImage?.upload_id || null
               : null,
             existing_product_name: latestState.create.isNewProduct
               ? null
@@ -2396,6 +2763,7 @@
         });
         lastCaptionResult = null;
         lastStoryResult = null;
+        feedCaptionDraftDirty = false;
         saveHistoryEntry(latestState.create, lastGenerateResult);
         renderGenerateResult(lastGenerateResult);
         setStatus(bootstrapStatus, "광고 생성이 완료되었습니다.", "success");
@@ -2403,6 +2771,11 @@
         setStatus(bootstrapStatus, error.message, "error");
       } finally {
         submitButton.disabled = false;
+        if (regenerateButton) {
+          regenerateButton.disabled = false;
+          regenerateButton.classList.remove("action-button--disabled");
+          regenerateButton.textContent = "다시 만들기";
+        }
       }
     });
 
@@ -2426,28 +2799,22 @@
             is_new_product: Boolean(readState().create.isNewProduct),
           },
         });
-        lastCaptionResult = caption;
-        // NOTE: 별도 캡션 블럭(#result-caption-block) 은 UI 에서 제거됨. 생성된
-        // 캡션/해시태그는 아래 인스타 프리뷰의 .ig-caption 영역에 embed.
+        const savedCaption = composeFeedCaptionText(caption);
+        lastCaptionResult = {
+          ...caption,
+          saved_caption: savedCaption,
+          caption_edited: false,
+        };
+        feedCaptionDraftDirty = false;
         // 캡션 생성 성공 시에만 인스타 피드 미리보기 + 업로드 버튼 + 업로드 안내 노출
         previewBlock?.classList.remove("hidden");
         uploadFeedButton?.classList.remove("hidden");
+        renderFeedCaptionEditor(savedCaption);
         if (uploadNote && uploadNote.innerHTML.trim()) {
           uploadNote.classList.remove("hidden");
         }
-        // 인스타 미리보기의 캡션 영역을 생성된 캡션 + 해시태그로 교체 (Streamlit 방식)
-        const igCaptionNode = previewBlock?.querySelector(".ig-caption");
-        if (igCaptionNode) {
-          const stateForPreview = readState();
-          const brandName = lastBootstrap?.brand?.brand_name || stateForPreview.onboarding.brandName || "우리 가게";
-          const previewHandle = parseInstagramHandle(stateForPreview.onboarding.instagramUrl, brandName);
-          const captionHtml = escapeHtml(caption.caption || "").replace(/\n/g, "<br>");
-          const tagsHtml = escapeHtml(caption.hashtags || "");
-          igCaptionNode.innerHTML = `
-            <b>${escapeHtml(previewHandle)}</b> ${captionHtml}
-            ${tagsHtml ? `<div style="color:#00376b; margin-top:6px;">${tagsHtml}</div>` : ""}
-          `;
-        }
+        updateFeedPreviewCaption(savedCaption);
+        applyUploadButtonState();
         updateLastHistory({ captionReady: true });
         setStatus(captionStatus, "피드 캡션이 준비되었습니다.", "success");
       } catch (error) {
@@ -2501,6 +2868,10 @@
         setStatus(uploadStatus, "업로드할 피드 이미지를 먼저 생성해주세요.", "error");
         return;
       }
+      if (feedCaptionDraftDirty) {
+        setStatus(uploadStatus, "수정 중인 게시글 텍스트를 저장한 뒤 업로드해주세요.", "error");
+        return;
+      }
       if (instagram.expired || !instagram.upload_ready) {
         updateLastHistory({ uploadFeedStatus: "placeholder" });
         const nextNote = buildUploadPlaceholder(instagram, "feed");
@@ -2523,6 +2894,7 @@
             description: latestState.create.productDescription,
             goal: latestState.create.goal,
             caption: buildFeedUploadCaption(lastGenerateResult, lastCaptionResult, latestState),
+            caption_source: getFeedCaptionSource(lastCaptionResult),
             image_data_url: lastGenerateResult.image_data_url,
             generation_output_id: lastGenerateResult.generation_output_id,
           },
