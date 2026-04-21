@@ -1,4 +1,4 @@
-const CACHE_NAME = "brewgram-shell-v32";
+const CACHE_NAME = "brewgram-shell-v33";
 const APP_SHELL = [
   "/stitch/index.html",
   "/stitch/welcome.html",

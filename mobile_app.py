@@ -267,6 +267,7 @@ class MobileFeedUploadRequest(BaseModel):
     description: str = ""
     goal: str = "일반 홍보"
     caption: str = ""
+    caption_source: Literal["generated", "edited", "fallback"] = "generated"
     image_data_url: str
     generation_output_id: UUID | None = None
 
@@ -1825,10 +1826,12 @@ async def mobile_upload_feed(
 ) -> MobileUploadResponse:
     if not payload.product_name.strip():
         raise HTTPException(status_code=400, detail="상품명을 먼저 입력해주세요.")
+    caption = payload.caption.strip()
+    if not caption:
+        raise HTTPException(status_code=400, detail="피드 게시글 텍스트를 입력해주세요.")
 
     brand, upload_settings = await _resolve_upload_context()
     image_bytes, _ = _decode_data_url(payload.image_data_url)
-    caption = payload.caption.strip()
     generation_output_id = _require_generation_output_id(payload.generation_output_id)
 
     instagram_service = InstagramService(upload_settings)
@@ -1837,7 +1840,11 @@ async def mobile_upload_feed(
             with _langfuse_trace_attributes(
                 request,
                 tags=["feature:upload", "upload:feed"],
-                metadata={"has_caption": "true" if bool(caption) else "false"},
+                metadata={
+                    "has_caption": "true",
+                    "caption_length": str(len(caption)),
+                    "caption_source": payload.caption_source,
+                },
             ):
                 post_id, posted_at = await run_in_threadpool(
                     _consume_upload_generator,

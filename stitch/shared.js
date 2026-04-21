@@ -63,6 +63,7 @@
   let deferredInstallPrompt = null;
   let memoryClientId = null;
   let memorySessionId = null;
+  let feedCaptionDraftDirty = false;
 
   function cloneDefaults() {
     return JSON.parse(JSON.stringify(defaultState));
@@ -539,14 +540,106 @@
   }
 
   function buildFeedUploadCaption(result, captionResult, state) {
+    if (captionResult?.saved_caption) {
+      return captionResult.saved_caption.trim();
+    }
     if (captionResult?.caption) {
-      return `${captionResult.caption}\n\n${captionResult.hashtags || ""}`.trim();
+      return composeFeedCaptionText(captionResult);
     }
     const fallbackCopy =
       result?.text_result?.ad_copies?.[0] ||
       result?.text_result?.promo_sentences?.[0] ||
       `${state.create.productName} 홍보 문구`;
     return fallbackCopy.trim();
+  }
+
+  function composeFeedCaptionText(captionResult) {
+    if (!captionResult) return "";
+    return `${captionResult.caption || ""}\n\n${captionResult.hashtags || ""}`.trim();
+  }
+
+  function getFeedCaptionSource(captionResult) {
+    if (!captionResult) return "fallback";
+    return captionResult.caption_edited ? "edited" : "generated";
+  }
+
+  function updateFeedPreviewCaption(captionText) {
+    const previewBlock = selectOne("#result-preview-block");
+    const igCaptionNode = previewBlock?.querySelector(".ig-caption");
+    if (!igCaptionNode) return;
+
+    const state = readState();
+    const brandName = lastBootstrap?.brand?.brand_name || state.onboarding.brandName || "우리 가게";
+    const handle = parseInstagramHandle(state.onboarding.instagramUrl, brandName);
+    const captionHtml = escapeHtml(captionText || "").replace(/\n/g, "<br>");
+    igCaptionNode.innerHTML = `<b>${escapeHtml(handle)}</b> ${captionHtml}`;
+  }
+
+  function renderFeedCaptionEditor(captionText) {
+    const captionBlock = selectOne("#result-caption-block");
+    if (!captionBlock) return;
+
+    captionBlock.innerHTML = `
+      <div class="result-card caption-editor">
+        <div class="caption-editor__head">
+          <div>
+            <h3 class="result-card__title">피드 게시글 텍스트</h3>
+            <p class="caption-editor__copy">수정한 내용은 저장 후 미리보기와 업로드에 반영됩니다.</p>
+          </div>
+          <span class="caption-editor__badge" id="feed-caption-save-state">저장됨</span>
+        </div>
+        <textarea class="caption-editor__textarea" id="feed-caption-editor" rows="7">${escapeHtml(captionText)}</textarea>
+        <div class="caption-editor__actions">
+          <span class="caption-editor__count" id="feed-caption-count">0자</span>
+          <button class="action-button action-button--primary caption-editor__save" id="feed-caption-save" type="button">저장</button>
+        </div>
+      </div>
+    `;
+    captionBlock.classList.remove("hidden");
+
+    const editor = selectOne("#feed-caption-editor");
+    const saveButton = selectOne("#feed-caption-save");
+    const countNode = selectOne("#feed-caption-count");
+    const saveStateNode = selectOne("#feed-caption-save-state");
+
+    const savedCaption = () => (lastCaptionResult?.saved_caption || "").trim();
+    const updateEditorState = () => {
+      if (!editor) return;
+      const draft = editor.value;
+      feedCaptionDraftDirty = draft.trim() !== savedCaption();
+      if (countNode) countNode.textContent = `${draft.length}자`;
+      if (saveButton) saveButton.disabled = !feedCaptionDraftDirty;
+      saveButton?.classList.toggle("action-button--disabled", !feedCaptionDraftDirty);
+      if (saveStateNode) {
+        saveStateNode.textContent = feedCaptionDraftDirty ? "수정 중" : "저장됨";
+        saveStateNode.classList.toggle("caption-editor__badge--dirty", feedCaptionDraftDirty);
+      }
+      applyUploadButtonState();
+    };
+
+    editor?.addEventListener("input", updateEditorState);
+    saveButton?.addEventListener("click", () => {
+      if (!editor) return;
+      const nextCaption = editor.value.trim();
+      if (!nextCaption) {
+        setStatus(selectOne("#create-caption-status"), "피드 게시글 텍스트를 입력해주세요.", "error");
+        return;
+      }
+
+      const generatedCaption = composeFeedCaptionText(lastCaptionResult);
+      lastCaptionResult = {
+        ...(lastCaptionResult || {}),
+        saved_caption: nextCaption,
+        caption_edited: nextCaption !== generatedCaption,
+      };
+      editor.value = nextCaption;
+      feedCaptionDraftDirty = false;
+      updateFeedPreviewCaption(nextCaption);
+      updateEditorState();
+      updateLastHistory({ captionReady: true, captionEdited: lastCaptionResult.caption_edited });
+      setStatus(selectOne("#create-caption-status"), "수정한 게시글 텍스트를 저장했습니다.", "success");
+    });
+    updateEditorState();
   }
 
   function applyUploadButtonState() {
@@ -556,8 +649,9 @@
     const hasStoryImage = Boolean(lastStoryResult?.image_data_url);
 
     if (uploadFeedButton) {
-      uploadFeedButton.disabled = !hasFeedImage;
-      uploadFeedButton.classList.toggle("action-button--disabled", !hasFeedImage);
+      const disableFeedUpload = !hasFeedImage || feedCaptionDraftDirty;
+      uploadFeedButton.disabled = disableFeedUpload;
+      uploadFeedButton.classList.toggle("action-button--disabled", disableFeedUpload);
     }
     if (uploadStoryButton) {
       uploadStoryButton.disabled = !hasStoryImage;
@@ -1475,6 +1569,7 @@
     uploadNote?.classList.add("hidden");
     // 피드 미리보기/업로드 버튼/캡션 상태는 캡션 생성 후에만 노출
     uploadFeedButton?.classList.add("hidden");
+    feedCaptionDraftDirty = false;
     const captionStatusResetNode = selectOne("#create-caption-status");
     captionStatusResetNode?.classList.add("hidden");
     if (captionStatusResetNode) captionStatusResetNode.textContent = "";
@@ -2571,6 +2666,7 @@
         });
         lastCaptionResult = null;
         lastStoryResult = null;
+        feedCaptionDraftDirty = false;
         saveHistoryEntry(latestState.create, lastGenerateResult);
         renderGenerateResult(lastGenerateResult);
         setStatus(bootstrapStatus, "광고 생성이 완료되었습니다.", "success");
@@ -2601,28 +2697,22 @@
             is_new_product: Boolean(readState().create.isNewProduct),
           },
         });
-        lastCaptionResult = caption;
-        // NOTE: 별도 캡션 블럭(#result-caption-block) 은 UI 에서 제거됨. 생성된
-        // 캡션/해시태그는 아래 인스타 프리뷰의 .ig-caption 영역에 embed.
+        const savedCaption = composeFeedCaptionText(caption);
+        lastCaptionResult = {
+          ...caption,
+          saved_caption: savedCaption,
+          caption_edited: false,
+        };
+        feedCaptionDraftDirty = false;
         // 캡션 생성 성공 시에만 인스타 피드 미리보기 + 업로드 버튼 + 업로드 안내 노출
         previewBlock?.classList.remove("hidden");
         uploadFeedButton?.classList.remove("hidden");
+        renderFeedCaptionEditor(savedCaption);
         if (uploadNote && uploadNote.innerHTML.trim()) {
           uploadNote.classList.remove("hidden");
         }
-        // 인스타 미리보기의 캡션 영역을 생성된 캡션 + 해시태그로 교체 (Streamlit 방식)
-        const igCaptionNode = previewBlock?.querySelector(".ig-caption");
-        if (igCaptionNode) {
-          const stateForPreview = readState();
-          const brandName = lastBootstrap?.brand?.brand_name || stateForPreview.onboarding.brandName || "우리 가게";
-          const previewHandle = parseInstagramHandle(stateForPreview.onboarding.instagramUrl, brandName);
-          const captionHtml = escapeHtml(caption.caption || "").replace(/\n/g, "<br>");
-          const tagsHtml = escapeHtml(caption.hashtags || "");
-          igCaptionNode.innerHTML = `
-            <b>${escapeHtml(previewHandle)}</b> ${captionHtml}
-            ${tagsHtml ? `<div style="color:#00376b; margin-top:6px;">${tagsHtml}</div>` : ""}
-          `;
-        }
+        updateFeedPreviewCaption(savedCaption);
+        applyUploadButtonState();
         updateLastHistory({ captionReady: true });
         setStatus(captionStatus, "피드 캡션이 준비되었습니다.", "success");
       } catch (error) {
@@ -2676,6 +2766,10 @@
         setStatus(uploadStatus, "업로드할 피드 이미지를 먼저 생성해주세요.", "error");
         return;
       }
+      if (feedCaptionDraftDirty) {
+        setStatus(uploadStatus, "수정 중인 게시글 텍스트를 저장한 뒤 업로드해주세요.", "error");
+        return;
+      }
       if (instagram.expired || !instagram.upload_ready) {
         updateLastHistory({ uploadFeedStatus: "placeholder" });
         const nextNote = buildUploadPlaceholder(instagram, "feed");
@@ -2698,6 +2792,7 @@
             description: latestState.create.productDescription,
             goal: latestState.create.goal,
             caption: buildFeedUploadCaption(lastGenerateResult, lastCaptionResult, latestState),
+            caption_source: getFeedCaptionSource(lastCaptionResult),
             image_data_url: lastGenerateResult.image_data_url,
             generation_output_id: lastGenerateResult.generation_output_id,
           },

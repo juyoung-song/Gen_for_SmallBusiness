@@ -1217,6 +1217,80 @@ nav {
   margin-right: 0.35rem;
 }
 
+.caption-editor {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.caption-editor__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.caption-editor__copy {
+  margin: -0.45rem 0 0;
+  color: #877c68;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.caption-editor__badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.4rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 9999px;
+  background: rgba(112, 200, 59, 0.14);
+  color: #3f5a00;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.caption-editor__badge--dirty {
+  background: rgba(255, 179, 71, 0.16);
+  color: #7a4e00;
+}
+
+.caption-editor__textarea {
+  width: 100%;
+  min-height: 10rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(149, 74, 37, 0.1);
+  border-radius: 1rem;
+  background: rgba(255, 247, 251, 0.92);
+  color: #302719;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+}
+
+.caption-editor__textarea:focus {
+  border-color: rgba(255, 116, 72, 0.35);
+  box-shadow: 0 0 0 3px rgba(255, 116, 72, 0.12);
+}
+
+.caption-editor__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.caption-editor__count {
+  color: #877c68;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.caption-editor__save {
+  min-width: 5.2rem;
+}
+
 .action-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
