@@ -2069,6 +2069,19 @@
     const productImageStatus = selectOne("#create-product-image-status");
     const productImageThumb = selectOne("#create-product-image-thumb");
     const productImageThumbWrap = selectOne("#create-product-image-thumb-wrap");
+    const productCameraButton = selectOne("#create-product-camera-button");
+    const productLibraryButton = selectOne("#create-product-library-button");
+    const productImageRetakeButton = selectOne("#create-product-image-retake");
+    const productCameraPanel = selectOne("#create-product-camera-panel");
+    const productCameraVideo = selectOne("#create-product-camera-video");
+    const productCameraCanvas = selectOne("#create-product-camera-canvas");
+    const productCameraClose = selectOne("#create-product-camera-close");
+    const productCameraCapture = selectOne("#create-product-camera-capture");
+    const productCameraRetake = selectOne("#create-product-camera-retake");
+    const productCameraUse = selectOne("#create-product-camera-use");
+    const productCameraStatus = selectOne("#create-product-camera-status");
+    let productCameraStream = null;
+    let capturedProductImageDataUrl = "";
 
     const showProductImagePreview = (dataUrl) => {
       if (!productImageThumb || !productImageThumbWrap) return;
@@ -2080,6 +2093,95 @@
         productImageThumb.removeAttribute("src");
         productImageThumbWrap.classList.add("hidden");
         productImageTrigger?.classList.remove("hidden");
+      }
+    };
+    const stopProductCamera = () => {
+      if (productCameraStream) {
+        productCameraStream.getTracks().forEach((track) => track.stop());
+      }
+      productCameraStream = null;
+      if (productCameraVideo) {
+        productCameraVideo.srcObject = null;
+      }
+    };
+    const resetProductCameraCapture = () => {
+      capturedProductImageDataUrl = "";
+      productCameraCanvas?.classList.add("hidden");
+      productCameraVideo?.classList.remove("hidden");
+      productCameraCapture?.classList.remove("hidden");
+      productCameraRetake?.classList.add("hidden");
+      productCameraUse?.classList.add("hidden");
+      if (productCameraStatus) productCameraStatus.textContent = "";
+    };
+    const closeProductCamera = () => {
+      stopProductCamera();
+      resetProductCameraCapture();
+      productCameraPanel?.classList.add("hidden");
+    };
+    const saveProductImagePayload = async (payload, source) => {
+      const response = await api("/product-image", {
+        method: "POST",
+        body: {
+          image: payload,
+          source,
+        },
+      });
+      return {
+        name: response.name || payload.name,
+        upload_id: response.upload_id || null,
+        preview_url: response.preview_url || "",
+        source: response.source || source,
+        mime_type: response.mime_type || "",
+        size_bytes: response.size_bytes || 0,
+      };
+    };
+    const applyProductImagePayload = (payload, source) => {
+      patchState({ create: { productImage: payload } });
+      if (productImageStatus) {
+        productImageStatus.textContent =
+          source === "camera"
+            ? "촬영본이 신상품 사진으로 연결되었습니다."
+            : `${payload.name} 파일이 상품 사진으로 업로드 준비되었습니다.`;
+      }
+      showProductImagePreview(payload.preview_url || payload.data_url);
+    };
+    const openProductCamera = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        if (productImageStatus) {
+          productImageStatus.textContent = "현재 브라우저에서는 카메라를 열 수 없어 앨범 선택을 사용해주세요.";
+        }
+        productImageInput?.click();
+        return;
+      }
+
+      try {
+        closeProductCamera();
+        resetProductCameraCapture();
+        productCameraPanel?.classList.remove("hidden");
+        if (productCameraStatus) {
+          productCameraStatus.textContent = "카메라 권한을 확인하는 중입니다.";
+        }
+        productCameraStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1600 },
+            height: { ideal: 1600 },
+          },
+          audio: false,
+        });
+        if (productCameraVideo) {
+          productCameraVideo.srcObject = productCameraStream;
+          await productCameraVideo.play();
+        }
+        if (productCameraStatus) {
+          productCameraStatus.textContent = "상품이 프레임에 들어오면 촬영해주세요.";
+        }
+      } catch (error) {
+        closeProductCamera();
+        if (productImageStatus) {
+          productImageStatus.textContent =
+            "카메라를 열지 못했습니다. 권한을 확인하거나 앨범에서 사진을 선택해주세요.";
+        }
       }
     };
     const referenceUrlInput = selectOne("#create-reference-url");
@@ -2141,8 +2243,10 @@
     if (state.create.productImage && productImageStatus) {
       productImageStatus.textContent = `${state.create.productImage.name} 파일이 상품 사진으로 연결되어 있어요.`;
     }
-    if (state.create.productImage?.data_url) {
-      showProductImagePreview(state.create.productImage.data_url);
+    if (state.create.productImage?.preview_url || state.create.productImage?.data_url) {
+      showProductImagePreview(
+        state.create.productImage.preview_url || state.create.productImage.data_url,
+      );
     }
 
     if (state.create.referenceImage && referenceStatus) {
@@ -2325,19 +2429,84 @@
       }
     });
 
-    productImageTrigger?.addEventListener("click", () => productImageInput?.click());
+    productImageTrigger?.addEventListener("click", () => openProductCamera());
+    productCameraButton?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openProductCamera();
+    });
+    productImageRetakeButton?.addEventListener("click", () => openProductCamera());
+    productLibraryButton?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      productImageInput?.click();
+    });
     selectOne("#create-product-image-reupload")?.addEventListener("click", () =>
       productImageInput?.click(),
     );
+    productCameraClose?.addEventListener("click", closeProductCamera);
+    productCameraCapture?.addEventListener("click", () => {
+      if (!productCameraVideo || !productCameraCanvas) return;
+      const width = productCameraVideo.videoWidth || 1200;
+      const height = productCameraVideo.videoHeight || 1200;
+      const maxSide = 1600;
+      const scale = Math.min(1, maxSide / Math.max(width, height));
+      productCameraCanvas.width = Math.round(width * scale);
+      productCameraCanvas.height = Math.round(height * scale);
+      const context = productCameraCanvas.getContext("2d");
+      if (!context) return;
+      context.drawImage(
+        productCameraVideo,
+        0,
+        0,
+        productCameraCanvas.width,
+        productCameraCanvas.height,
+      );
+      capturedProductImageDataUrl = productCameraCanvas.toDataURL("image/jpeg", 0.9);
+      productCameraVideo.classList.add("hidden");
+      productCameraCanvas.classList.remove("hidden");
+      productCameraCapture.classList.add("hidden");
+      productCameraRetake?.classList.remove("hidden");
+      productCameraUse?.classList.remove("hidden");
+      if (productCameraStatus) {
+        productCameraStatus.textContent = "촬영본을 확인한 뒤 사용해주세요.";
+      }
+    });
+    productCameraRetake?.addEventListener("click", resetProductCameraCapture);
+    productCameraUse?.addEventListener("click", async () => {
+      if (!capturedProductImageDataUrl) return;
+      productCameraUse.disabled = true;
+      if (productCameraStatus) {
+        productCameraStatus.textContent = "촬영본을 업로드 준비 중입니다.";
+      }
+      try {
+        const payload = {
+          name: `new-product-${Date.now()}.jpg`,
+          data_url: capturedProductImageDataUrl,
+        };
+        const savedPayload = await saveProductImagePayload(payload, "camera");
+        applyProductImagePayload(savedPayload, "camera");
+        closeProductCamera();
+      } catch (error) {
+        if (productCameraStatus) {
+          productCameraStatus.textContent = error.message;
+        }
+      } finally {
+        productCameraUse.disabled = false;
+      }
+    });
     productImageInput?.addEventListener("change", async (event) => {
       const [file] = event.target.files || [];
       if (!file) return;
-      const payload = await fileToPayload(file);
-      patchState({ create: { productImage: payload } });
-      if (productImageStatus) {
-        productImageStatus.textContent = `${payload.name} 파일이 상품 사진으로 업로드 준비되었습니다.`;
+      try {
+        const payload = await fileToPayload(file);
+        const savedPayload = await saveProductImagePayload(payload, "library");
+        applyProductImagePayload(savedPayload, "library");
+      } catch (error) {
+        if (productImageStatus) {
+          productImageStatus.textContent = error.message;
+        }
+      } finally {
+        event.target.value = "";
       }
-      showProductImagePreview(payload.data_url);
     });
 
     referenceTrigger?.addEventListener("click", () => referenceInput?.click());
@@ -2374,6 +2543,7 @@
       setStatus(bootstrapStatus, "광고를 생성하는 중입니다. 잠시만 기다려주세요.", "loading");
 
       try {
+        const productImage = latestState.create.productImage;
         lastGenerateResult = await api("/generate", {
           method: "POST",
           body: {
@@ -2385,7 +2555,12 @@
             style: latestState.create.style,
             is_new_product: latestState.create.isNewProduct,
             product_image: latestState.create.isNewProduct
-              ? latestState.create.productImage
+              ? productImage?.data_url
+                ? productImage
+                : null
+              : null,
+            product_image_upload_id: latestState.create.isNewProduct
+              ? productImage?.upload_id || null
               : null,
             existing_product_name: latestState.create.isNewProduct
               ? null
