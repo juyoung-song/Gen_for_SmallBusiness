@@ -2596,11 +2596,19 @@
     productImageInput?.addEventListener("change", async (event) => {
       const [file] = event.target.files || [];
       if (!file) return;
+      const previousProductImage = readState().create.productImage;
       try {
         const payload = await fileToPayload(file);
+        showProductImagePreview(payload.data_url);
+        if (productImageStatus) {
+          productImageStatus.textContent = `${payload.name} 파일을 미리보기에 반영하고 저장 중입니다.`;
+        }
         const savedPayload = await saveProductImagePayload(payload, "library");
         applyProductImagePayload(savedPayload, "library");
       } catch (error) {
+        showProductImagePreview(
+          previousProductImage?.preview_url || previousProductImage?.data_url || "",
+        );
         if (productImageStatus) {
           productImageStatus.textContent = error.message;
         }
