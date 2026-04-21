@@ -575,8 +575,22 @@
     igCaptionNode.innerHTML = `<b>${escapeHtml(handle)}</b> ${captionHtml}`;
   }
 
+  function ensureFeedCaptionBlock() {
+    const existingBlock = selectOne("#result-caption-block");
+    if (existingBlock) return existingBlock;
+
+    const previewBlock = selectOne("#result-preview-block");
+    if (!previewBlock?.parentNode) return null;
+
+    const captionBlock = document.createElement("div");
+    captionBlock.id = "result-caption-block";
+    captionBlock.className = "hidden mt-4";
+    previewBlock.parentNode.insertBefore(captionBlock, previewBlock.nextSibling);
+    return captionBlock;
+  }
+
   function renderFeedCaptionEditor(captionText) {
-    const captionBlock = selectOne("#result-caption-block");
+    const captionBlock = ensureFeedCaptionBlock();
     if (!captionBlock) return;
 
     captionBlock.innerHTML = `
