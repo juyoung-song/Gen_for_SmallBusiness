@@ -1041,8 +1041,11 @@
       });
     });
 
-    customColorTrigger?.addEventListener("click", () => customColorInput?.click());
-    customColorInput?.addEventListener("input", (event) => {
+    customColorTrigger?.addEventListener("click", (event) => {
+      if (!customColorInput || event.target === customColorInput) return;
+      customColorInput.click();
+    });
+    const applyCustomColor = (event) => {
       const value = event.target.value;
       setActiveColor(value);
       patchState({
@@ -1051,7 +1054,9 @@
           analysisContent: "",
         },
       });
-    });
+    };
+    customColorInput?.addEventListener("input", applyCustomColor);
+    customColorInput?.addEventListener("change", applyCustomColor);
 
     logoTrigger?.addEventListener("click", () => logoInput?.click());
     logoInput?.addEventListener("change", async (event) => {

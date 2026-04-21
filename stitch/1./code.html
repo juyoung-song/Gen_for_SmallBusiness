@@ -172,14 +172,14 @@
 <div class="w-20 h-20 mx-auto rounded-full bg-[#8f66ff] hover:scale-105 transition-transform shadow-[0_10px_18px_rgba(143,102,255,0.20)]"></div>
 <span class="text-xs font-medium text-on-surface-variant">베리 바이올렛</span>
 </button>
-<button class="group flex flex-col items-center gap-2" id="brand-color-custom-trigger" type="button">
+<label class="group brand-color-picker-trigger flex flex-col items-center gap-2" for="brand-color-custom-input" id="brand-color-custom-trigger">
 <div class="w-20 h-20 mx-auto rounded-full flex items-center justify-center hover:scale-105 transition-transform bg-[linear-gradient(135deg,#ff8a00,#ff5f6d,#b66dff)] shadow-[0_10px_18px_rgba(255,106,136,0.22)]">
 <span class="material-symbols-outlined text-white" data-icon="add">add</span>
 </div>
 <span class="text-xs font-medium text-on-surface-variant">직접 선택</span>
-</button>
+<input aria-label="브랜드 대표 색상 직접 선택" class="brand-color-picker-control" id="brand-color-custom-input" type="color" value="#ff7448"/>
+</label>
 </div>
-<input class="sr-only" id="brand-color-custom-input" type="color" value="#ff7448"/>
 </div>
 <!-- Brand Vibe Tags -->
 <div class="bg-surface-container-low p-8 rounded-xl flex flex-col paper-card">
