@@ -2648,6 +2648,11 @@
       }
 
       submitButton.disabled = true;
+      if (regenerateButton) {
+        regenerateButton.disabled = true;
+        regenerateButton.classList.add("action-button--disabled");
+        regenerateButton.textContent = "다시 만드는 중";
+      }
       setStatus(bootstrapStatus, "광고를 생성하는 중입니다. 잠시만 기다려주세요.", "loading");
 
       try {
@@ -2687,6 +2692,11 @@
         setStatus(bootstrapStatus, error.message, "error");
       } finally {
         submitButton.disabled = false;
+        if (regenerateButton) {
+          regenerateButton.disabled = false;
+          regenerateButton.classList.remove("action-button--disabled");
+          regenerateButton.textContent = "다시 만들기";
+        }
       }
     });
 

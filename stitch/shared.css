@@ -339,6 +339,9 @@ nav {
 }
 
 .stitch-status {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
   padding: 0.9rem 1rem;
   border-radius: 1rem;
   font-size: 0.9rem;
@@ -356,6 +359,18 @@ nav {
   color: #954a25;
 }
 
+.stitch-status--loading::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  border: 3px solid rgba(149, 74, 37, 0.18);
+  border-top-color: #ff7448;
+  border-right-color: #ff5f6d;
+  animation: brewgram-spin 0.82s linear infinite;
+}
+
 .stitch-status--success {
   background: rgba(112, 200, 59, 0.16);
   color: #3f5a00;
@@ -364,6 +379,18 @@ nav {
 .stitch-status--error {
   background: rgba(245, 105, 101, 0.18);
   color: #ac3434;
+}
+
+@keyframes brewgram-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stitch-status--loading::before {
+    animation-duration: 1.6s;
+  }
 }
 
 .app-shell {
