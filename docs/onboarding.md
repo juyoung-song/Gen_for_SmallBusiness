@@ -4,13 +4,13 @@
 
 주의: 아래 본문에는 `refactor/flow` Streamlit 구현 설명이 일부 남아 있다. 현재 운영 진입점은 `app.py`가 아니라 `mobile_app.py + stitch/*`이며, 이 문서에서는 먼저 현재 모바일 기준 변경점을 정리한다.
 
-1. **브랜드 온보딩** — 사용자 입력 + 인스타 프로필 캡처 + GPT Vision 분석 → `brands` INSERT
+1. **브랜드 온보딩/재분석** — 사용자 입력 + 인스타 프로필 캡처 + GPT Vision 분석 → `brands` 생성 또는 제한적 갱신
 2. **인스타 OAuth 연결** — Meta v19.0 OAuth → long-lived token → `instagram_connections` INSERT + `brands` UPDATE
 
 연관 문서:
-- 데이터 스키마: [schema.md](schema.md)
 - 생성 플로우(광고/업로드): [generation.md](generation.md)
 - 모바일/VM 운영 플로우: [mobile_worker_workflow.md](mobile_worker_workflow.md)
+- 최신 운영 기준: [../README.md](../README.md)
 
 ---
 
@@ -37,6 +37,8 @@ UX 기준:
 - Instagram URL보다 직접 스크린샷 업로드를 우선 추천한다.
 - Instagram URL 캡처가 실패해도 사용자가 입력한 설명과 업로드한 이미지가 있으면 온보딩은 계속 진행한다.
 - 3페이지의 “이렇게 브랜드를 이해했어요” 문구는 최종 저장될 `brands.style_prompt` 미리보기다.
+- 현재는 같은 엔드포인트로 기존 브랜드 정보를 다시 분석해 덮어쓸 수 있다. 다만 브랜드 수정 기능은 아직 완전히 제품화된 상태는 아니고, 특히 로고 유지/교체/제거 정책은 계속 정리 중이다.
+- 로고를 새로 올리지 않으면 기존 `logo_path`를 우선 재사용한다. 기존 로고도 없으면 워드마크 PNG를 자동 생성해 저장한다.
 
 관련 파일:
 - [mobile_app.py](../mobile_app.py)
@@ -49,69 +51,46 @@ UX 기준:
 
 ### 1.1 개요
 
-`brands` 는 서비스의 최상위 엔티티이자 **불변 (원칙 #4)**. 온보딩은 1회성 이벤트이며, `instagram_account_id` 는 NULL 로 INSERT 됐다가 OAuth 연결 시 `link_instagram()` 으로 한 번 채워진다.
+`brands` 는 서비스의 최상위 엔티티다. 초기 설계는 불변 모델에 가까웠지만, 현재 모바일 PWA 흐름에서는 같은 brand row 를 유지한 채 `name`, `color_hex`, `logo_path`, `style_prompt` 를 다시 분석해 갱신할 수 있다.
+
+다만 이 변경은 "브랜드 수정 기능이 완성됐다"는 뜻은 아니다. 현재 구현은 생성/업로드/인스타 연결을 끊지 않고 브랜드 입력값을 다시 반영할 수 있게 확장성을 열어둔 수준이며, 이력 관리와 로고 제거 정책은 아직 완전히 정리되지 않았다.
 
 ### 1.2 진입 & 라우팅
 
-- 앱 시작 시 [app.py:208](../app.py#L208) `_load_brand()` 가 `BrandService.get_first()` 로 Brand 1건을 조회.
-- 없으면 [app.py:214](../app.py#L214) `render_onboarding_screen(settings)` 호출 후 `st.stop()` — 그 외 UI 블록 실행 안 됨.
-- 있으면 `st.session_state.brand_prompt` 와 `_current_brand` 세션 키에 적재 후 생성 화면으로 진행.
+- 모바일 앱은 `GET /api/mobile/bootstrap` 로 현재 brand 존재 여부와 `onboarding_completed` 상태를 본다.
+- brand 가 없으면 Stitch 온보딩 화면(`welcome` → `1.` → `2.` → `3.`)으로 이동한다.
+- 온보딩 2단계의 `분석하기`는 `POST /api/mobile/onboarding/complete` 를 호출한다.
+- 동일 입력이고 새 로고/새 참고 이미지가 없으면 서버는 `status="existing"` 으로 기존 분석 결과를 그대로 돌려줄 수 있다.
+- 입력값이나 참고 자산이 달라지면 서버는 같은 엔드포인트에서 브랜드를 재분석하고, 신규면 `create`, 기존이면 `update_profile` 로 반영한다.
 
 ### 1.3 실행 플로우
 
-```
-사용자가 앱 접속
-  └─ app.py:208  _load_brand()  → Brand | None
-        │
-        │  Brand 없음
-        ▼
-   ui/onboarding.py:32  render_onboarding_screen(settings)
-        │
-        │  session_state.onboarding_draft == None  →  _render_input_stage()
-        ├─ ui/onboarding.py:53  _render_input_stage()
-        │     입력 3섹션:
-        │       ① 이름 / 컬러 / 분위기 / 로고
-        │       ② 가게 설명 (textarea)
-        │       ③ 추구미 인스타 URL
-        │     "분석 시작" 버튼:
-        │       │
-        │       ├─ save_to_brand_assets()    (로고 있으면)
-        │       │     → data/brand_assets/<uuid>.<ext>
-        │       │
-        │       ├─ InstaCaptureBackend()                   (backends/insta_capture.py)
-        │       │     browser-use CLI: open → state → close-login-modal
-        │       │                     → screenshot → scroll → screenshot
-        │       │     → [Path(ref_1.png), Path(ref_2.png)]
-        │       │
-        │       ├─ GPTVisionAnalyzer(settings)             (services/onboarding_service.py:147)
-        │       │     _merge_structured_inputs_into_freetext()
-        │       │     build_vision_analysis_prompt()       (services/onboarding_service.py:33)
-        │       │     OpenAI chat.completions.create(
-        │       │       name="onboarding.vision_brand_style",  ← Langfuse observation
-        │       │       model=TEXT_MODEL,
-        │       │       messages=[text + image_url × N],
-        │       │       timeout=TEXT_TIMEOUT (기본 90s))
-        │       │
-        │       └─ BrandDraft 생성                         (services/onboarding_service.py:109)
-        │             → session_state.onboarding_draft
-        │             → st.rerun()
-        │
-        │  session_state.onboarding_draft 존재  →  _render_review_stage()
-        └─ ui/onboarding.py:172  _render_review_stage(settings, draft)
-              │  "타협 모드" UX — 큰 확정 버튼 + 작은 수정 버튼
-              │
-              ├─ [👍 이대로 확정]  →  _persist_draft()
-              │     │
-              │     ├─ BrandService(session)                   (services/brand_service.py:21)
-              │     ├─ OnboardingService(...).finalize(draft)
-              │     └─ BrandService.create(...)                (services/brand_service.py:45)
-              │           → brands INSERT
-              │           → session_state.onboarding_done = True
-              │           → st.rerun()  →  (다음 렌더에서 _load_brand() 성공)
-              │
-              ├─ [✏️ 수정]  →  onboarding_edit_mode=True → textarea → with_edited_style_prompt()
-              │
-              └─ [🔁 처음부터]  →  onboarding_draft=None → st.rerun()
+```text
+사용자가 모바일 온보딩 진행
+  │
+  ├─ 브랜드 이름 / 대표 색상 / 분위기 / 설명 / 로고 입력
+  ├─ 참고 이미지 최대 4장 업로드
+  ├─ (선택) Instagram URL 입력
+  │
+  └─ POST /api/mobile/onboarding/complete
+       │
+       ├─ 로고 결정
+       │    1) 새 로고 업로드 → brand_assets 저장
+       │    2) 기존 brand.logo_path 존재 → 기존 로고 재사용
+       │    3) 둘 다 없으면 → 워드마크 PNG 자동 생성
+       │
+       ├─ 참고 이미지 저장
+       ├─ Instagram URL 있으면
+       │    Mac 캡처 워커 우선 → 실패 시 VM fallback 캡처
+       │
+       ├─ 분석 이미지가 있고 API 준비됨
+       │    → GPT Vision 분석으로 style_prompt 생성
+       │
+       ├─ 분석 이미지가 없거나 API 미준비
+       │    → 구조화 입력을 합친 텍스트 기반 content 사용
+       │
+       └─ BrandService.create(...) 또는 update_profile(...)
+            → brand 생성/제한적 갱신
 ```
 
 ### 1.4 프롬프트 흐름
@@ -157,7 +136,7 @@ client.chat.completions.create(
 
 | 필드 | 비고 |
 |------|------|
-| `name` / `color_hex` / `logo_path` | 사용자 입력 그대로 |
+| `name` / `color_hex` / `logo_path` | 사용자 입력 또는 자동 생성/기존 재사용 결과 |
 | `input_instagram_url` / `input_description` / `input_mood` | 추적성 보장 — 분석 소스 박제 |
 | `style_prompt` | GPT 분석 결과. 검수 단계에서 `with_edited_style_prompt()` 로만 수정 |
 
@@ -170,7 +149,7 @@ client.chat.completions.create(
 - 아이덴티티: `name`, `color_hex`, `logo_path`
 - 스타일 입력: `input_instagram_url`, `input_description`, `input_mood`
 - 스타일 결과: `style_prompt`
-- 메타: `created_at` (updated_at 없음 — 불변 원칙)
+- 메타: `created_at` (현재도 `updated_at` 은 없음. 같은 row 를 갱신하지만 변경 이력 컬럼은 아직 없다)
 
 ### 1.6 세션 키
 

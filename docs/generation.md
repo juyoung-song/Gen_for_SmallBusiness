@@ -14,7 +14,18 @@
 5. **인스타 업로드** — Meta Graph API v19.0, feed/story
 6. **히스토리 탭** — 게시된 `generated_uploads` 목록
 
-관련 문서: [onboarding.md](onboarding.md), [schema.md](schema.md).
+관련 문서: [onboarding.md](onboarding.md), [mobile_worker_workflow.md](mobile_worker_workflow.md), [../README.md](../README.md).
+
+## 0. 현재 모바일 PWA 기준 차이
+
+이 문서는 Streamlit `app.py` 기준 설명이 많다. 현재 VM에서 운영하는 모바일 앱(`mobile_app.py` + Stitch) 기준으로는 아래 차이를 먼저 보고 읽는 편이 맞다.
+
+- 신상품 사진은 생성 화면에서 바로 `촬영` 또는 `앨범`을 고른 뒤 `POST /api/mobile/product-image`로 먼저 업로드한다. `/api/mobile/generate`는 그 `upload_id`를 받아 생성한다.
+- 기존 상품은 `GET /api/mobile/products`로 목록을 불러와 최근 raw 이미지를 다시 쓴다.
+- 참고 구도 입력은 현재 업로드 이미지 1장 기준이다. `reference_url` UI는 없다.
+- 피드 캡션은 생성 후 사용자가 수정할 수 있고, `저장`을 눌러야만 미리보기와 업로드 본문이 바뀐다.
+- 브랜드는 더 이상 "완전 불변" 전제만으로 보지 않는다. 현재 모바일 흐름에서는 같은 브랜드 row를 제한적으로 갱신할 수 있다.
+- 로고를 새로 올리지 않으면 기존 `logo_path`를 재사용하고, 기존 로고도 없으면 워드마크 PNG를 자동 생성한다. 현재 이미지 생성 파이프라인은 이 `logo_path`를 계속 사용한다.
 
 ---
 

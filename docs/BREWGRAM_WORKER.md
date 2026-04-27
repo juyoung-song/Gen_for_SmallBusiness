@@ -26,7 +26,7 @@ Internet
 - `openai_image` 모드에서는 `worker_api`를 띄우지 않아도 된다.
 - `remote_worker` 모드에서는 `mobile_app`가 내부 `worker_api`를 호출한다.
 - 앱 데이터는 repo 밖 `/srv/brewgram/data`에 둬서 `git pull`이나 재배포와 분리한다.
-- 운영 기준 브랜치는 배포 시점에 명시한다. 현재 테스트 브랜치는 `codex/oauth-only-mobile-upload`다.
+- 운영 기준 브랜치는 `main`이다. 배포 시에도 기본적으로 `origin/main`을 기준으로 맞춘다.
 
 ## 2. 현재 기준 값
 
@@ -157,8 +157,8 @@ sudo systemctl daemon-reload
 ```bash
 cd ~/Gen_for_SmallBusiness
 git fetch origin
-git switch codex/oauth-only-mobile-upload
-git pull --ff-only origin codex/oauth-only-mobile-upload
+git switch main
+git pull --ff-only origin main
 uv sync
 uv run python -m playwright install chromium
 sudo systemctl daemon-reload
@@ -296,7 +296,7 @@ VM 반영은 6번의 수동 배포 절차를 기준으로 한다.
 
 주의:
 - `/usr/local/bin/deploy-brewgram.sh`는 VM에 남겨둘 수 있다. 필요하면 VM SSH에서 직접 실행한다.
-- 예: `BREWGRAM_DEPLOY_BRANCH=codex/oauth-only-mobile-upload deploy-brewgram.sh`
+- 예: `BREWGRAM_DEPLOY_BRANCH=main deploy-brewgram.sh`
 - 브랜치를 바꿀 때는 `BREWGRAM_DEPLOY_BRANCH` 값만 바꾼다.
 - `deploy-brewgram.sh`는 `uv sync` 후 Playwright 브라우저 바이너리(`chromium`)를 설치한다.
 - OS 패키지 설치가 필요한 `playwright install-deps chromium`은 `sudo apt`를 건드리므로 VM 최초 세팅 때만 수동 실행한다.

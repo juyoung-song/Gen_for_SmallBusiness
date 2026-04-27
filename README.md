@@ -30,10 +30,12 @@ IMAGE_BACKEND_KIND=remote_worker
 
 ## 주요 기능
 
-- 브랜드 온보딩: 브랜드 이름, 색상, 분위기, 설명, 로고, 직접 업로드한 스크린샷을 기반으로 브랜드 분석 글을 생성합니다.
+- 브랜드 온보딩/재분석: 브랜드 이름, 색상, 분위기, 설명, 로고, 직접 업로드한 스크린샷을 기반으로 브랜드 분석 글을 생성합니다. 같은 `POST /api/mobile/onboarding/complete` 경로로 기존 브랜드를 다시 분석해 덮어쓸 수 있지만, 브랜드 수정 UX/정책은 아직 다듬는 중입니다.
 - 인스타 레퍼런스 캡처: VM IP가 Instagram 429에 막히는 경우를 피하기 위해 Mac 로컬 캡처 워커를 Cloudflare Tunnel로 연결할 수 있습니다.
-- 상품 생성 플로우: 신상품 여부를 먼저 선택하고, 신상품이면 상품 사진을 업로드합니다. 기존 상품이면 DB에 저장된 기존 상품 이미지를 재사용합니다.
+- 상품 생성 플로우: 신상품이면 생성 화면에서 바로 촬영하거나 앨범에서 고른 뒤 `/api/mobile/product-image`로 먼저 업로드하고, 생성 요청에서는 `upload_id`로 연결합니다. 기존 상품이면 DB에 저장된 기존 상품 이미지를 재사용합니다.
 - 광고 생성: 텍스트만, 이미지만, 텍스트+이미지 생성을 지원합니다.
+- 피드 캡션 편집: 생성된 캡션을 사용자가 수정한 뒤 `저장`하면, 저장된 버전으로 인스타 미리보기와 피드 업로드 본문이 함께 바뀝니다.
+- 로고 처리: 로고를 새로 올리지 않으면 기존 `logo_path`를 재사용하고, 기존 로고도 없으면 워드마크 PNG를 자동 생성해 현재 이미지 생성 파이프라인에 넣습니다.
 - 인스타 업로드: 기본은 사용자가 OAuth로 연결한 Instagram professional account에만 게시합니다. 내부 데모에서는 `ALLOW_DEFAULT_INSTAGRAM_UPLOAD=true`로 VM 고정 계정 업로드를 명시적으로 켤 수 있습니다.
 - Langfuse 추적: 브라우저별 익명 `client_id`와 세션 ID를 요청 헤더로 보내 모바일 생성·캡션·업로드 흐름을 추적합니다.
 
@@ -49,7 +51,7 @@ backends/                             # 이미지/텍스트 백엔드
 models/                               # SQLAlchemy ORM
 config/settings.py                    # 환경변수 설정
 docs/mobile_worker_workflow.md        # 모바일 생성/관측 흐름
-BREWGRAM_WORKER.md                    # VM 운영 가이드
+docs/BREWGRAM_WORKER.md               # VM 운영 가이드
 infra/                                # Caddy/systemd/deploy 템플릿
 ```
 
@@ -129,8 +131,8 @@ IMAGE_WORKER_TOKEN=...
 ```bash
 cd ~/Gen_for_SmallBusiness
 git fetch origin
-git switch codex/oauth-only-mobile-upload
-git pull --ff-only origin codex/oauth-only-mobile-upload
+git switch main
+git pull --ff-only origin main
 uv sync
 
 set -a
@@ -222,12 +224,12 @@ systemd 운영이면 `pkill` 대신 `sudo systemctl stop/start brewgram-mobile.s
 
 ## 문서
 
-- [BREWGRAM_WORKER.md](BREWGRAM_WORKER.md): VM 운영 절차
+- [docs/BREWGRAM_WORKER.md](docs/BREWGRAM_WORKER.md): VM 운영 절차
 - [docs/mobile_worker_workflow.md](docs/mobile_worker_workflow.md): 생성/업로드/Langfuse 흐름
 - [docs/onboarding.md](docs/onboarding.md): 온보딩과 Instagram 캡처 흐름
-- [docs/schema.md](docs/schema.md): 현재 DB 스키마
-- [docs/schema_migration.md](docs/schema_migration.md): 구 스키마에서 신 스키마로의 변경점
+- [docs/generation.md](docs/generation.md): 레거시 생성 플로우와 현재 모바일 흐름 차이
+- [infra/README.md](infra/README.md): Caddy/systemd/deploy 템플릿과 VM 세팅 가이드
 
 ## 레거시 문서 주의
 
-`VM_WORKER.md`, `VM_RESTART.md`, `docs/architecture.md`, `docs/PRD.md`, `docs/stack.md`, `docs/design.md`, `docs/generation.md`는 과거 Streamlit 또는 “Mac local app + VM worker” 기준 내용이 섞여 있습니다. 현재 운영 기준은 이 README, `BREWGRAM_WORKER.md`, `docs/mobile_worker_workflow.md`를 우선합니다.
+`docs/architecture.md`, `docs/PRD.md`, `docs/stack.md`, `docs/generation.md`는 과거 Streamlit 또는 “Mac local app + VM worker” 기준 내용이 섞여 있습니다. 현재 운영 기준은 이 README, `docs/BREWGRAM_WORKER.md`, `docs/mobile_worker_workflow.md`를 우선합니다.

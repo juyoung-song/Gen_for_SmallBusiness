@@ -58,15 +58,15 @@ flowchart TD
     Validate["validate payload<br/>product_name required"]
     LoadBrand["load latest Brand<br/>build brand_prompt"]
     DecodeProduct["decode product_image<br/>only required when is_new_product=true"]
-    DecodeReference["decode reference_image or download reference_url"]
-    PickImageInput["product image 선택<br/>new: uploaded product image<br/>existing: DB product image"]
-    AnalyzeReference{"is_new_product<br/>and image generation<br/>and reference exists?"}
+    DecodeReference["decode optional reference_image"]
+    PickImageInput["product image 선택<br/>new: uploaded image via /product-image<br/>existing: DB product image"]
+    AnalyzeReference{"reference image exists?"}
     RefAnalysis["ReferenceAnalyzer<br/>composition-only analysis<br/>TEXT_MODEL"]
     NeedText{"generation_type<br/>text or both?"}
     TextNode["TextService.generate_ad_copy<br/>OpenAIGPTBackend<br/>TEXT_MODEL"]
     NeedImage{"generation_type<br/>image or both?"}
     MobileImage["Mobile ImageService.generate_ad_image<br/>build image prompt<br/>TEXT_MODEL"]
-    BackendChoice{"IMAGE_BACKEND_KIND"}
+    BackendChoice{"IMAGE_BACKEND_KIND<br/>default=openai_image"}
     OpenAIImageNode["OpenAIImageBackend<br/>gpt-image multi-input"]
     RemoteCall["RemoteWorkerBackend<br/>POST /generate-image<br/>Bearer IMAGE_WORKER_TOKEN"]
     WorkerDecode["worker_api decodes base64<br/>build ImageGenerationRequest"]
@@ -107,10 +107,11 @@ GenerationState
 
 현재 브랜치의 이미지 입력 규칙:
 
-- `is_new_product=true`: `product_image`가 필수이며, 이 이미지는 상품의 생김새 참조로 들어간다.
+- `is_new_product=true`: 생성 화면에서 카메라 촬영 또는 앨범 선택 후 `POST /api/mobile/product-image`로 먼저 업로드한다. 이후 `/api/mobile/generate`에는 `product_image_upload_id`를 우선 전달하고, 필요할 때만 inline `product_image`를 fallback으로 쓴다.
 - `is_new_product=false`: UI에서 `/api/mobile/products`로 기존 상품 목록을 불러오고, 사용자가 고른 `existing_product_name`으로 DB에 저장된 최근 상품 raw 이미지를 다시 읽어 이미지 생성에 사용한다.
-- 별도 `reference_image` 또는 `reference_url`이 있으면, 이미지는 구도 분석용 `reference_analysis`로 들어간다. 브랜드 톤/색감이 아니라 구도만 참고시키는 것이 목적이다.
+- 별도 `reference_image`가 있으면, 이미지는 구도 분석용 `reference_analysis`로 들어간다. 브랜드 톤/색감이 아니라 구도만 참고시키는 것이 목적이다.
 - 텍스트 생성에는 `reference_bytes`가 있으면 이미지 힌트로 전달되지만, 실제 문구는 상품명/설명/브랜드 가이드 중심으로 생성된다.
+- 현재 `openai_image` 기본 경로에서는 브랜드의 `logo_path`가 항상 이미지 생성 입력에 포함된다. 새 로고가 없으면 기존 로고를 재사용하고, 기존 로고도 없으면 온보딩에서 워드마크 PNG를 자동 생성해 넣는다.
 
 ## 3. Sequence Diagram
 
@@ -124,6 +125,12 @@ sequenceDiagram
     participant Diffusers as Local diffusers backend
     participant DB as SQLite /srv/brewgram/data/history.db
 
+    opt new product image selected in mobile UI
+        Browser->>Mobile: POST /api/mobile/product-image
+        Mobile->>DB: save staging file + pending upload_id map
+        Mobile-->>Browser: upload_id + preview_url
+    end
+
     Browser->>Mobile: POST /api/mobile/generate
     Browser->>Mobile: X-Brewgram-Client-Id / Session-Id / Page / Install-State
     Mobile->>Langfuse: start span + propagate user_id/session_id/tags
@@ -135,18 +142,23 @@ sequenceDiagram
     end
 
     alt image or both
-        opt new product with reference image
+        opt reference image provided
             Mobile->>OpenAI: Analyze composition with TEXT_MODEL
             OpenAI-->>Mobile: reference_analysis
         end
         Mobile->>OpenAI: Translate image prompt to English with TEXT_MODEL
         OpenAI-->>Mobile: English image prompt
-        Mobile->>Worker: POST /generate-image with Bearer token
-        Worker->>OpenAI: Translate worker image prompt with TEXT_MODEL
-        OpenAI-->>Worker: English prompt
-        Worker->>Diffusers: Generate image with local backend
-        Diffusers-->>Worker: PNG bytes
-        Worker-->>Mobile: base64 image_data
+        alt IMAGE_BACKEND_KIND=openai_image (default)
+            Mobile->>OpenAI: Generate image with product image + logo + optional reference image
+            OpenAI-->>Mobile: PNG bytes
+        else IMAGE_BACKEND_KIND=remote_worker
+            Mobile->>Worker: POST /generate-image with Bearer token
+            Worker->>OpenAI: Translate worker image prompt with TEXT_MODEL
+            OpenAI-->>Worker: English prompt
+            Worker->>Diffusers: Generate image with local backend
+            Diffusers-->>Worker: PNG bytes
+            Worker-->>Mobile: base64 image_data
+        end
     end
 
     Mobile->>DB: Save generation and outputs
@@ -234,7 +246,7 @@ flowchart TD
 
 | Trace name | Endpoint | 조건 | 주요 tag | 주요 metadata |
 |---|---|---|---|---|
-| `onboarding.analysis` | `POST /api/mobile/onboarding` | 분석 이미지가 있고 `OPENAI_API_KEY`가 준비된 경우 | `surface:mobile`, `feature:onboarding`, `page:*`, `install:*` | `analysis_image_count`, `has_instagram_url`, `request_path` |
+| `onboarding.analysis` | `POST /api/mobile/onboarding/complete` | 분석 이미지가 있고 `OPENAI_API_KEY`가 준비된 경우 | `surface:mobile`, `feature:onboarding`, `page:*`, `install:*` | `analysis_image_count`, `has_instagram_url`, `request_path` |
 | `generation.text_only` | `POST /api/mobile/generate` | `generation_type=text` | `surface:mobile`, `feature:generation`, `generation_type:text`, `page:*`, `install:*` | `product_name_length`, `description_length`, `is_new_product`, `has_reference_image`, `has_product_image` |
 | `generation.image_only` | `POST /api/mobile/generate` | `generation_type=image` | `surface:mobile`, `feature:generation`, `generation_type:image`, `page:*`, `install:*` | 위와 동일 |
 | `generation.combined` | `POST /api/mobile/generate` | `generation_type=both` | `surface:mobile`, `feature:generation`, `generation_type:both`, `page:*`, `install:*` | 위와 동일 |
@@ -289,13 +301,23 @@ Langfuse에서 볼 때 유용한 필터:
 | Endpoint | Process | Worker 사용 | 역할 |
 |---|---|---:|---|
 | `GET /health` | `mobile_app.py` | no | mobile 앱 상태와 `IMAGE_BACKEND_KIND` 확인 |
-| `POST /api/mobile/onboarding` | `mobile_app.py` | no | 브랜드 입력 저장, 이미지 분석, 브랜드 가이드 생성 |
+| `POST /api/mobile/onboarding/complete` | `mobile_app.py` | no | 브랜드 입력 저장, 이미지 분석, 브랜드 가이드 생성 또는 제한적 프로필 갱신 |
+| `POST /api/mobile/product-image` | `mobile_app.py` | no | 신상품 촬영/앨범 이미지를 staging에 저장하고 `upload_id` + `preview_url` 반환 |
 | `POST /api/mobile/generate` | `mobile_app.py` | only when `IMAGE_BACKEND_KIND=remote_worker` and image/both | 광고 문구와 이미지 생성, DB 저장 |
 | `POST /generate-image` | `worker_api.py` | n/a | `remote_worker` 모드의 내부 이미지 생성 API. 현재 브라우저 `client_id`는 여기까지 전파되지 않음 |
 | `POST /api/mobile/caption` | `mobile_app.py` | no | 생성된 광고 문구 기반 인스타 캡션 생성 |
 | `POST /api/mobile/story` | `mobile_app.py` | no | 생성 이미지를 9:16 스토리 이미지로 합성 |
 | `POST /api/mobile/upload/feed` | `mobile_app.py` | no | 인스타 피드 업로드 및 업로드 기록 저장 |
 | `POST /api/mobile/upload/story` | `mobile_app.py` | no | 인스타 스토리 업로드 및 업로드 기록 저장 |
+
+### 5.1 Mobile Create UI Notes
+
+- 신상품 사진은 생성 화면에서 바로 `촬영` 또는 `앨범`을 고르는 구조다. 선택 직후 미리보기를 먼저 바꾸고, 백엔드가 반환한 `preview_url` / `upload_id`로 상태를 확정한다.
+- `다시 만들기`는 별도 생성 파이프라인이 아니라 메인 생성 버튼과 같은 요청 경로를 다시 탄다. 현재 상세 옵션 상태를 다시 읽어 같은 `/api/mobile/generate`로 보낸다.
+- 현재 생성 화면의 참고 구도 입력은 업로드 이미지 1장 기준이다. URL 입력 UI는 제공하지 않는다.
+- 캡션 생성 후에는 사용자가 텍스트를 수정할 수 있다. 수정 내용은 `저장`을 눌렀을 때만 인스타 미리보기와 피드 업로드 payload에 반영된다.
+- 저장 전에는 마지막 저장본이 유지된다. 따라서 "생성된 원본 캡션"과 "편집 중 draft"를 구분해 보는 것이 현재 UX 의도다.
+- 현재 이미지 생성 파이프라인은 `brand.logo_path`를 전제로 움직인다. 로고를 새로 올리지 않으면 기존 로고를 쓰고, 기존 로고도 없으면 온보딩 시 자동 워드마크를 생성한다.
 
 ## 6. Instagram Capture Worker
 
@@ -662,7 +684,7 @@ worker health 정상 예시:
 배포 후 최신 코드 반영:
 
 ```bash
-BREWGRAM_DEPLOY_BRANCH=codex/oauth-only-mobile-upload deploy-brewgram.sh
+BREWGRAM_DEPLOY_BRANCH=main deploy-brewgram.sh
 ```
 
 수동으로 같은 일을 하려면:
@@ -670,8 +692,8 @@ BREWGRAM_DEPLOY_BRANCH=codex/oauth-only-mobile-upload deploy-brewgram.sh
 ```bash
 cd ~/Gen_for_SmallBusiness
 git fetch origin
-git switch merge/dev
-git pull --ff-only origin merge/dev
+git switch main
+git pull --ff-only origin main
 uv sync
 uv run python -m playwright install chromium
 sudo systemctl daemon-reload
