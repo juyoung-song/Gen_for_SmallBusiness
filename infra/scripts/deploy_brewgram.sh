@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_DIR="${BREWGRAM_APP_DIR:-/home/spai0608/Gen_for_SmallBusiness}"
-BRANCH="${BREWGRAM_DEPLOY_BRANCH:-merge/dev}"
+BRANCH="${BREWGRAM_DEPLOY_BRANCH:-main}"
 UV_BIN="${BREWGRAM_UV_BIN:-/home/spai0608/.local/bin/uv}"
 PLAYWRIGHT_BROWSER="${BREWGRAM_PLAYWRIGHT_BROWSER:-chromium}"
 
