@@ -5,9 +5,9 @@
 현재 기준 진입점은 `mobile_app.py` + Stitch 정적 UI입니다. 사용자는 `https://brewgram.duckdns.org`에 접속해 PWA처럼 사용하고, 브랜드 온보딩, 상품 기반 광고 생성, 인스타그램 피드/스토리 업로드까지 진행합니다.
 
 ## 개인 협업일지
-원성일 : https://www.notion.so/Brewgram-wonbywondev-34ee4a296d9d81169b48e20e0ace2aa0
-송주영 : https://www.notion.so/3-Daily-34f0ddb4d3a880f79383c44d8e250625?source=copy_link
-이소윤 : https://www.notion.so/336fe536d3cf8027adb4f173a8da10a1
+- 원성일 : https://www.notion.so/Brewgram-wonbywondev-34ee4a296d9d81169b48e20e0ace2aa0
+- 송주영 : https://www.notion.so/3-Daily-34f0ddb4d3a880f79383c44d8e250625?source=copy_link
+- 이소윤 : https://www.notion.so/336fe536d3cf8027adb4f173a8da10a1
 
 ## 보고서
 
