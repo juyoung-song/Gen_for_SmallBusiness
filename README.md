@@ -10,6 +10,7 @@
 - 이소윤 : https://www.notion.so/336fe536d3cf8027adb4f173a8da10a1
 
 ## 보고서
+https://drive.google.com/file/d/1984ubFQabYyaW-PpzyKA9yUhpzQYcEgP/view?usp=sharing
 
 
 ## 현재 구조
